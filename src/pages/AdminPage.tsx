@@ -54,7 +54,10 @@ export function AdminPage() {
       setTeams(tms);
 
       if (tourns.length > 0) setSelectedTournament(tourns[0].id);
-      if (divs.length > 0) setSelectedDivision(divs[0].id);
+      if (divs.length > 0) {
+        const defaultDiv = divs.find(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name)) || divs[0];
+        setSelectedDivision(defaultDiv.id);
+      }
       if (zns.length > 0) setSelectedZone(zns[0].id);
     }
     loadBase();

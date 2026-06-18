@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '../App';
 import { authenticateUser, fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches, saveMatchResult } from '../lib/db';
-import { loadAuth, clearAuth, AuthUser } from '../lib/auth';
+import { loadAuth, clearAuth, type AuthUser } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 
 export function AdminPage() {

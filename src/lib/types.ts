@@ -1,6 +1,7 @@
 export interface Team {
   id: string;
-  name: string;
+  name: string;           // nombre canonical completo
+  display_name?: string;  // nombre corto para la UI (opcional)
   logo_url: string | null;
   deleted_at?: string | null;
 }

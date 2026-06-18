@@ -1,12 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
-import { MOCK_TEAMS_CAMPEONATO, MOCK_TEAMS_PROMOCION, MOCK_MATCHES_CAMPEONATO, MOCK_MATCHES_PROMOCION, MOCK_TOURNAMENTS } from '../lib/mockData';
 import { calculateStandings } from '../lib/standings';
 import { Shield } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
+import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
+
+function getCategoryYear(divisionName: string, tournamentYear: number): number {
+  const match = divisionName.match(/(\d+)/);
+  if (!match) return 0;
+  return parseInt(match[1]) + tournamentYear - 23;
+}
 
 export function DivisionPage() {
   const { name } = useParams();
@@ -14,30 +21,112 @@ export function DivisionPage() {
   const [tab, setTab] = useState<'posiciones' | 'fixture'>('posiciones');
   const [selectedRound, setSelectedRound] = useState<number>(1);
   
-  // Filtros
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('t1'); // Apertura 2026
-
-  const teams = zone === 'campeonato' ? MOCK_TEAMS_CAMPEONATO : MOCK_TEAMS_PROMOCION;
-  const allMatches = zone === 'campeonato' ? MOCK_MATCHES_CAMPEONATO : MOCK_MATCHES_PROMOCION;
+  // Datos cargados dinámicamente
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
   
-  // Filtrar los partidos por el torneo seleccionado
-  const matches = useMemo(() => {
-    return allMatches.filter(m => m.tournament_id === selectedTournamentId);
-  }, [allMatches, selectedTournamentId]);
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // 1. Cargar datos base al montar
+  useEffect(() => {
+    async function loadBaseData() {
+      try {
+        const [tourns, divs, zns, tms] = await Promise.all([
+          fetchTournaments(),
+          fetchDivisions(),
+          fetchZones(),
+          fetchTeams(),
+        ]);
+        setTournaments(tourns);
+        setDivisions(divs);
+        setZones(zns);
+        setAllTeams(tms);
+
+        if (tourns.length > 0) {
+          setSelectedYear(tourns[0].year);
+          setSelectedTournamentId(tourns[0].id);
+        }
+      } catch (err) {
+        console.error('Error loading base data:', err);
+      }
+    }
+    loadBaseData();
+  }, []);
+
+  // 2. Cargar partidos filtrados cuando cambien los filtros o la ruta
+  useEffect(() => {
+    if (divisions.length === 0 || zones.length === 0 || !selectedTournamentId) return;
+
+    async function loadFilteredMatches() {
+      setLoading(true);
+      try {
+        // Encontrar UUID de división correspondiente al nombre de la URL
+        const currentDiv = divisions.find(d => d.name === name) || divisions[0];
+        // Encontrar UUID de la zona (Campeonato vs Promoción)
+        const currentZone = zones.find(z => z.name.toLowerCase() === zone.toLowerCase()) || zones[0];
+
+        const data = await fetchMatches(currentDiv.id, currentZone.id, selectedTournamentId);
+        setMatches(data);
+
+        const roundsList = Array.from(new Set(data.map(m => m.round_number))).sort((a, b) => a - b);
+        if (roundsList.length > 0) {
+          if (!roundsList.includes(selectedRound)) {
+            setSelectedRound(roundsList[0]);
+          }
+        } else {
+          setSelectedRound(1);
+        }
+      } catch (err) {
+        console.error('Error loading matches:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadFilteredMatches();
+  }, [name, zone, selectedTournamentId, divisions, zones]);
+
+  // 3. Filtrar los equipos de la zona seleccionada
+  const teams = useMemo(() => {
+    if (allTeams.length === 0) return [];
+    
+    // Si estamos en modo mock local (los IDs empiezan con 'camp-team' o 'prom-team')
+    if (allTeams[0].id.includes('team')) {
+      return zone === 'campeonato' 
+        ? allTeams.filter(t => t.id.startsWith('camp-team'))
+        : allTeams.filter(t => t.id.startsWith('prom-team'));
+    }
+    
+    // Si estamos con Supabase real, filtramos los equipos basándonos en los partidos cargados
+    const activeTeamIds = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
+    return allTeams.filter(t => activeTeamIds.has(t.id));
+  }, [allTeams, zone, matches]);
 
   const standings = useMemo(() => calculateStandings(matches, teams), [matches, teams]);
   
-  // Agrupar partidos por fecha (solo los del torneo actual)
-  const rounds = Array.from(new Set(matches.map(m => m.round_number))).sort((a, b) => a - b);
-  const matchesByRound = matches.filter(m => m.round_number === selectedRound);
-
-  // Obtener nombre del torneo actual para la UI
-  const currentTournament = MOCK_TOURNAMENTS.find(t => t.id === selectedTournamentId);
+  const rounds = useMemo(() => {
+    return Array.from(new Set(matches.map(m => m.round_number))).sort((a, b) => a - b);
+  }, [matches]);
   
-  // Años únicos
-  const uniqueYears = Array.from(new Set(MOCK_TOURNAMENTS.map(t => t.year))).sort((a, b) => b - a);
-  const tournamentsForYear = MOCK_TOURNAMENTS.filter(t => t.year === selectedYear);
+  const matchesByRound = useMemo(() => {
+    return matches.filter(m => m.round_number === selectedRound);
+  }, [matches, selectedRound]);
+
+  const currentTournament = useMemo(() => {
+    return tournaments.find(t => t.id === selectedTournamentId);
+  }, [tournaments, selectedTournamentId]);
+  
+  const uniqueYears = useMemo(() => {
+    return Array.from(new Set(tournaments.map(t => t.year))).sort((a, b) => b - a);
+  }, [tournaments]);
+
+  const tournamentsForYear = useMemo(() => {
+    return tournaments.filter(t => t.year === selectedYear);
+  }, [tournaments, selectedYear]);
 
   return (
     <motion.div
@@ -49,9 +138,9 @@ export function DivisionPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
-            {name}
+            {name} <span className="text-2xl font-semibold text-muted-foreground/70">({getCategoryYear(name ?? '', selectedYear)})</span>
           </h1>
-          <p className="text-muted-foreground mt-1">Temporada {selectedYear} - Torneo {currentTournament?.name}</p>
+          <p className="text-muted-foreground mt-1">Temporada {selectedYear} - Torneo {currentTournament?.name ?? '—'}</p>
         </div>
         <div className="flex bg-muted/50 p-1.5 rounded-xl backdrop-blur-sm border border-border/50">
           <button
@@ -100,7 +189,7 @@ export function DivisionPage() {
             onChange={(e) => {
               const year = Number(e.target.value);
               setSelectedYear(year);
-              const tourns = MOCK_TOURNAMENTS.filter(t => t.year === year);
+              const tourns = tournaments.filter(t => t.year === year);
               if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
             }}
           >
@@ -120,7 +209,16 @@ export function DivisionPage() {
         </div>
       </div>
 
-      <div className="bg-card/40 backdrop-blur-xl rounded-2xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden min-h-[400px]">
+      <div className="bg-card/40 backdrop-blur-xl rounded-2xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden min-h-[400px] relative">
+        {loading && (
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-10">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full"
+            />
+          </div>
+        )}
         {tab === 'posiciones' && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -155,7 +253,7 @@ export function DivisionPage() {
                           <Shield className="w-5 h-5 text-muted-foreground" />
                         )}
                       </div>
-                      <span className="truncate max-w-[120px] sm:max-w-none text-base">{row.team.name}</span>
+                      <span className="truncate max-w-[120px] sm:max-w-none text-base">{row.team.display_name ?? row.team.name}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-bold text-base">
@@ -182,6 +280,19 @@ export function DivisionPage() {
 
         {tab === 'fixture' && (
           <div className="p-4 sm:p-6 space-y-6">
+            {/* Progress bar del torneo */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs font-medium">
+                <span className="text-muted-foreground">Progreso del torneo</span>
+                <span className="text-primary font-bold">{selectedRound} / {rounds.length} fechas</span>
+              </div>
+              <div className="w-full bg-muted/60 rounded-full h-2 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all duration-500"
+                  style={{ width: rounds.length ? `${(selectedRound / rounds.length) * 100}%` : '0%' }}
+                />
+              </div>
+            </div>
             <div className="flex items-center gap-4 overflow-x-auto pb-2">
               <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Ver Fecha:</span>
               <div className="flex gap-2">
@@ -222,7 +333,7 @@ export function DivisionPage() {
                           <div className="w-14 h-14 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center overflow-hidden">
                             {home.logo_url ? <img src={home.logo_url} className="w-full h-full object-contain p-2" /> : <Shield className="w-6 h-6 text-muted-foreground" />}
                           </div>
-                          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{home.name}</span>
+                          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{home.display_name ?? home.name}</span>
                         </div>
                         
                         <div className="flex items-center justify-center gap-3 font-black text-2xl px-5 py-3 bg-muted/30 rounded-xl border border-border/50 min-w-[100px]">
@@ -241,7 +352,7 @@ export function DivisionPage() {
                           <div className="w-14 h-14 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center overflow-hidden">
                             {away.logo_url ? <img src={away.logo_url} className="w-full h-full object-contain p-2" /> : <Shield className="w-6 h-6 text-muted-foreground" />}
                           </div>
-                          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{away.name}</span>
+                          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{away.display_name ?? away.name}</span>
                         </div>
                       </div>
                     </div>

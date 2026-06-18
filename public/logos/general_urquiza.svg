@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="grad_General_Urquiza" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4A0E4E;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFFFFF;stop-opacity:0.8" />
+    </linearGradient>
+    <filter id="drop-shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  
+  <path d="M100 10 L170 35 L170 110 C170 160 110 185 100 190 C90 185 30 160 30 110 L30 35 Z" 
+        fill="url(#grad_General_Urquiza)" 
+        stroke="#FFFFFF" 
+        stroke-width="6"
+        filter="url(#drop-shadow)" />
+        
+  <!-- Diagonal stripe or inner details based on colors -->
+  <path d="M40 50 L160 120" stroke="#FFFFFF" stroke-width="12" opacity="0.3"/>
+  <path d="M40 120 L160 50" stroke="#FFFFFF" stroke-width="12" opacity="0.3"/>
+
+  <text x="100" y="115" 
+        font-family="system-ui, -apple-system, sans-serif" 
+        font-size="64" 
+        font-weight="900" 
+        fill="#FFFFFF" 
+        text-anchor="middle" 
+        dominant-baseline="middle"
+        style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">GU</text>
+</svg>

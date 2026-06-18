@@ -1,0 +1,7 @@
+node_modules
+dist
+.env
+.git
+.gitignore
+README.md
+supabase_schema.sql

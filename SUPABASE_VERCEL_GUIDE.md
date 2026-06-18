@@ -1,185 +1,75 @@
-# Guía de Base de Datos y Despliegue
+# Guía Definitiva de Supabase y Vercel
 
-Esta guía contiene todo lo necesario para configurar tu base de datos en Supabase, poblarla de datos, conectarla al proyecto y finalmente desplegar la aplicación en Vercel.
-
----
-
-## 1. Script SQL Completo para Supabase
-
-Copia y pega el siguiente script en el **SQL Editor** de tu proyecto en Supabase para crear todas las tablas, configurar la seguridad (RLS) y preparar la base de datos para la aplicación.
-
-```sql
--- Schema para Resultados LMF
-
--- ==========================================
--- 1. Tablas Core
--- ==========================================
-
--- Tabla de Usuarios/Perfiles para Roles Admin
-CREATE TABLE profiles (
-  id uuid REFERENCES auth.users ON DELETE CASCADE,
-  email text UNIQUE NOT NULL,
-  role text NOT NULL CHECK (role IN ('super_admin', 'editor')),
-  created_at timestamptz DEFAULT now(),
-  PRIMARY KEY (id)
-);
-
--- Tabla de Equipos (Con Borrado Lógico)
-CREATE TABLE teams (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name text NOT NULL,
-  logo_url text,
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
--- Tabla de Torneos/Años
-CREATE TABLE tournaments (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name text NOT NULL, -- ej. "Apertura"
-  year integer NOT NULL, -- ej. 2026
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now()
-);
-
--- ==========================================
--- 2. Tablas Relacionales (Fixture y Zonas)
--- ==========================================
-
--- Asignación de Equipos a Torneos y Zonas (Campeonato o Promoción)
-CREATE TABLE tournament_teams (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tournament_id uuid REFERENCES tournaments(id) ON DELETE CASCADE,
-  team_id uuid REFERENCES teams(id) ON DELETE CASCADE,
-  zone text NOT NULL CHECK (zone IN ('campeonato', 'promocion')),
-  penalty_points integer DEFAULT 0, -- Quita de puntos
-  UNIQUE(tournament_id, team_id)
-);
-
--- Tabla de Partidos (Fixture y Resultados)
-CREATE TABLE matches (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  tournament_id uuid REFERENCES tournaments(id) ON DELETE CASCADE,
-  zone text NOT NULL CHECK (zone IN ('campeonato', 'promocion')),
-  round_number integer NOT NULL, -- Fecha (1, 2, 3...)
-  home_team_id uuid REFERENCES teams(id) ON DELETE CASCADE,
-  away_team_id uuid REFERENCES teams(id) ON DELETE CASCADE,
-  home_goals integer,
-  away_goals integer,
-  status text NOT NULL CHECK (status IN ('scheduled', 'finished', 'postponed')) DEFAULT 'scheduled',
-  match_date timestamptz,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
--- ==========================================
--- 3. Row Level Security (RLS)
--- ==========================================
--- Activar RLS en todas las tablas
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tournaments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tournament_teams ENABLE ROW LEVEL SECURITY;
-ALTER TABLE matches ENABLE ROW LEVEL SECURITY;
-
--- Políticas de Lectura (Público: cualquier persona puede ver los resultados)
-CREATE POLICY "Public profiles are viewable by everyone." ON profiles FOR SELECT USING (true);
-CREATE POLICY "Teams are viewable by everyone." ON teams FOR SELECT USING (true);
-CREATE POLICY "Tournaments are viewable by everyone." ON tournaments FOR SELECT USING (true);
-CREATE POLICY "Tournament Teams are viewable by everyone." ON tournament_teams FOR SELECT USING (true);
-CREATE POLICY "Matches are viewable by everyone." ON matches FOR SELECT USING (true);
-
--- Políticas de Escritura (Solo Administradores Autenticados)
-CREATE POLICY "Only super admins can insert teams" ON teams FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'super_admin')
-);
-
-CREATE POLICY "Only super admins can update teams" ON teams FOR UPDATE USING (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = 'super_admin')
-);
-
-CREATE POLICY "Admins can update matches" ON matches FOR UPDATE USING (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('super_admin', 'editor'))
-);
-CREATE POLICY "Admins can insert matches" ON matches FOR INSERT WITH CHECK (
-  EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role IN ('super_admin', 'editor'))
-);
-
--- ==========================================
--- 4. Creación Automática de Perfil Admin
--- ==========================================
--- Al registrar el primer usuario, se le asignará el rol de super_admin
-CREATE OR REPLACE FUNCTION public.handle_new_user() 
-RETURNS trigger AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, role)
-  VALUES (new.id, new.email, 'super_admin');
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-```
+Esta guía contiene el paso a paso exacto para crear tu base de datos desde cero, subir la aplicación a internet (Vercel) y, muy importante, **evitar que la base de datos se borre o se ponga en pausa por inactividad**.
 
 ---
 
-## 2. Cómo Crear la BD con Supabase
+## 1. Crear el Proyecto en Supabase
 
 1. Ve a [Supabase](https://supabase.com) y crea una cuenta o inicia sesión.
-2. Haz clic en **New Project**, selecciona tu organización y dale un nombre al proyecto (ej: `resultados-lmf`).
-3. Asigna una contraseña segura para la base de datos y elige la región más cercana (ej: `South America (São Paulo)`).
-4. Una vez creado el proyecto, ve a la sección **SQL Editor** en el menú lateral izquierdo.
-5. Haz clic en **New Query**, pega todo el script del punto 1 y presiona **Run**. Esto creará todas las tablas y políticas.
+2. Haz clic en **New Project** y dale un nombre al proyecto (ej: `resultados-lmf`).
+3. Asigna una **Database Password** muy segura y elige la región más cercana a ti (ej: `South America (São Paulo)`).
+4. Espera un par de minutos mientras el sistema prepara la base de datos.
+5. Cuando esté lista, ve en el menú lateral izquierdo al **SQL Editor**.
+6. Haz clic en **New Query**.
+7. Primero, copia todo el contenido del archivo `supabase_schema.sql` (que creamos hoy) y pégalo ahí. Presiona **Run**. Esto creará todas las tablas y el sistema de usuarios seguro.
+8. Luego, haz clic nuevamente en **New Query**, pega todo el contenido del archivo `supabase_seed.sql` (el script que recién generamos) y presiona **Run**. Esto insertará todos los torneos, zonas, equipos y todo el fixture de los 500+ partidos listos para recibir los resultados.
 
 ---
 
-## 3. Dónde Colocar los Datos en el Proyecto
+## 2. Conectar tu Código a Supabase
 
-Para conectar el frontend (tu código) con el backend (Supabase), necesitas las credenciales de tu proyecto.
-
-1. En Supabase, ve a **Project Settings** (el ícono de engranaje) > **API**.
-2. Copia la `Project URL` y la `anon public key`.
-3. En la raíz de tu proyecto local (donde está el `package.json`), crea un archivo llamado `.env.local`.
-4. Pega las variables de esta manera:
+1. En Supabase, ve a **Project Settings** (el ícono del engranaje) > **API**.
+2. Ahí vas a ver la **Project URL** y la **anon public key**.
+3. En la carpeta de tu código (donde está el `package.json`), crea un archivo llamado `.env.local`.
+4. Pega tus credenciales de esta manera:
 
 ```env
 VITE_SUPABASE_URL=tu_project_url_aqui
 VITE_SUPABASE_ANON_KEY=tu_anon_key_aqui
 ```
 
-### Sustitución de Datos (De Mock a Supabase)
-
-Actualmente los datos visuales de los equipos están en `src/lib/mockData.ts`. 
-Cuando comiences a ingresar los equipos en tu base de datos Supabase a través de la pestaña **Table Editor** o mediante el Panel de Admin de tu propia web, deberás modificar `src/lib/supabaseClient.ts` o los componentes donde haces fetch. 
-
-Ejemplo para obtener los equipos:
-```ts
-import { supabase } from './supabaseClient';
-
-export async function fetchTeams() {
-  const { data, error } = await supabase.from('teams').select('*');
-  if (error) console.error(error);
-  return data;
-}
-```
+¡Con esto, si ejecutas el código localmente (`npm run dev`), el sistema ya no usará datos de prueba, sino los datos reales de Supabase!
 
 ---
 
-## 4. Cómo Desplegar en Vercel
+## 3. Desplegar tu web a todo el mundo con Vercel
 
-Una vez que tengas tu código subido a un repositorio en GitHub, desplegarlo es muy sencillo y gratuito.
-
-1. Entra a [Vercel](https://vercel.com/) e inicia sesión con GitHub.
-2. Haz clic en **Add New...** > **Project**.
-3. Vercel te mostrará tus repositorios de GitHub. Busca el de tu aplicación y haz clic en **Import**.
-4. En la sección **Environment Variables**, debes desplegar la flecha y agregar las credenciales de Supabase que pusiste en tu `.env.local` de forma manual:
+1. Asegúrate de tener todo tu código subido a GitHub (usando `git push`).
+2. Entra a [Vercel](https://vercel.com/) e inicia sesión con tu GitHub.
+3. Haz clic en **Add New...** > **Project**.
+4. Verás la lista de tus repositorios de GitHub. Ubica el de tu aplicación y haz clic en **Import**.
+5. En la sección llamada **Environment Variables** (despliega la pestaña si está oculta), debes poner las credenciales igual que hiciste en tu PC:
    - Name: `VITE_SUPABASE_URL` | Value: `tu_project_url_aqui`
+   - Haz clic en **Add**.
    - Name: `VITE_SUPABASE_ANON_KEY` | Value: `tu_anon_key_aqui`
-   Haz clic en **Add** para cada una.
-5. Haz clic en **Deploy**.
-6. Vercel construirá tu proyecto (tardará unos segundos) y luego te entregará una URL en vivo (por ejemplo, `resultados-lmf.vercel.app`).
-7. **Importante:** Ve a Supabase > **Authentication** > **URL Configuration** y agrega tu nueva URL de Vercel (incluyendo `https://`) a las **Site URLs** y **Redirect URLs** para que el login de administrador funcione en producción.
+   - Haz clic en **Add**.
+6. Finalmente, haz clic en **Deploy**. 
+7. Vercel te entregará en unos segundos una URL pública (ej. `resultados-lmf.vercel.app`) y todo tu sistema, junto con tu Panel de Admin, estará funcionando en vivo.
+
+---
+
+## 4. 🔴 CRÍTICO: Cómo evitar que Supabase borre tu base de datos
+
+Supabase en su plan gratuito ("Free Tier") **pausa automáticamente las bases de datos si no reciben solicitudes por 7 días seguidos**. Si queda pausada y no entras a reactivarla manualmente, **puede ser borrada**. (Ya no son 30 días, ahora son 7 días).
+
+Para evitar pagar los $25 mensuales del plan Pro, existe un truco totalmente legal y seguro para que la base de datos "crea" que alguien la está usando todo el tiempo: usar un sistema de alertas automático.
+
+### El truco del "Heartbeat" (Latido) con Cron-job.org
+
+Vamos a configurar un robot gratuito para que visite la base de datos de forma invisible una vez al día:
+
+1. Entra en [cron-job.org](https://cron-job.org/) (es gratis y no pide tarjeta de crédito).
+2. Regístrate e inicia sesión.
+3. Haz clic en **CREATE CRONJOB** (Crear tarea programada).
+4. **Title:** Ponle `Mantener Supabase LMF Activo`.
+5. **URL:** Acá debes poner una dirección que obligue a la base de datos a despertarse. La ruta oficial para hacer esto usando la API de Supabase es tu URL de proyecto seguida de `/rest/v1/tournaments?select=id&limit=1`.
+   * *Ejemplo:* `https://abcdefghijklmnopq.supabase.co/rest/v1/tournaments?select=id&limit=1` (Reemplaza con TU verdadera URL).
+6. **Execution schedule:** Elige `Every day` (Todos los días).
+7. Haz clic en la pestaña inferior llamada **Advanced** (Avanzado).
+8. En la sección **Headers**, haz clic en **Add header**.
+9. En el recuadro de la izquierda (Key) escribe: `apikey`
+10. En el recuadro de la derecha (Value) pega tu: `VITE_SUPABASE_ANON_KEY` (la larguísima que empieza con `eyJ...`).
+11. Haz clic en **CREATE** para guardar.
+
+¡Listo! A partir de ahora, Cron-Job hará una "visita" invisible todos los días a tu base de datos de Supabase simulando ser un usuario real de tu aplicación. Al ver que tiene tráfico diario, **Supabase jamás pondrá en pausa tu base de datos** y tendrás tu sistema en línea 24/7 sin pagar un centavo de forma permanente.

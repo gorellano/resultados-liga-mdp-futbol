@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { fetchDivisions } from '../lib/db';
+import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
 import type { Division } from '../lib/types';
 
 function getCategoryYear(divisionName: string, tournamentYear: number): number {
@@ -14,24 +14,57 @@ function getCategoryYear(divisionName: string, tournamentYear: number): number {
 export function HomePage() {
   const currentYear = new Date().getFullYear();
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
+  const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDivisions().then(data => {
-      setActiveDivs(data);
-      setLoading(false);
-    });
+    async function loadData() {
+      try {
+        const [tourns, divs] = await Promise.all([
+          fetchTournaments(),
+          fetchDivisions()
+        ]);
+        setActiveDivs(divs);
+
+        if (tourns.length > 0) {
+          const latestTournament = tourns[0];
+          const matches = await fetchAllTournamentMatches(latestTournament.id);
+          
+          const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
+          divs.forEach(div => {
+            const divMatches = matches.filter(m => m.division_id === div.id);
+            if (divMatches.length === 0) {
+              statuses[div.id] = 'en_curso';
+            } else {
+              const allFinished = divMatches.every(m => m.status === 'finished');
+              statuses[div.id] = allFinished ? 'finalizado' : 'en_curso';
+            }
+          });
+          setDivisionStatuses(statuses);
+        }
+      } catch (err) {
+        console.error('Error loading homepage data:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
   }, []);
 
   const soonDivisions = [
-    { name: '1ra División',  soon: true,  active: false },
-    { name: '5ta División',  soon: true,  active: false },
-    { name: '6ta División',  soon: true,  active: false },
+    { name: '1ra División',  soon: true },
+    { name: '5ta División',  soon: true },
+    { name: '6ta División',  soon: true },
   ];
 
   const divisionsList = [
-    ...soonDivisions,
-    ...activeDivs.map(d => ({ name: d.name, active: true, soon: false })),
+    ...soonDivisions.map(d => ({ ...d, id: '', status: 'soon' as const })),
+    ...activeDivs.map(d => ({
+      id: d.id,
+      name: d.name,
+      soon: false,
+      status: divisionStatuses[d.id] || 'en_curso'
+    })),
   ];
 
   return (
@@ -72,27 +105,41 @@ export function HomePage() {
               key={i}
               to={div.soon ? "#" : `/division/${encodeURIComponent(div.name)}`}
               className={cn(
-                "group relative flex flex-col items-center justify-center p-6 rounded-2xl border transition-all duration-300",
+                "group flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 min-h-[120px] text-center",
                 div.soon
-                  ? "bg-muted/50 border-transparent cursor-not-allowed opacity-70"
-                  : "bg-card border-border hover:border-primary/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1.5"
+                  ? "bg-muted/40 border-border/30 cursor-not-allowed opacity-75"
+                  : "bg-card border-border hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1"
               )}
             >
-              {div.active && (
-                <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] font-bold text-green-600 border border-green-500/30">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  EN CURSO
-                </span>
-              )}
-              <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{div.name}</h3>
+              {/* Badge area */}
+              <div className="mb-3">
+                {div.soon ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-500/25 dark:text-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    PRÓXIMAMENTE
+                  </span>
+                ) : div.status === 'finalizado' ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-500/25 dark:text-blue-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    FINALIZADO
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-500/25 dark:text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    EN CURSO
+                  </span>
+                )}
+              </div>
+
+              {/* Title */}
+              <h3 className="font-bold text-base sm:text-lg text-foreground group-hover:text-primary transition-colors duration-300">
+                {div.name}
+              </h3>
+
+              {/* Category year */}
               {!div.soon && (
-                <span className="text-xs text-muted-foreground mt-0.5">
+                <span className="text-xs text-muted-foreground mt-1 font-medium">
                   ({getCategoryYear(div.name, currentYear)})
-                </span>
-              )}
-              {div.soon && (
-                <span className="mt-2 inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                  Próximamente
                 </span>
               )}
             </Link>

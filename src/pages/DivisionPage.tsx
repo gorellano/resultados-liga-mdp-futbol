@@ -67,8 +67,8 @@ export function DivisionPage() {
       try {
         // Encontrar UUID de división correspondiente al nombre de la URL
         const currentDiv = divisions.find(d => d.name === name) || divisions[0];
-        // Encontrar UUID de la zona (Campeonato vs Promoción)
-        const currentZone = zones.find(z => z.name.toLowerCase() === zone.toLowerCase()) || zones[0];
+        const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const currentZone = zones.find(z => normalize(z.name) === normalize(zone)) || zones[0];
 
         const data = await fetchMatches(currentDiv.id, currentZone.id, selectedTournamentId);
         setMatches(data);

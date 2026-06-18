@@ -83,7 +83,7 @@ export function HomePage() {
   }, []);
 
   const divisionsList = activeDivs.map(d => {
-    const isSoon = ['primera', 'quinta', 'sexta', '1ra', '5ta', '6ta'].some(n => d.name.toLowerCase().includes(n));
+    const isSoon = ['primera división', 'quinta división', 'sexta división'].includes(d.name.toLowerCase().trim());
     return {
       id: d.id,
       name: d.name,

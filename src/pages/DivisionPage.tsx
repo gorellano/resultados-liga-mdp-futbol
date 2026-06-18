@@ -28,12 +28,12 @@ function getCategoryYear(divisionName: string, tournamentYear: number): number {
   };
   
   const lowerName = divisionName.toLowerCase();
+  const cleanName = lowerName.replace(' división', '').trim();
   let divNumber = 0;
 
   for (const [key, val] of Object.entries(map)) {
-    if (lowerName.includes(key)) {
+    if (cleanName === key || lowerName.startsWith(key + ' ') || lowerName === key) {
       divNumber = val;
-      break;
     }
   }
 

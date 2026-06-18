@@ -14,8 +14,8 @@ function getCategoryYear(divisionName: string, tournamentYear: number): number |
     '8va': 8, 'octava': 8,
     '9na': 9, 'novena': 9,
     '10ma': 10, 'décima': 10, 'decima': 10,
-    '11va': 11, 'undécima': 11, 'undecima': 11,
-    '12va': 12, 'duodécima': 12, 'duodecima': 12,
+    '11ma': 11, 'undécima': 11, 'undecima': 11,
+    '12ma': 12, 'duodécima': 12, 'duodecima': 12,
     '13ra': 13, 'decimotercera': 13,
     '14ta': 14, 'decimocuarta': 14,
     '15ta': 15, 'decimoquinta': 15,
@@ -82,12 +82,15 @@ export function HomePage() {
     loadData();
   }, []);
 
-  const divisionsList = activeDivs.map(d => ({
-    id: d.id,
-    name: d.name,
-    soon: false,
-    status: divisionStatuses[d.id] || 'en_curso'
-  }));
+  const divisionsList = activeDivs.map(d => {
+    const isSoon = ['primera', 'quinta', 'sexta', '1ra', '5ta', '6ta'].some(n => d.name.toLowerCase().includes(n));
+    return {
+      id: d.id,
+      name: d.name,
+      soon: isSoon,
+      status: isSoon ? 'soon' : (divisionStatuses[d.id] || 'en_curso')
+    };
+  });
 
   return (
     <motion.div

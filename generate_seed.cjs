@@ -94,7 +94,7 @@ BEGIN
 END $$;
 
 -- 2. CREATE TOURNAMENT AND ZONES
-INSERT INTO public.tournaments (name, year, is_active) SELECT 'Torneo Apertura', 2026, true WHERE NOT EXISTS (SELECT 1 FROM public.tournaments WHERE name = 'Torneo Apertura' AND year = 2026);
+INSERT INTO public.tournaments (name, year, is_current) SELECT 'Torneo Anual', 2026, true WHERE NOT EXISTS (SELECT 1 FROM public.tournaments WHERE name = 'Torneo Anual' AND year = 2026);
 INSERT INTO public.zones (name) SELECT 'Campeonato' WHERE NOT EXISTS (SELECT 1 FROM public.zones WHERE name = 'Campeonato');
 INSERT INTO public.zones (name) SELECT 'Promoción' WHERE NOT EXISTS (SELECT 1 FROM public.zones WHERE name = 'Promoción');
 
@@ -114,7 +114,7 @@ DECLARE
     v_zone_prom uuid;
     v_div_id uuid;
 BEGIN
-    SELECT id INTO v_tourn_id FROM public.tournaments WHERE name = 'Torneo Apertura' AND year = 2026 LIMIT 1;
+    SELECT id INTO v_tourn_id FROM public.tournaments WHERE name = 'Torneo Anual' AND year = 2026 LIMIT 1;
     SELECT id INTO v_zone_camp FROM public.zones WHERE name = 'Campeonato' LIMIT 1;
     SELECT id INTO v_zone_prom FROM public.zones WHERE name = 'Promoción' LIMIT 1;
 
@@ -124,29 +124,33 @@ divisions.forEach(div => {
   sql += `
     -- ${div}
     IF NOT EXISTS (SELECT 1 FROM public.divisions WHERE name = '${div}') THEN
-        INSERT INTO public.divisions (name, order_index) VALUES ('${div}', ${(divisions.indexOf(div) + 1) * 10}) RETURNING id INTO v_div_id;
+        INSERT INTO public.divisions (name, sort_order) VALUES ('${div}', ${(divisions.indexOf(div) + 1) * 10}) RETURNING id INTO v_div_id;
     ELSE
         SELECT id INTO v_div_id FROM public.divisions WHERE name = '${div}' LIMIT 1;
     END IF;
+`;
 
+    if (!['Primera División', 'Quinta División', 'Sexta División'].includes(div)) {
+      sql += `
     IF NOT EXISTS (SELECT 1 FROM public.matches WHERE division_id = v_div_id AND tournament_id = v_tourn_id LIMIT 1) THEN
         -- Campeonate Matches
 `;
-  
-  campSchedule.forEach((round, roundIndex) => {
-    round.forEach(match => {
-      sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_camp, ${roundIndex + 1}, (SELECT id FROM public.teams WHERE name = '${match.home}'), (SELECT id FROM public.teams WHERE name = '${match.away}');\n`;
-    });
-  });
+      
+      campSchedule.forEach((round, roundIndex) => {
+        round.forEach(match => {
+          sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_camp, ${roundIndex + 1}, (SELECT id FROM public.teams WHERE name = '${match.home}'), (SELECT id FROM public.teams WHERE name = '${match.away}');\n`;
+        });
+      });
 
-  sql += `\n        -- Promocion Matches\n`;
-  promSchedule.forEach((round, roundIndex) => {
-    round.forEach(match => {
-      sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_prom, ${roundIndex + 1}, (SELECT id FROM public.teams WHERE name = '${match.home}'), (SELECT id FROM public.teams WHERE name = '${match.away}');\n`;
-    });
-  });
+      sql += `\n        -- Promocion Matches\n`;
+      promSchedule.forEach((round, roundIndex) => {
+        round.forEach(match => {
+          sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_prom, ${roundIndex + 1}, (SELECT id FROM public.teams WHERE name = '${match.home}'), (SELECT id FROM public.teams WHERE name = '${match.away}');\n`;
+        });
+      });
 
-  sql += `    END IF;\n`;
+      sql += `    END IF;\n`;
+    }
 });
 
 sql += `END $$;\n`;

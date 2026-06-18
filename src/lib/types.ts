@@ -48,3 +48,11 @@ export interface Standing {
   goalDifference: number;
   points: number;
 }
+
+export interface User {
+  id: string;
+  username: string;
+  role: 'super_admin' | 'editor';
+  is_active: boolean;
+  created_at: string;
+}

@@ -7,7 +7,11 @@ import {
   fetchTeams, 
   fetchMatches, 
   saveMatchResult, 
-  authenticateUser 
+  authenticateUser,
+  fetchUsers,
+  createUser,
+  updateUserPassword,
+  toggleUserActive
 } from '../lib/db';
 
 // ─── Mock localStorage ───────────────────────────────────────────────────────
@@ -87,13 +91,42 @@ describe('db.ts - Hibrido de Base de Datos y Mocks', () => {
   });
 
   it('debe permitir autenticar superadmin local en fallback', async () => {
-    const user = await authenticateUser('superadmin@ligamdp.com', 'supersecret123');
+    const user = await authenticateUser('superadmin', 'SuperSecret123!');
     expect(user).not.toBeNull();
     expect(user?.role).toBe('super_admin');
   });
 
   it('debe retornar null ante credenciales invalidas', async () => {
-    const user = await authenticateUser('admin@invalid.com', 'wrongpassword');
+    const user = await authenticateUser('superadmin', 'WrongPass!');
     expect(user).toBeNull();
+  });
+
+  it('debe permitir gestionar usuarios localmente en mock fallback', async () => {
+    // 1. Obtener usuarios iniciales
+    const initialUsers = await fetchUsers();
+    expect(initialUsers.length).toBe(2);
+
+    // 2. Crear un nuevo usuario editor
+    const newUser = await createUser('test_editor', 'NewPass123!', 'editor');
+    expect(newUser).not.toBeNull();
+    expect(newUser?.username).toBe('test_editor');
+    expect(newUser?.role).toBe('editor');
+
+    // 3. Validar que se liste
+    const usersList = await fetchUsers();
+    expect(usersList.length).toBe(3);
+    expect(usersList.some(u => u.username === 'test_editor')).toBe(true);
+
+    // 4. Cambiar password
+    const passChanged = await updateUserPassword(newUser!.id, 'AnotherPass123!');
+    expect(passChanged).toBe(true);
+
+    // 5. Desactivar usuario
+    const toggled = await toggleUserActive(newUser!.id, false);
+    expect(toggled).toBe(true);
+    
+    const updatedUsers = await fetchUsers();
+    const checkedUser = updatedUsers.find(u => u.id === newUser!.id);
+    expect(checkedUser?.is_active).toBe(false);
   });
 });

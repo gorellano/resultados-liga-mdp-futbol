@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, User, AlertCircle, Eye, EyeOff, ShieldAlert } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { isLockedOut, recordFailedAttempt, resetRateLimit, loadAuth } from '../lib/auth';
 import { authenticateUser } from '../lib/db';
-
 export function AdminLogin() {
-  const [email, setEmail]         = useState('');
+  const [username, setUsername]   = useState('');
   const [password, setPassword]   = useState('');
   const [showPwd, setShowPwd]     = useState(false);
   const [error, setError]         = useState('');
   const [loading, setLoading]     = useState(false);
   const [lockStatus, setLockStatus] = useState({ locked: false, secondsLeft: 0 });
-  const [showHint, setShowHint]   = useState(false);
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -44,7 +42,7 @@ export function AdminLogin() {
     setError('');
 
     try {
-      const user = await authenticateUser(email, password);
+      const user = await authenticateUser(username, password);
       if (user) {
         resetRateLimit();
         navigate('/admin/dashboard');
@@ -63,7 +61,7 @@ export function AdminLogin() {
     } finally {
       setLoading(false);
     }
-  }, [email, password, navigate]);
+  }, [username, password, navigate]);
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center">
@@ -111,19 +109,19 @@ export function AdminLogin() {
         </AnimatePresence>
 
         <form onSubmit={handleLogin} className="space-y-5" noValidate>
-          {/* Email */}
+          {/* Username */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold ml-1">Correo Electrónico</label>
+            <label className="text-sm font-semibold ml-1">Nombre de Usuario</label>
             <div className="relative">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground" />
               <input
-                id="admin-email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                id="admin-username"
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
                 disabled={lockStatus.locked}
                 className="w-full pl-11 pr-4 py-3 bg-background border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="usuario@ligamdp.com"
+                placeholder="ej: superadmin"
                 autoComplete="username"
                 required
               />
@@ -179,32 +177,6 @@ export function AdminLogin() {
             )}
           </button>
         </form>
-
-        {/* Hint de cuentas de prueba — colapsable */}
-        <div className="mt-6 border-t border-border/50 pt-5">
-          <button
-            onClick={() => setShowHint(v => !v)}
-            className="w-full flex items-center justify-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <AlertCircle className="w-3.5 h-3.5" />
-            {showHint ? 'Ocultar' : 'Ver'} cuentas de prueba
-          </button>
-          <AnimatePresence>
-            {showHint && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="mt-3 p-3 bg-muted/40 border border-border/40 rounded-xl text-xs text-muted-foreground space-y-1.5 font-mono">
-                  <p><span className="text-foreground font-semibold">Super Admin:</span> superadmin@ligamdp.com / supersecret123</p>
-                  <p><span className="text-foreground font-semibold">Editor:</span> editor@ligamdp.com / editor123</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </motion.div>
     </div>
   );

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   saveAuth, loadAuth, clearAuth,
   recordFailedAttempt, resetRateLimit, isLockedOut, getRateLimitState,
-  sanitizeText, sanitizeGoal, getCategoryYear,
+  sanitizeText, sanitizeGoal, getCategoryYear, validatePassword,
   type AuthUser,
 } from '../lib/auth';
 
@@ -22,7 +22,7 @@ beforeEach(() => localStorageMock.clear());
 
 // ─── Auth token ──────────────────────────────────────────────────────────────
 describe('Auth token', () => {
-  const user: AuthUser = { email: 'superadmin@ligamdp.com', role: 'super_admin' };
+  const user: AuthUser = { username: 'superadmin', role: 'super_admin' };
 
   it('saves and loads auth correctly', () => {
     saveAuth(user);
@@ -46,6 +46,39 @@ describe('Auth token', () => {
     saveAuth(user);
     clearAuth();
     expect(loadAuth()).toBeNull();
+  });
+});
+
+// ─── Password Validation ─────────────────────────────────────────────────────
+describe('validatePassword', () => {
+  it('accepts a valid password', () => {
+    expect(validatePassword('SuperSecret123!')).toBeNull();
+    expect(validatePassword('Editor123!')).toBeNull();
+    expect(validatePassword('Pass.123')).toBeNull();
+  });
+
+  it('rejects passwords that are too short', () => {
+    expect(validatePassword('Ab1!')).toBe("La contraseña debe tener entre 6 y 20 caracteres.");
+  });
+
+  it('rejects passwords that are too long', () => {
+    expect(validatePassword('Ab1!Ab1!Ab1!Ab1!Ab1!Ab1!a')).toBe("La contraseña debe tener entre 6 y 20 caracteres.");
+  });
+
+  it('rejects passwords without uppercase letter', () => {
+    expect(validatePassword('secret123!')).toBe("La contraseña debe contener al menos una letra mayúscula.");
+  });
+
+  it('rejects passwords without lowercase letter', () => {
+    expect(validatePassword('SECRET123!')).toBe("La contraseña debe contener al menos una letra minúscula.");
+  });
+
+  it('rejects passwords without numbers', () => {
+    expect(validatePassword('SecretPass!')).toBe("La contraseña debe contener al menos un número.");
+  });
+
+  it('rejects passwords without special character', () => {
+    expect(validatePassword('SecretPass123')).toBe("La contraseña debe contener al menos un carácter especial (ej. .,*!).");
   });
 });
 

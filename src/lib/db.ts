@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Team, Match, Tournament, Division, Zone } from './types';
+import type { Team, Match, Tournament, Division, Zone, User } from './types';
 import { 
   MOCK_TEAMS_CAMPEONATO, 
   MOCK_TEAMS_PROMOCION, 
@@ -12,6 +12,12 @@ import { saveAuth } from './auth';
 // In-memory copies of mock matches to persist edits during the mock session
 let memoryMatchesCamp = [...MOCK_MATCHES_CAMPEONATO];
 let memoryMatchesProm = [...MOCK_MATCHES_PROMOCION];
+
+// In-memory copies of users
+let memoryUsers: User[] = [
+  { id: 'u1', username: 'superadmin', role: 'super_admin', is_active: true, created_at: new Date().toISOString() },
+  { id: 'u2', username: 'editor',     role: 'editor',      is_active: true, created_at: new Date().toISOString() },
+];
 
 /**
  * Checks if Supabase has been configured with real, non-placeholder credentials
@@ -115,10 +121,10 @@ export async function fetchTeams(): Promise<Team[]> {
   try {
     const { data, error } = await supabase
       .from('teams')
-      .select('id, name, logo_url');
+      .select('id, name, display_name, logo_url');
 
     if (error) throw error;
-    // Map team display names based on exact matches for visual presentation
+    // Map team display names based on exact matches for visual presentation fallback
     const DISPLAY_NAMES: Record<string, string> = {
       "Talleres de Mar del Plata":            "Talleres",
       "Club Banco Provincia de Mar del Plata": "Banco Provincia",
@@ -127,7 +133,7 @@ export async function fetchTeams(): Promise<Team[]> {
     };
     return (data || []).map(t => ({
       ...t,
-      display_name: DISPLAY_NAMES[t.name]
+      display_name: t.display_name || DISPLAY_NAMES[t.name]
     }));
   } catch (err) {
     console.warn('Supabase fetchTeams failed, falling back to mocks:', err);
@@ -287,49 +293,276 @@ export async function saveMatchResult(
 }
 
 /**
- * Authenticates an administrator via Supabase Auth or mock local fallback.
+ * Authenticates an administrator via database RPC or mock local fallback.
  */
 export async function authenticateUser(
-  email: string, 
+  username: string, 
   password: string
-): Promise<{ email: string; role: 'super_admin' | 'editor' } | null> {
+): Promise<{ username: string; role: 'super_admin' | 'editor' } | null> {
   if (!isSupabaseActive()) {
-    // Local mock login credentials
     const credentials = [
-      { email: 'superadmin@ligamdp.com', password: 'supersecret123', role: 'super_admin' as const },
-      { email: 'editor@ligamdp.com',     password: 'editor123',       role: 'editor'      as const },
+      { username: 'superadmin', password: 'SuperSecret123!', role: 'super_admin' as const },
+      { username: 'editor',     password: 'Editor123!',       role: 'editor'      as const },
     ];
-    const found = credentials.find(c => c.email === email.trim().toLowerCase() && c.password === password);
+    const found = credentials.find(c => c.username === username.trim().toLowerCase() && c.password === password);
     if (found) {
-      saveAuth({ email: found.email, role: found.role });
-      return { email: found.email, role: found.role };
+      saveAuth({ username: found.username, role: found.role });
+      return { username: found.username, role: found.role };
     }
     return null;
   }
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.rpc('authenticate_user', {
+      p_username: username.trim(),
+      p_password: password
+    });
     if (error) throw error;
-    if (data.user) {
-      // For real Supabase, users are either super_admin or editor based on metadata, default to editor
-      const role: 'super_admin' | 'editor' = (data.user.user_metadata?.role === 'super_admin') ? 'super_admin' : 'editor';
-      const authData = { email: data.user.email || email, role };
+    
+    if (data && data.length > 0) {
+      const user = data[0];
+      const authData = { username: user.username, role: user.role as 'super_admin' | 'editor' };
       saveAuth(authData);
       return authData;
     }
     return null;
   } catch (err) {
     console.warn('Supabase authentication failed, trying mock fallback:', err);
-    // If Supabase Auth fails due to network/no-user, fallback to mock credentials
     const credentials = [
-      { email: 'superadmin@ligamdp.com', password: 'supersecret123', role: 'super_admin' as const },
-      { email: 'editor@ligamdp.com',     password: 'editor123',       role: 'editor'      as const },
+      { username: 'superadmin', password: 'SuperSecret123!', role: 'super_admin' as const },
+      { username: 'editor',     password: 'Editor123!',       role: 'editor'      as const },
     ];
-    const found = credentials.find(c => c.email === email.trim().toLowerCase() && c.password === password);
+    const found = credentials.find(c => c.username === username.trim().toLowerCase() && c.password === password);
     if (found) {
-      saveAuth({ email: found.email, role: found.role });
-      return { email: found.email, role: found.role };
+      saveAuth({ username: found.username, role: found.role });
+      return { username: found.username, role: found.role };
     }
     return null;
+  }
+}
+
+/**
+ * Creates a new team in the database or returns a mock team.
+ */
+export async function createTeam(
+  name: string, 
+  displayName: string | null, 
+  logoUrl: string | null
+): Promise<Team | null> {
+  if (!isSupabaseActive()) {
+    const newTeam: Team = {
+      id: `team-${Date.now()}`,
+      name: name.trim(),
+      display_name: displayName?.trim() || undefined,
+      logo_url: logoUrl || null
+    };
+    return newTeam;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('teams')
+      .insert([{ name: name.trim(), display_name: displayName?.trim() || null, logo_url: logoUrl }])
+      .select('id, name, display_name, logo_url');
+    if (error) throw error;
+    return data && data.length > 0 ? data[0] : null;
+  } catch (err) {
+    console.error('Supabase createTeam failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Creates a new tournament in the database or returns a mock tournament.
+ */
+export async function createTournament(
+  name: string, 
+  year: number
+): Promise<Tournament | null> {
+  if (!isSupabaseActive()) {
+    const newTourn: Tournament = {
+      id: `t-${Date.now()}`,
+      name: name.trim(),
+      year
+    };
+    return newTourn;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('tournaments')
+      .insert([{ name: name.trim(), year }])
+      .select('id, name, year');
+    if (error) throw error;
+    return data && data.length > 0 ? data[0] : null;
+  } catch (err) {
+    console.error('Supabase createTournament failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetches all users from the database (safe schema) or returns mocks.
+ */
+export async function fetchUsers(): Promise<User[]> {
+  if (!isSupabaseActive()) {
+    return memoryUsers;
+  }
+  try {
+    const { data, error } = await supabase.rpc('fetch_users');
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.warn('Supabase fetchUsers failed, falling back to mocks:', err);
+    return memoryUsers;
+  }
+}
+
+/**
+ * Creates a new user with encrypted password.
+ */
+export async function createUser(
+  username: string, 
+  passwordRaw: string, 
+  role: 'super_admin' | 'editor'
+): Promise<User | null> {
+  if (!isSupabaseActive()) {
+    if (memoryUsers.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+      throw new Error(`El nombre de usuario ${username} ya existe`);
+    }
+    const newUser: User = {
+      id: `u-${Date.now()}`,
+      username: username.trim(),
+      role,
+      is_active: true,
+      created_at: new Date().toISOString()
+    };
+    memoryUsers.push(newUser);
+    return newUser;
+  }
+  try {
+    const { data: userId, error } = await supabase.rpc('create_user', {
+      p_username: username.trim(),
+      p_password: passwordRaw,
+      p_role: role
+    });
+    if (error) throw error;
+    return {
+      id: userId,
+      username: username.trim(),
+      role,
+      is_active: true,
+      created_at: new Date().toISOString()
+    };
+  } catch (err) {
+    console.error('Supabase createUser failed:', err);
+    throw err;
+  }
+}
+
+/**
+ * Updates a user's password.
+ */
+export async function updateUserPassword(
+  userId: string, 
+  passwordRaw: string
+): Promise<boolean> {
+  if (!isSupabaseActive()) {
+    return memoryUsers.some(u => u.id === userId);
+  }
+  try {
+    const { data, error } = await supabase.rpc('update_user_password', {
+      p_user_id: userId,
+      p_new_password: passwordRaw
+    });
+    if (error) throw error;
+    return !!data;
+  } catch (err) {
+    console.error('Supabase updateUserPassword failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Toggles user active/inactive status.
+ */
+export async function toggleUserActive(
+  userId: string, 
+  isActive: boolean
+): Promise<boolean> {
+  if (!isSupabaseActive()) {
+    memoryUsers = memoryUsers.map(u => u.id === userId ? { ...u, is_active: isActive } : u);
+    return true;
+  }
+  try {
+    const { data, error } = await supabase.rpc('toggle_user_active', {
+      p_user_id: userId,
+      p_is_active: isActive
+    });
+    if (error) throw error;
+    return !!data;
+  } catch (err) {
+    console.error('Supabase toggleUserActive failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Creates a single match (manual fixture entry).
+ */
+export async function createMatch(
+  match: Omit<Match, 'id'>
+): Promise<Match | null> {
+  if (!isSupabaseActive()) {
+    const newMatch: Match = {
+      ...match,
+      id: `match-camp-${Date.now()}`
+    };
+    const isProm = match.zone_id === 'prom' || match.zone_id === '22222222-0001-0001-0001-000000000002';
+    if (isProm) {
+      memoryMatchesProm.push(newMatch);
+    } else {
+      memoryMatchesCamp.push(newMatch);
+    }
+    return newMatch;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .insert([match])
+      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date');
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return {
+        ...data[0],
+        status: data[0].status as 'scheduled' | 'finished' | 'postponed'
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error('Supabase createMatch failed:', err);
+    return null;
+  }
+}
+
+/**
+ * Deletes a single match from the database.
+ */
+export async function deleteMatch(
+  matchId: string
+): Promise<boolean> {
+  if (!isSupabaseActive()) {
+    memoryMatchesCamp = memoryMatchesCamp.filter(m => m.id !== matchId);
+    memoryMatchesProm = memoryMatchesProm.filter(m => m.id !== matchId);
+    return true;
+  }
+  try {
+    const { error } = await supabase
+      .from('matches')
+      .delete()
+      .eq('id', matchId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Supabase deleteMatch failed:', err);
+    return false;
   }
 }

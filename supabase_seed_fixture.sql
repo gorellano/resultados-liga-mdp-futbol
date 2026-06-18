@@ -35,48 +35,54 @@ INSERT INTO public.zones (id, name) VALUES
 -- =============================================================================
 -- 3. TORNEOS
 -- =============================================================================
-INSERT INTO public.tournaments (id, name, is_current) VALUES
-  ('33333333-0001-0001-0001-000000000001', 'Apertura 2026',  true),
-  ('33333333-0001-0001-0001-000000000002', 'Clausura 2026',  false),
-  ('33333333-0001-0001-0001-000000000003', 'Oficial 2025',   false);
+INSERT INTO public.tournaments (id, name, year, is_current) VALUES
+  ('33333333-0001-0001-0001-000000000001', 'Anual', 2026, true),
+  ('33333333-0001-0001-0001-000000000002', 'Anual', 2025, false);
 
 -- =============================================================================
 -- 4. EQUIPOS - ZONA CAMPEONATO
 -- =============================================================================
-INSERT INTO public.teams (id, name, logo_url) VALUES
-  ('44444444-0001-0001-0001-000000000001', 'Talleres de Mar del Plata', '/logos/talleres.png'),
-  ('44444444-0001-0001-0001-000000000002', 'Deportivo Norte',           '/logos/deportivo_norte.png'),
-  ('44444444-0001-0001-0001-000000000003', 'Kimberley',                 '/logos/kimberley.png'),
-  ('44444444-0001-0001-0001-000000000004', 'Once Unidos',               '/logos/once_unidos.png'),
-  ('44444444-0001-0001-0001-000000000005', 'Aldosivi',                  '/logos/aldosivi.png'),
-  ('44444444-0001-0001-0001-000000000006', 'Banfield',                  '/logos/banfield.png'),
-  ('44444444-0001-0001-0001-000000000007', 'Atlético Mar del Plata',    '/logos/atletico_mar_del_plata.png'),
-  ('44444444-0001-0001-0001-000000000008', 'Argentinos del Sud',        '/logos/argentinos_del_sud.png'),
-  ('44444444-0001-0001-0001-000000000009', 'Independiente',             '/logos/independiente.png'),
-  ('44444444-0001-0001-0001-000000000010', 'River Plate',               '/logos/river_plate.png'),
-  ('44444444-0001-0001-0001-000000000011', 'Cadetes',                   '/logos/cadetes.png'),
-  ('44444444-0001-0001-0001-000000000012', 'Nacion',                    '/logos/nacion.png'),
-  ('44444444-0001-0001-0001-000000000013', 'Alvarado',                  '/logos/alvarado.png'),
-  ('44444444-0001-0001-0001-000000000014', 'Quilmes',                   '/logos/quilmes.png');
+INSERT INTO public.teams (id, name, display_name, logo_url) VALUES
+  ('44444444-0001-0001-0001-000000000001', 'Talleres de Mar del Plata', 'Talleres', '/logos/talleres.png'),
+  ('44444444-0001-0001-0001-000000000002', 'Deportivo Norte', NULL, '/logos/deportivo_norte.png'),
+  ('44444444-0001-0001-0001-000000000003', 'Kimberley', NULL, '/logos/kimberley.png'),
+  ('44444444-0001-0001-0001-000000000004', 'Once Unidos', NULL, '/logos/once_unidos.png'),
+  ('44444444-0001-0001-0001-000000000005', 'Aldosivi', NULL, '/logos/aldosivi.png'),
+  ('44444444-0001-0001-0001-000000000006', 'Banfield', NULL, '/logos/banfield.png'),
+  ('44444444-0001-0001-0001-000000000007', 'Atlético Mar del Plata', NULL, '/logos/atletico_mar_del_plata.png'),
+  ('44444444-0001-0001-0001-000000000008', 'Argentinos del Sud', NULL, '/logos/argentinos_del_sud.png'),
+  ('44444444-0001-0001-0001-000000000009', 'Independiente', NULL, '/logos/independiente.png'),
+  ('44444444-0001-0001-0001-000000000010', 'River Plate', NULL, '/logos/river_plate.png'),
+  ('44444444-0001-0001-0001-000000000011', 'Cadetes', NULL, '/logos/cadetes.png'),
+  ('44444444-0001-0001-0001-000000000012', 'Nacion', NULL, '/logos/nacion.png'),
+  ('44444444-0001-0001-0001-000000000013', 'Alvarado', NULL, '/logos/alvarado.png'),
+  ('44444444-0001-0001-0001-000000000014', 'Quilmes', NULL, '/logos/quilmes.png');
 
 -- =============================================================================
 -- 5. EQUIPOS - ZONA PROMOCIÓN
 -- =============================================================================
-INSERT INTO public.teams (id, name, logo_url) VALUES
-  ('55555555-0001-0001-0001-000000000001', 'Boca Juniors',                          '/logos/boca_juniors.png'),
-  ('55555555-0001-0001-0001-000000000002', 'Libertad',                              '/logos/libertad.png'),
-  ('55555555-0001-0001-0001-000000000003', 'Circulo Deportivo',                     '/logos/circulo_deportivo.png'),
-  ('55555555-0001-0001-0001-000000000004', 'San Lorenzo',                           '/logos/san_lorenzo.png'),
-  ('55555555-0001-0001-0001-000000000005', 'General Urquiza',                       '/logos/general_urquiza.png'),
-  ('55555555-0001-0001-0001-000000000006', 'El cañon',                              '/logos/el_canon.png'),
-  ('55555555-0001-0001-0001-000000000007', 'Almagro Florida',                       '/logos/almagro_florida.png'),
-  ('55555555-0001-0001-0001-000000000008', 'Al Ver Veras',                          '/logos/al_ver_veras.png'),
-  ('55555555-0001-0001-0001-000000000009', 'Colegiales/Siciliano',                  '/logos/colegiales_el_siciliano.png'),
-  ('55555555-0001-0001-0001-000000000010', 'Club Banco Provincia de Mar del Plata', '/logos/banco_provincia.png'),
-  ('55555555-0001-0001-0001-000000000011', 'Club Social y Deportivo Chapadmalal',   '/logos/chapadmalal.png'),
-  ('55555555-0001-0001-0001-000000000012', 'San José',                              '/logos/san_jose.png'),
-  ('55555555-0001-0001-0001-000000000013', 'Racing',                                '/logos/racing.png'),
-  ('55555555-0001-0001-0001-000000000014', 'San Isidro',                            '/logos/san_isidro.png');
+INSERT INTO public.teams (id, name, display_name, logo_url) VALUES
+  ('55555555-0001-0001-0001-000000000001', 'Boca Juniors', NULL, '/logos/boca_juniors.png'),
+  ('55555555-0001-0001-0001-000000000002', 'Libertad', NULL, '/logos/libertad.png'),
+  ('55555555-0001-0001-0001-000000000003', 'Circulo Deportivo', NULL, '/logos/circulo_deportivo.png'),
+  ('55555555-0001-0001-0001-000000000004', 'San Lorenzo', NULL, '/logos/san_lorenzo.png'),
+  ('55555555-0001-0001-0001-000000000005', 'General Urquiza', NULL, '/logos/general_urquiza.png'),
+  ('55555555-0001-0001-0001-000000000006', 'El cañon', 'El Cañón', '/logos/el_canon.png'),
+  ('55555555-0001-0001-0001-000000000007', 'Almagro Florida', NULL, '/logos/almagro_florida.png'),
+  ('55555555-0001-0001-0001-000000000008', 'Al Ver Veras', NULL, '/logos/al_ver_veras.png'),
+  ('55555555-0001-0001-0001-000000000009', 'Colegiales/Siciliano', NULL, '/logos/colegiales_el_siciliano.png'),
+  ('55555555-0001-0001-0001-000000000010', 'Club Banco Provincia de Mar del Plata', 'Banco Provincia', '/logos/banco_provincia.png'),
+  ('55555555-0001-0001-0001-000000000011', 'Club Social y Deportivo Chapadmalal', 'Chapadmalal', '/logos/chapadmalal.png'),
+  ('55555555-0001-0001-0001-000000000012', 'San José', NULL, '/logos/san_jose.png'),
+  ('55555555-0001-0001-0001-000000000013', 'Racing', NULL, '/logos/racing.png'),
+  ('55555555-0001-0001-0001-000000000014', 'San Isidro', NULL, '/logos/san_isidro.png');
+
+-- =============================================================================
+-- 6. USUARIOS
+-- =============================================================================
+DELETE FROM public.users;
+SELECT public.create_user('superadmin', 'SuperSecret123!', 'super_admin');
+SELECT public.create_user('editor', 'Editor123!', 'editor');
 
 -- =============================================================================
 -- 6. FIXTURE ZONA CAMPEONATO - APERTURA 2026

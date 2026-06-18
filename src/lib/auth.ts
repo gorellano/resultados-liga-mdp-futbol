@@ -18,8 +18,28 @@ function simpleHash(str: string): string {
 const TOKEN_SECRET = 'lmf-2026-static-secret';
 
 export interface AuthUser {
-  email: string;
+  username: string;
   role: 'super_admin' | 'editor';
+}
+
+export function validatePassword(password: string): string | null {
+  if (password.length < 6 || password.length > 20) {
+    return "La contraseña debe tener entre 6 y 20 caracteres.";
+  }
+  if (!/[A-Z]/.test(password)) {
+    return "La contraseña debe contener al menos una letra mayúscula.";
+  }
+  if (!/[a-z]/.test(password)) {
+    return "La contraseña debe contener al menos una letra minúscula.";
+  }
+  if (!/[0-9]/.test(password)) {
+    return "La contraseña debe contener al menos un número.";
+  }
+  // Allow special characters: . , * ! @ # $ % ^ & ( ) _ + - = { } [ ] : ; " ' < >
+  if (!/[.,*!@#$%^&()_+\-={}\[\]:;"'<>]/.test(password)) {
+    return "La contraseña debe contener al menos un carácter especial (ej. .,*!).";
+  }
+  return null;
 }
 
 export function saveAuth(user: AuthUser): void {

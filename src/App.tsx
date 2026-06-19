@@ -99,7 +99,7 @@ function Layout({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-border py-6">
         <div className="container mx-auto px-4 sm:px-8 flex items-center justify-center">
           <p className="text-sm text-muted-foreground text-center">
-            &copy; {new Date().getFullYear()} Resultados LMF. Todos los derechos reservados.
+            &copy; {new Date().getFullYear()} Costa y Gol. Todos los derechos reservados.
           </p>
         </div>
       </footer>

@@ -63,5 +63,6 @@ export interface ContactMessage {
   title: string;
   body: string;
   is_read: boolean;
+  is_deleted: boolean;
   created_at: string;
 }

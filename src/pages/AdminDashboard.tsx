@@ -25,7 +25,8 @@ import {
   fetchTournamentDivisionMatches,
   isSupabaseActive,
   fetchContactMessages,
-  markContactMessageAsRead
+  markContactMessageAsRead,
+  deleteContactMessage
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 
@@ -228,6 +229,15 @@ export function AdminDashboard() {
       setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_read: true } : m));
     } catch (err) {
       console.error('Failed to mark as read', err);
+    }
+  };
+
+  const handleDeleteMessage = async (msgId: string) => {
+    try {
+      await deleteContactMessage(msgId);
+      setMessages(prev => prev.filter(m => m.id !== msgId));
+    } catch (err) {
+      console.error('Failed to delete message', err);
     }
   };
 
@@ -1267,14 +1277,23 @@ export function AdminDashboard() {
                                 <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-md font-medium">
                                   {new Date(msg.created_at).toLocaleString('es-AR')}
                                 </span>
-                                {!msg.is_read && (
+                                <div className="flex items-center gap-2">
+                                  {!msg.is_read && (
+                                    <button
+                                      onClick={() => handleMarkAsRead(msg.id)}
+                                      className="text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity active:scale-95"
+                                    >
+                                      Marcar como leído
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleMarkAsRead(msg.id)}
-                                    className="text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity active:scale-95"
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                    title="Eliminar mensaje"
+                                    className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 hover:text-red-600 border border-red-500/20 transition-all active:scale-95"
                                   >
-                                    Marcar como leído
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
-                                )}
+                                </div>
                               </div>
                             </div>
                             <div className="p-4 bg-muted/30 rounded-lg whitespace-pre-wrap text-sm text-foreground/90 border border-border/50">

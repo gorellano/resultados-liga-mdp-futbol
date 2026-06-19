@@ -612,6 +612,7 @@ export async function fetchContactMessages(): Promise<ContactMessage[]> {
   const { data, error } = await supabase
     .from('contact_messages')
     .select('*')
+    .eq('is_deleted', false)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -628,6 +629,21 @@ export async function markContactMessageAsRead(id: string): Promise<void> {
   const { error } = await supabase
     .from('contact_messages')
     .update({ is_read: true })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+/**
+ * Soft-delete a contact message (logical delete)
+ */
+export async function deleteContactMessage(id: string): Promise<void> {
+  if (!isSupabaseActive()) {
+    return;
+  }
+  const { error } = await supabase
+    .from('contact_messages')
+    .update({ is_deleted: true })
     .eq('id', id);
 
   if (error) throw error;

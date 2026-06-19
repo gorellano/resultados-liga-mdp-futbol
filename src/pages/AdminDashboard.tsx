@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
-  Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff
+  Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare
 } from 'lucide-react';
 import { cn } from '../App';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
@@ -23,9 +23,11 @@ import {
   createMatch,
   deleteMatch,
   fetchTournamentDivisionMatches,
-  isSupabaseActive
+  isSupabaseActive,
+  fetchContactMessages,
+  markContactMessageAsRead
 } from '../lib/db';
-import type { Team, Match, Tournament, Division, Zone, User } from '../lib/types';
+import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 
 const containerVariants = {
   hidden: {},
@@ -52,7 +54,7 @@ const TEAMS_PROMOCION_NAMES = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ username: string; role: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages'>('teams');
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -60,6 +62,8 @@ export function AdminDashboard() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [allMatches, setAllMatches] = useState<Match[]>([]);
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Filtros seleccionados
@@ -201,7 +205,31 @@ export function AdminDashboard() {
     if (activeTab === 'users') {
       loadUsersData();
     }
+    if (activeTab === 'messages') {
+      loadMessages();
+    }
   }, [activeTab]);
+
+  const loadMessages = async () => {
+    setLoadingMessages(true);
+    try {
+      const data = await fetchContactMessages();
+      setMessages(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleMarkAsRead = async (msgId: string) => {
+    try {
+      await markContactMessageAsRead(msgId);
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, is_read: true } : m));
+    } catch (err) {
+      console.error('Failed to mark as read', err);
+    }
+  };
 
   const handleLogout = () => {
     clearAuth();
@@ -508,6 +536,7 @@ export function AdminDashboard() {
     ...(isSuperAdmin ? [{ id: 'fixture_config' as const, label: 'Configurar Fixture', icon: Settings }] : []),
     { id: 'fixture'     as const, label: 'Fixture y Resultados',  icon: Calendar },
     { id: 'users'       as const, label: 'Gestión de Usuarios',   icon: Users },
+    { id: 'messages'    as const, label: 'Mensajes',              icon: MessageSquare },
   ];
 
   return (
@@ -1197,7 +1226,69 @@ export function AdminDashboard() {
                   )}
                 </div>
               )}
+              {activeTab === 'messages' && (
+                <div className="bg-card border border-border/50 rounded-2xl overflow-hidden shadow-xl">
+                  <div className="p-6 border-b border-border/50 flex items-center justify-between bg-muted/20">
+                    <div>
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <MessageSquare className="w-6 h-6 text-primary" />
+                        Mensajes Recibidos
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-1">Acá podés leer los mensajes que mandan a través del formulario de contacto.</p>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    {loadingMessages ? (
+                      <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" /></div>
+                    ) : messages.length === 0 ? (
+                      <div className="text-center py-16 text-muted-foreground border-2 border-dashed border-border/50 rounded-2xl">
+                        <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                        <p className="font-semibold text-lg">No hay mensajes por el momento.</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                        {messages.map(msg => (
+                          <div 
+                            key={msg.id} 
+                            className={cn(
+                              "border rounded-xl p-5 transition-all",
+                              msg.is_read ? "bg-muted/10 border-border/40" : "bg-card border-primary/30 shadow-sm"
+                            )}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
+                              <div>
+                                <h3 className={cn("text-lg", msg.is_read ? "font-medium" : "font-bold")}>
+                                  {msg.title}
+                                </h3>
+                                <p className="text-sm text-muted-foreground mt-0.5">De: <span className="font-medium text-foreground">{msg.email}</span></p>
+                              </div>
+                              <div className="flex flex-col sm:items-end gap-2 shrink-0">
+                                <span className="text-xs text-muted-foreground bg-muted px-2.5 py-1 rounded-md font-medium">
+                                  {new Date(msg.created_at).toLocaleString('es-AR')}
+                                </span>
+                                {!msg.is_read && (
+                                  <button
+                                    onClick={() => handleMarkAsRead(msg.id)}
+                                    className="text-xs font-semibold bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity active:scale-95"
+                                  >
+                                    Marcar como leído
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="p-4 bg-muted/30 rounded-lg whitespace-pre-wrap text-sm text-foreground/90 border border-border/50">
+                              {msg.body}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </motion.div>
+
           </div>
         </div>
       </div>

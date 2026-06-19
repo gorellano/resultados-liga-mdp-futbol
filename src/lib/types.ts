@@ -56,3 +56,12 @@ export interface User {
   is_active: boolean;
   created_at: string;
 }
+
+export interface ContactMessage {
+  id: string;
+  email: string;
+  title: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}

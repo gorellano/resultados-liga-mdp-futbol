@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Lock } from 'lucide-react';
-import { useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { Lock, Mail, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { HomePage } from './pages/HomePage';
@@ -9,6 +9,7 @@ import { DivisionPage } from './pages/DivisionPage';
 import { AdminLogin } from './pages/AdminLogin';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminPage } from './pages/AdminPage';
+import { ContactModal } from './components/ContactModal';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -16,10 +17,19 @@ export function cn(...inputs: ClassValue[]) {
 
 function Layout({ children }: { children: React.ReactNode }) {
   const [darkMode, setDarkMode] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   const toggleTheme = () => {
     setDarkMode(!darkMode);
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleContactSuccess = () => {
+    setShowToast(true);
+    setTimeout(() => {
+      setShowToast(false);
+    }, 4000);
   };
 
   return (
@@ -33,6 +43,14 @@ function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">Costa y Gol</span>
           </Link>
           <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsContactModalOpen(true)}
+              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary"
+              aria-label="Contact us"
+              title="Contacto"
+            >
+              <Mail className="w-5 h-5" />
+            </button>
             <button
               onClick={toggleTheme}
               className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105"
@@ -51,6 +69,28 @@ function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+      
+      <ContactModal 
+        isOpen={isContactModalOpen} 
+        onClose={() => setIsContactModalOpen(false)} 
+        onSuccess={handleContactSuccess} 
+      />
+
+      {/* Push notification (Toast) */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.9 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3 bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 backdrop-blur-md rounded-full shadow-lg"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="font-semibold text-sm">Mensaje enviado exitosamente</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-8 md:py-10">
         <AnimatePresence mode="wait">
           {children}

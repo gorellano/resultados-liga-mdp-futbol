@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Team, Match, Tournament, Division, Zone, User } from './types';
+import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from './types';
 import { 
   MOCK_TEAMS_CAMPEONATO, 
   MOCK_TEAMS_PROMOCION, 
@@ -600,4 +600,35 @@ export async function deleteMatch(
     console.error('Supabase deleteMatch failed:', err);
     return false;
   }
+}
+
+/**
+ * Fetch contact messages (Admins only via RLS)
+ */
+export async function fetchContactMessages(): Promise<ContactMessage[]> {
+  if (!isSupabaseActive()) {
+    return [];
+  }
+  const { data, error } = await supabase
+    .from('contact_messages')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Mark a contact message as read
+ */
+export async function markContactMessageAsRead(id: string): Promise<void> {
+  if (!isSupabaseActive()) {
+    return;
+  }
+  const { error } = await supabase
+    .from('contact_messages')
+    .update({ is_read: true })
+    .eq('id', id);
+
+  if (error) throw error;
 }

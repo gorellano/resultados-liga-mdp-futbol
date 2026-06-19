@@ -48,3 +48,4 @@ wiki_*.py
 fix_logos*.py
 scrape_*.py
 
+supabase_seed.sql

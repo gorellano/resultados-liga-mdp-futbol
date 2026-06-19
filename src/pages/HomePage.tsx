@@ -3,45 +3,8 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
 import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
+import { getCategoryYear } from '../lib/auth';
 import type { Division } from '../lib/types';
-
-function getCategoryYear(divisionName: string, tournamentYear: number): number | null {
-  const map: Record<string, number> = {
-    '1ra': 1, 'primera': 1,
-    '5ta': 5, 'quinta': 5,
-    '6ta': 6, 'sexta': 6,
-    '7ma': 7, 'séptima': 7, 'septima': 7,
-    '8va': 8, 'octava': 8,
-    '9na': 9, 'novena': 9,
-    '10ma': 10, 'décima': 10, 'decima': 10,
-    '11ma': 11, 'undécima': 11, 'undecima': 11,
-    '12ma': 12, 'duodécima': 12, 'duodecima': 12,
-    '13ra': 13, 'decimotercera': 13,
-    '14ta': 14, 'decimocuarta': 14,
-    '15ta': 15, 'decimoquinta': 15,
-    '16ta': 16, 'decimosexta': 16,
-  };
-  
-  const lowerName = divisionName.toLowerCase();
-  const cleanName = lowerName.replace(' división', '').trim();
-  let divNumber = 0;
-
-  for (const [key, val] of Object.entries(map)) {
-    if (cleanName === key || lowerName.startsWith(key + ' ') || lowerName === key) {
-      divNumber = val;
-      // Continue searching for a longer match if needed, but here exact match is prioritized
-    }
-  }
-
-  if (divNumber === 0) {
-    const match = divisionName.match(/(\d+)/);
-    if (match) divNumber = parseInt(match[1]);
-  }
-
-  if (divNumber === 0 || divNumber === 1) return null;
-  
-  return divNumber + tournamentYear - 23;
-}
 
 export function HomePage() {
   const currentYear = new Date().getFullYear();

@@ -254,6 +254,41 @@ export async function fetchAllTournamentMatches(tournamentId: string): Promise<M
 }
 
 /**
+ * Fetches matches for a given tournament and division
+ */
+export async function fetchTournamentDivisionMatches(tournamentId: string, divisionId: string): Promise<Match[]> {
+  if (!isSupabaseActive()) {
+    const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
+    const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
+    
+    const allMatches: Match[] = [];
+    campMatches.forEach(m => {
+      allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000001' });
+    });
+    promMatches.forEach(m => {
+      allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000002' });
+    });
+    return allMatches;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+      .eq('tournament_id', tournamentId)
+      .eq('division_id', divisionId);
+
+    if (error) throw error;
+    return (data || []).map(m => ({
+      ...m,
+      status: m.status as 'scheduled' | 'finished' | 'postponed'
+    }));
+  } catch (err) {
+    console.warn('Supabase fetchTournamentDivisionMatches failed:', err);
+    return [];
+  }
+}
+
+/**
  * Saves a match score and status
  */
 export async function saveMatchResult(

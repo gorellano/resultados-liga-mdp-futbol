@@ -22,7 +22,7 @@ import {
   toggleUserActive,
   createMatch,
   deleteMatch,
-  fetchAllTournamentMatches,
+  fetchTournamentDivisionMatches,
   isSupabaseActive
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User } from '../lib/types';
@@ -139,7 +139,8 @@ export function AdminDashboard() {
         setTeams(tms);
 
         if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
-        if (divs.length > 0) setSelectedDivisionId(divs[0].id);
+        const validDivs = divs.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
+        if (validDivs.length > 0) setSelectedDivisionId(validDivs[0].id);
         if (zns.length > 0) setSelectedZoneId(zns[0].id);
       } catch (err) {
         console.error('Error loading admin dashboard base data:', err);
@@ -150,14 +151,14 @@ export function AdminDashboard() {
     loadBaseData();
   }, []);
 
-  // Cargar partidos del torneo seleccionado
+  // Cargar partidos de la división y torneo seleccionados
   useEffect(() => {
-    if (!selectedTournamentId) return;
+    if (!selectedTournamentId || !selectedDivisionId) return;
 
     async function loadAllMatches() {
       setLoading(true);
       try {
-        const data = await fetchAllTournamentMatches(selectedTournamentId);
+        const data = await fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId);
         setAllMatches(data);
       } catch (err) {
         console.error('Error loading tournament matches:', err);
@@ -166,10 +167,10 @@ export function AdminDashboard() {
       }
     }
     loadAllMatches();
-  }, [selectedTournamentId]);
+  }, [selectedTournamentId, selectedDivisionId]);
 
   // Filtrar partidos locales del tab activo
-  const matches = allMatches.filter(m => m.division_id === selectedDivisionId && m.zone_id === selectedZoneId);
+  const matches = allMatches.filter(m => m.zone_id === selectedZoneId);
 
   // Sincronizar inputs de goles editados cuando cambian los partidos cargados
   useEffect(() => {

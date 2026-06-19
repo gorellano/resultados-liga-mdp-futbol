@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Send, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
-import { cn } from '../App'; // Or twMerge, we can import cn from App
+
 
 interface ContactModalProps {
   isOpen: boolean;

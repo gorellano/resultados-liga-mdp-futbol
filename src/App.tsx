@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Lock, Mail, CheckCircle2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";

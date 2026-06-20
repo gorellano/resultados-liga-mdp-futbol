@@ -1,0 +1,21 @@
+{
+  "name": "Costa y Gol",
+  "short_name": "Costa y Gol",
+  "description": "Resultados, fixtures y posiciones de la Liga Marplatense de Fútbol.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "icons": [
+    {
+      "src": "/logo_costa_y_gol.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo_costa_y_gol.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

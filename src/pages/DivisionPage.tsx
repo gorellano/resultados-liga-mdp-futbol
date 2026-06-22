@@ -3,18 +3,150 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings } from '../lib/standings';
-import { Shield } from 'lucide-react';
+import { Shield, Share2, Copy, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 
+function StandingsSkeleton() {
+  return (
+    <div className="w-full animate-pulse">
+      <div className="bg-muted/30 border-b border-border/50 h-14 flex items-center px-6">
+        <div className="h-4 bg-muted-foreground/20 rounded w-8 mr-6"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-32 flex-1"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-10 ml-4"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-10 ml-4"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-10 ml-4 hidden sm:block"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-10 ml-4 hidden sm:block"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-10 ml-4 hidden sm:block"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-12 ml-4"></div>
+        <div className="h-4 bg-muted-foreground/20 rounded w-16 ml-4"></div>
+      </div>
+      <div className="divide-y divide-border/50">
+        {Array.from({ length: 8 }).map((_, idx) => (
+          <div key={idx} className="h-16 flex items-center px-6 py-4">
+            <div className="w-8 h-8 rounded-full bg-muted/50 mr-6 flex-shrink-0"></div>
+            <div className="w-10 h-10 rounded-full bg-muted/50 mr-4 flex-shrink-0"></div>
+            <div className="h-5 bg-muted/50 rounded w-1/3 flex-1"></div>
+            <div className="w-8 h-8 rounded bg-muted/50 ml-4 flex-shrink-0"></div>
+            <div className="h-4 bg-muted/40 rounded w-6 ml-6 flex-shrink-0"></div>
+            <div className="h-4 bg-muted/40 rounded w-6 ml-6 flex-shrink-0 hidden sm:block"></div>
+            <div className="h-4 bg-muted/40 rounded w-6 ml-6 flex-shrink-0 hidden sm:block"></div>
+            <div className="h-4 bg-muted/40 rounded w-6 ml-6 flex-shrink-0 hidden sm:block"></div>
+            <div className="h-5 bg-muted/50 rounded w-8 ml-6 flex-shrink-0"></div>
+            <div className="flex gap-1 ml-6 shrink-0">
+              <div className="w-6 h-6 rounded-full bg-muted/40"></div>
+              <div className="w-6 h-6 rounded-full bg-muted/40"></div>
+              <div className="w-6 h-6 rounded-full bg-muted/40"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FixtureSkeleton() {
+  return (
+    <div className="p-4 sm:p-6 space-y-6 animate-pulse">
+      <div className="space-y-2">
+        <div className="h-3 bg-muted/50 rounded w-24"></div>
+        <div className="h-2 bg-muted/30 rounded-full w-full"></div>
+      </div>
+      <div className="flex gap-2 py-2 overflow-x-auto">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="w-8 h-8 rounded-full bg-muted/50 shrink-0"></div>
+        ))}
+      </div>
+      <div className="space-y-4">
+        <div className="h-5 bg-muted/60 rounded w-28"></div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border border-border/50 rounded-2xl p-5 bg-card/30 flex flex-col gap-4">
+              <div className="flex justify-between items-center mb-1">
+                <div className="h-4 bg-muted/50 rounded w-20"></div>
+                <div className="h-3 bg-muted/30 rounded w-24"></div>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <div className="flex flex-col items-center gap-2 flex-1">
+                  <div className="w-14 h-14 rounded-full bg-muted/50"></div>
+                  <div className="h-4 bg-muted/55 rounded w-16"></div>
+                </div>
+                <div className="w-20 h-10 bg-muted/40 rounded-xl"></div>
+                <div className="flex flex-col items-center gap-2 flex-1">
+                  <div className="w-14 h-14 rounded-full bg-muted/50"></div>
+                  <div className="h-4 bg-muted/55 rounded w-16"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DivisionPage() {
   const { name } = useParams();
   const [zone, setZone] = useState<'campeonato' | 'promocion'>('campeonato');
   const [tab, setTab] = useState<'posiciones' | 'fixture'>('posiciones');
   const [selectedRound, setSelectedRound] = useState<number>(1);
+  const [copiedRound, setCopiedRound] = useState(false);
+  const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
+  
+  const handleShareRound = () => {
+    const zoneLabel = zone === 'campeonato' ? 'Zona Campeonato' : 'Zona Promoción';
+    let text = `🏆 Liga MDP - ${name}\n📅 ${zoneLabel} - Fecha ${selectedRound}\n\n`;
+    
+    matchesByRound.forEach(match => {
+      const home = teams.find(t => t.id === match.home_team_id);
+      const away = teams.find(t => t.id === match.away_team_id);
+      if (!home || !away) return;
+      
+      const homeName = home.display_name ?? home.name;
+      const awayName = away.display_name ?? away.name;
+      
+      if (match.status === 'finished') {
+        text += `⚽ ${homeName} ${match.home_goals} - ${match.away_goals} ${awayName}\n`;
+      } else {
+        text += `⏳ ${homeName} vs ${awayName}\n`;
+      }
+    });
+    
+    text += `\nCosta y Gol ⚽`;
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedRound(true);
+      setTimeout(() => setCopiedRound(false), 2000);
+    }
+  };
+
+  const handleShareMatch = (match: Match) => {
+    const home = teams.find(t => t.id === match.home_team_id);
+    const away = teams.find(t => t.id === match.away_team_id);
+    if (!home || !away) return;
+    
+    const homeName = home.display_name ?? home.name;
+    const awayName = away.display_name ?? away.name;
+    const zoneLabel = zone === 'campeonato' ? 'Zona Campeonato' : 'Zona Promoción';
+    
+    let text = `⚽ Liga MDP - ${name} (${zoneLabel})\n📅 Fecha ${match.round_number}\n\n`;
+    if (match.status === 'finished') {
+      text += `${homeName} ${match.home_goals} - ${match.away_goals} ${awayName}\n🏆 ¡Partido Finalizado!`;
+    } else {
+      text += `${homeName} vs ${awayName}\n⏳ Próximamente`;
+    }
+    text += `\n\nCosta y Gol ⚽`;
+    
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedMatchId(match.id);
+      setTimeout(() => setCopiedMatchId(null), 2000);
+    }
+  };
   
   // Datos cargados dinámicamente
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -70,8 +202,11 @@ export function DivisionPage() {
 
         const roundsList = Array.from(new Set(data.map(m => m.round_number))).sort((a, b) => a - b);
         if (roundsList.length > 0) {
-          if (!roundsList.includes(selectedRound)) {
-            setSelectedRound(roundsList[0]);
+          const scheduledRounds = Array.from(new Set(data.filter(m => m.status === 'scheduled').map(m => m.round_number))).sort((a, b) => a - b);
+          if (scheduledRounds.length > 0) {
+            setSelectedRound(scheduledRounds[0]);
+          } else {
+            setSelectedRound(roundsList[roundsList.length - 1]);
           }
         } else {
           setSelectedRound(1);
@@ -102,6 +237,28 @@ export function DivisionPage() {
   }, [allTeams, zone, matches]);
 
   const standings = useMemo(() => calculateStandings(matches, teams), [matches, teams]);
+  
+  const formByTeam = useMemo(() => {
+    const result: Record<string, ('G' | 'E' | 'P')[]> = {};
+    teams.forEach(t => {
+      const teamMatches = matches
+        .filter(m => m.status === 'finished' && (m.home_team_id === t.id || m.away_team_id === t.id))
+        .sort((a, b) => a.round_number - b.round_number);
+      const form = teamMatches.map(m => {
+        const isHome = m.home_team_id === t.id;
+        const homeGoals = m.home_goals ?? 0;
+        const awayGoals = m.away_goals ?? 0;
+        if (homeGoals === awayGoals) return 'E';
+        if (isHome) {
+          return homeGoals > awayGoals ? 'G' : 'P';
+        } else {
+          return awayGoals > homeGoals ? 'G' : 'P';
+        }
+      });
+      result[t.id] = form.slice(-5);
+    });
+    return result;
+  }, [matches, teams]);
   
   const rounds = useMemo(() => {
     return Array.from(new Set(matches.map(m => m.round_number))).sort((a, b) => a - b);
@@ -211,15 +368,9 @@ export function DivisionPage() {
 
       <div className="bg-card/40 backdrop-blur-xl rounded-2xl border border-border/50 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden min-h-[400px] relative">
         {loading && (
-          <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-10">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full"
-            />
-          </div>
+          tab === 'posiciones' ? <StandingsSkeleton /> : <FixtureSkeleton />
         )}
-        {tab === 'posiciones' && (
+        {!loading && tab === 'posiciones' && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground font-bold uppercase bg-muted/30 border-b border-border/50">
@@ -234,6 +385,7 @@ export function DivisionPage() {
                   <th className="px-6 py-5 text-center hidden md:table-cell">GF</th>
                   <th className="px-6 py-5 text-center hidden md:table-cell">GC</th>
                   <th className="px-6 py-5 text-center">DIF</th>
+                  <th className="px-6 py-5 text-center">Forma</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -271,6 +423,27 @@ export function DivisionPage() {
                         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {formByTeam[row.team.id]?.map((outcome, idx) => (
+                          <span
+                            key={idx}
+                            className={cn(
+                              "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm select-none shrink-0 transition-transform hover:scale-110 duration-200",
+                              outcome === 'G' ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" :
+                              outcome === 'E' ? "bg-amber-200 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" :
+                              "bg-rose-200 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                            )}
+                            title={outcome === 'G' ? 'Victoria' : outcome === 'E' ? 'Empate' : 'Derrota'}
+                          >
+                            {outcome}
+                          </span>
+                        ))}
+                        {(!formByTeam[row.team.id] || formByTeam[row.team.id].length === 0) && (
+                          <span className="text-muted-foreground text-xs font-semibold">—</span>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -278,7 +451,7 @@ export function DivisionPage() {
           </div>
         )}
 
-        {tab === 'fixture' && (
+        {!loading && tab === 'fixture' && (
           <div className="p-4 sm:p-6 space-y-6">
             {/* Progress bar del torneo */}
             <div className="space-y-2">
@@ -312,20 +485,65 @@ export function DivisionPage() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-semibold text-lg">Fecha {selectedRound}</h3>
+              <div className="flex justify-between items-center bg-muted/10 p-3 rounded-2xl border border-border/30">
+                <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  Fecha {selectedRound}
+                </h3>
+                <button
+                  onClick={handleShareRound}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-extrabold transition-all duration-300 shadow-sm cursor-pointer",
+                    copiedRound 
+                      ? "bg-emerald-500 text-white" 
+                      : "bg-primary/10 hover:bg-primary/20 text-primary hover:scale-[1.03]"
+                  )}
+                  title="Compartir todos los partidos de esta fecha"
+                >
+                  {copiedRound ? (
+                    <>
+                      <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                      ✓ ¡Fixture Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-3.5 h-3.5" />
+                      Compartir Fecha
+                    </>
+                  )}
+                </button>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 {matchesByRound.map(match => {
                   const home = teams.find(t => t.id === match.home_team_id);
                   const away = teams.find(t => t.id === match.away_team_id);
                   if (!home || !away) return null;
-
+ 
                   // Mostramos todos los partidos del fixture
                   return (
-                    <div key={match.id} className="flex flex-col bg-background/50 border border-border/50 rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-300">
+                    <div key={match.id} className="flex flex-col bg-background/50 border border-border/50 rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-300 relative group/match">
                       <div className="flex justify-between items-center mb-5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-                        <span className={cn("px-2.5 py-1 rounded-full", match.status === 'finished' ? "bg-muted" : "bg-primary/10 text-primary")}>
-                          {match.status === 'finished' ? 'Finalizado' : 'Por jugarse'}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("px-2.5 py-1 rounded-full", match.status === 'finished' ? "bg-muted" : "bg-primary/10 text-primary")}>
+                            {match.status === 'finished' ? 'Finalizado' : 'Por jugarse'}
+                          </span>
+                          <button
+                            onClick={() => handleShareMatch(match)}
+                            className={cn(
+                              "p-1.5 rounded-lg transition-all duration-200 cursor-pointer",
+                              copiedMatchId === match.id 
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" 
+                                : "hover:bg-muted text-muted-foreground hover:text-primary"
+                            )}
+                            title="Copiar resultado al portapapeles"
+                          >
+                            {copiedMatchId === match.id ? (
+                              <span className="text-[10px] font-extrabold px-1">✓ Copiado</span>
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
                         {match.match_date && <span>{format(new Date(match.match_date), "d MMM, HH:mm", { locale: es })}</span>}
                       </div>
                       <div className="flex justify-between items-center gap-4">

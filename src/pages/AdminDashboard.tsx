@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
-  Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare
+  Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare,
+  Upload, Play, Check, FileText, Sparkles
 } from 'lucide-react';
 import { cn } from '../App';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
@@ -22,6 +23,8 @@ import {
   toggleUserActive,
   createMatch,
   deleteMatch,
+  createMatches,
+  deleteMatchesByFilter,
   fetchTournamentDivisionMatches,
   isSupabaseActive,
   fetchContactMessages,
@@ -118,6 +121,22 @@ export function AdminDashboard() {
   const [fixtureError, setFixtureError] = useState('');
   const [fixtureLoading, setFixtureLoading] = useState(false);
 
+  // Estados de Carga Masiva y Generador de Fixture
+  const [fixtureMode, setFixtureMode] = useState<'manual' | 'bulk_text' | 'round_robin'>('manual');
+  const [bulkText, setBulkText] = useState('');
+  interface ParsedMatch {
+    round: number;
+    homeName: string;
+    awayName: string;
+    homeTeamId?: string;
+    awayTeamId?: string;
+  }
+  const [parsedMatches, setParsedMatches] = useState<ParsedMatch[]>([]);
+  const [roundRobinTeams, setRoundRobinTeams] = useState<string[]>([]);
+  const [roundRobinMatches, setRoundRobinMatches] = useState<{ round: number; homeTeamId: string; awayTeamId: string }[]>([]);
+  const [bulkError, setBulkError] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   useEffect(() => {
     const auth = loadAuth();
     if (!auth) {
@@ -173,6 +192,22 @@ export function AdminDashboard() {
     }
     loadAllMatches();
   }, [selectedTournamentId, selectedDivisionId]);
+
+  // Auto-selección de fecha/ronda actual basado en la zona y partidos cargados
+  useEffect(() => {
+    const zoneMatches = allMatches.filter(m => m.zone_id === selectedZoneId);
+    const roundsList = Array.from(new Set(zoneMatches.map(m => m.round_number))).sort((a, b) => a - b);
+    if (roundsList.length > 0) {
+      const scheduledRounds = Array.from(new Set(zoneMatches.filter(m => m.status === 'scheduled').map(m => m.round_number))).sort((a, b) => a - b);
+      if (scheduledRounds.length > 0) {
+        setSelectedRound(scheduledRounds[0]);
+      } else {
+        setSelectedRound(roundsList[roundsList.length - 1]);
+      }
+    } else {
+      setSelectedRound(1);
+    }
+  }, [allMatches, selectedZoneId]);
 
   // Filtrar partidos locales del tab activo
   const matches = allMatches.filter(m => m.zone_id === selectedZoneId);
@@ -522,6 +557,262 @@ export function AdminDashboard() {
     return true;
   });
 
+  // Sincronizar equipos seleccionados para Round-Robin al cambiar de filtros o cargarse los equipos
+  useEffect(() => {
+    setRoundRobinTeams(eligibleTeams.map(t => t.id));
+    setParsedMatches([]);
+    setRoundRobinMatches([]);
+    setBulkText('');
+    setBulkError('');
+  }, [selectedDivisionId, selectedZoneId, selectedTournamentId, eligibleTeams.length]);
+
+  // Función de coincidencia inteligente de equipos por nombre
+  const findClosestTeam = (name: string): Team | undefined => {
+    const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const searchNorm = norm(name);
+    
+    // 1. Coincidencia exacta
+    let matched = eligibleTeams.find(t => norm(t.name) === searchNorm || (t.display_name && norm(t.display_name) === searchNorm));
+    if (matched) return matched;
+    
+    // 2. Coincidencia parcial (uno contiene al otro)
+    matched = eligibleTeams.find(t => {
+      const tNameNorm = norm(t.name);
+      const tDispNorm = t.display_name ? norm(t.display_name) : '';
+      return tNameNorm.includes(searchNorm) || searchNorm.includes(tNameNorm) ||
+             (tDispNorm && (tDispNorm.includes(searchNorm) || searchNorm.includes(tDispNorm)));
+    });
+    if (matched) return matched;
+    
+    // 3. Reemplazo de abreviaturas comunes y re-intento
+    const replacements: Record<string, string> = {
+      'dvo': 'deportivo',
+      'dep': 'deportivo',
+      'arg': 'argentinos',
+      'atl': 'atletico',
+      'mdp': 'mar del plata',
+      'unidos': 'unidos',
+      'norte': 'norte',
+      'sud': 'sud',
+      'de': '',
+      'del': ''
+    };
+    let searchReplaced = searchNorm;
+    Object.entries(replacements).forEach(([abbr, full]) => {
+      searchReplaced = searchReplaced.replace(new RegExp(`\\b${abbr}\\b`, 'g'), full);
+    });
+    searchReplaced = searchReplaced.replace(/\s+/g, ' ').trim();
+    
+    matched = eligibleTeams.find(t => {
+      const tNameNorm = norm(t.name).replace(/\s+/g, ' ');
+      const tDispNorm = t.display_name ? norm(t.display_name).replace(/\s+/g, ' ') : '';
+      return tNameNorm.includes(searchReplaced) || searchReplaced.includes(tNameNorm) ||
+             (tDispNorm && (tDispNorm.includes(searchReplaced) || searchReplaced.includes(tDispNorm)));
+    });
+    
+    return matched;
+  };
+
+  const handleParseBulkText = () => {
+    setBulkError('');
+    if (!bulkText.trim()) {
+      setBulkError('Pegá algún texto primero.');
+      return;
+    }
+
+    const lines = bulkText.split('\n');
+    let currentRound = 1;
+    const tempParsed: ParsedMatch[] = [];
+    
+    const vsRegex = /\s*(?:vs\.?|contra|-)\s*/i;
+    const spanishNumbers: Record<string, number> = {
+      primera: 1, segunda: 2, tercera: 3, cuarta: 4, quinta: 5, sexta: 6, septima: 7, séptima: 7,
+      octava: 8, novena: 9, decima: 10, décima: 10, undecima: 11, undécima: 11, duodecima: 12, duodécima: 12,
+      decimotercera: 13, decimocuarta: 14, decimoquinta: 15, decimosexta: 16, decimoseptima: 17,
+      decimoctava: 18, decimonovena: 19, vigesima: 20, vigésima: 20
+    };
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+      
+      const lowerLine = line.toLowerCase();
+      let roundMatch = false;
+      
+      if (lowerLine.includes('fecha') || lowerLine.includes('ronda')) {
+        const words = lowerLine.split(/\s+/);
+        for (const word of words) {
+          const cleanWord = word.replace(/[^a-z0-9]/g, '');
+          if (/^\d+$/.test(cleanWord)) {
+            currentRound = parseInt(cleanWord);
+            roundMatch = true;
+            break;
+          } else if (spanishNumbers[cleanWord] !== undefined) {
+            currentRound = spanishNumbers[cleanWord];
+            roundMatch = true;
+            break;
+          }
+        }
+        if (roundMatch) continue;
+      }
+      
+      const words = lowerLine.split(/\s+/);
+      if (words.length === 2 && spanishNumbers[words[0]] !== undefined) {
+        currentRound = spanishNumbers[words[0]];
+        continue;
+      }
+      
+      const cleanMatchLine = line.replace(/^[\s*\-•·]+/, '').trim();
+      const parts = cleanMatchLine.split(vsRegex);
+      if (parts.length === 2) {
+        const homeName = parts[0].trim();
+        const awayName = parts[1].trim();
+        if (homeName && awayName) {
+          const homeTeam = findClosestTeam(homeName);
+          const awayTeam = findClosestTeam(awayName);
+          
+          tempParsed.push({
+            round: currentRound,
+            homeName,
+            awayName,
+            homeTeamId: homeTeam?.id,
+            awayTeamId: awayTeam?.id
+          });
+        }
+      }
+    }
+    
+    if (tempParsed.length === 0) {
+      setBulkError('No se pudieron detectar partidos en el texto. Asegurate de usar el formato "Equipo A vs. Equipo B" y separadores de "Fecha X".');
+    }
+    setParsedMatches(tempParsed);
+  };
+
+  const handleSaveBulkMatches = async () => {
+    if (parsedMatches.length === 0) return;
+    
+    const unmapped = parsedMatches.filter(m => !m.homeTeamId || !m.awayTeamId);
+    if (unmapped.length > 0) {
+      setBulkError(`Hay ${unmapped.length} partidos sin asociar. Por favor seleccioná los equipos correctos usando el menú desplegable antes de guardar.`);
+      return;
+    }
+
+    if (!confirm('¿Estás seguro de que querés guardar este fixture? Esto ELIMINARÁ todos los partidos existentes para esta división, zona y torneo.')) {
+      return;
+    }
+
+    setBulkLoading(true);
+    setBulkError('');
+    try {
+      await deleteMatchesByFilter(selectedTournamentId, selectedDivisionId, selectedZoneId);
+      
+      const matchesToInsert = parsedMatches.map(m => ({
+        tournament_id: selectedTournamentId,
+        division_id: selectedDivisionId,
+        zone_id: selectedZoneId,
+        round_number: m.round,
+        home_team_id: m.homeTeamId!,
+        away_team_id: m.awayTeamId!,
+        home_goals: null,
+        away_goals: null,
+        status: 'scheduled' as const,
+        match_date: null
+      }));
+
+      await createMatches(matchesToInsert);
+      
+      const updatedMatches = await fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId);
+      setAllMatches(updatedMatches);
+      
+      setParsedMatches([]);
+      setBulkText('');
+      setFixtureMode('manual');
+      alert('¡Fixture cargado exitosamente!');
+    } catch (err: any) {
+      setBulkError(err?.message || 'Error al guardar el fixture masivo.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleGenerateRoundRobin = () => {
+    setBulkError('');
+    if (roundRobinTeams.length < 2) {
+      setBulkError('Seleccioná al menos 2 equipos para generar el fixture.');
+      return;
+    }
+
+    let list = [...roundRobinTeams];
+    const isOdd = list.length % 2 !== 0;
+    if (isOdd) {
+      list.push('BYE');
+    }
+
+    const numTeams = list.length;
+    const numRounds = numTeams - 1;
+    const matchesList: { round: number; homeTeamId: string; awayTeamId: string }[] = [];
+
+    for (let round = 1; round <= numRounds; round++) {
+      for (let i = 0; i < numTeams / 2; i++) {
+        const homeId = list[i];
+        const awayId = list[numTeams - 1 - i];
+
+        const isHome = (round + i) % 2 === 0;
+
+        if (homeId !== 'BYE' && awayId !== 'BYE') {
+          matchesList.push({
+            round,
+            homeTeamId: isHome ? homeId : awayId,
+            awayTeamId: isHome ? awayId : homeId
+          });
+        }
+      }
+      list = [list[0], list[numTeams - 1], ...list.slice(1, numTeams - 1)];
+    }
+
+    setRoundRobinMatches(matchesList);
+  };
+
+  const handleSaveRoundRobinMatches = async () => {
+    if (roundRobinMatches.length === 0) return;
+
+    if (!confirm('¿Estás seguro de que querés guardar este fixture generado? Esto ELIMINARÁ todos los partidos existentes para esta división, zona y torneo.')) {
+      return;
+    }
+
+    setBulkLoading(true);
+    setBulkError('');
+    try {
+      await deleteMatchesByFilter(selectedTournamentId, selectedDivisionId, selectedZoneId);
+      
+      const matchesToInsert = roundRobinMatches.map(m => ({
+        tournament_id: selectedTournamentId,
+        division_id: selectedDivisionId,
+        zone_id: selectedZoneId,
+        round_number: m.round,
+        home_team_id: m.homeTeamId,
+        away_team_id: m.awayTeamId,
+        home_goals: null,
+        away_goals: null,
+        status: 'scheduled' as const,
+        match_date: null
+      }));
+
+      await createMatches(matchesToInsert);
+      
+      const updatedMatches = await fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId);
+      setAllMatches(updatedMatches);
+      
+      setRoundRobinMatches([]);
+      setFixtureMode('manual');
+      alert('¡Fixture Round Robin generado y guardado exitosamente!');
+    } catch (err: any) {
+      setBulkError(err?.message || 'Error al guardar el fixture generado.');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const isSuperAdmin = user?.role === 'super_admin';
 
   if (!user) return null;
@@ -822,77 +1113,375 @@ export function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* Formulario Agregar Partido */}
-                  <form onSubmit={handleCreateMatch} className="bg-background border border-border/50 rounded-3xl p-6 space-y-4 shadow-sm">
-                    <h3 className="font-bold text-base flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-primary" /> Agregar Nuevo Partido
-                    </h3>
-                    
-                    {fixtureError && (
-                      <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-sm font-medium">
-                        {fixtureError}
-                      </div>
-                    )}
+                  {/* Selector de Modo */}
+                  <div className="flex bg-muted/50 p-1.5 rounded-xl border border-border/50 max-w-lg mb-6">
+                    <button
+                      onClick={() => setFixtureMode('manual')}
+                      className={cn(
+                        "flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer",
+                        fixtureMode === 'manual' ? "bg-background shadow text-primary font-black scale-[1.02]" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Agregar Uno
+                    </button>
+                    <button
+                      onClick={() => setFixtureMode('bulk_text')}
+                      className={cn(
+                        "flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer",
+                        fixtureMode === 'bulk_text' ? "bg-background shadow text-primary font-black scale-[1.02]" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <FileText className="w-3.5 h-3.5" /> Pegar Texto
+                    </button>
+                    <button
+                      onClick={() => setFixtureMode('round_robin')}
+                      className={cn(
+                        "flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer",
+                        fixtureMode === 'round_robin' ? "bg-background shadow text-primary font-black scale-[1.02]" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Autogenerar
+                    </button>
+                  </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {/* Fecha */}
+                  {bulkError && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-600 rounded-2xl text-sm font-medium flex items-center gap-2.5 mb-4">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                      <div>{bulkError}</div>
+                    </div>
+                  )}
+
+                  {/* MODO MANUAL (EXISTENTE) */}
+                  {fixtureMode === 'manual' && (
+                    <form onSubmit={handleCreateMatch} className="bg-background border border-border/50 rounded-3xl p-6 space-y-4 shadow-sm">
+                      <h3 className="font-bold text-base flex items-center gap-2">
+                        <Plus className="w-4 h-4 text-primary" /> Agregar Nuevo Partido Manualmente
+                      </h3>
+                      
+                      {fixtureError && (
+                        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-600 rounded-xl text-sm font-medium">
+                          {fixtureError}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {/* Fecha */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold ml-1">Número de Fecha</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={fixtureRound}
+                            onChange={(e) => setFixtureRound(Math.max(1, parseInt(e.target.value) || 1))}
+                            className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none font-medium text-sm"
+                            required
+                          />
+                        </div>
+
+                        {/* Local */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold ml-1">Equipo Local</label>
+                          <select
+                            value={fixtureHomeTeamId}
+                            onChange={(e) => setFixtureHomeTeamId(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm"
+                            required
+                          >
+                            <option value="">Seleccionar local...</option>
+                            {eligibleTeams.map(t => (
+                              <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Visitante */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold ml-1">Equipo Visitante</label>
+                          <select
+                            value={fixtureAwayTeamId}
+                            onChange={(e) => setFixtureAwayTeamId(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm"
+                            required
+                          >
+                            <option value="">Seleccionar visitante...</option>
+                            {eligibleTeams.map(t => (
+                              <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Submit */}
+                        <div className="flex items-end">
+                          <button
+                            type="submit"
+                            disabled={fixtureLoading}
+                            className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 text-sm flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer"
+                          >
+                            {fixtureLoading ? 'Agregando...' : 'Agregar Partido'}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* MODO CARGA MASIVA POR TEXTO */}
+                  {fixtureMode === 'bulk_text' && (
+                    <div className="bg-background border border-border/50 rounded-3xl p-6 space-y-6 shadow-sm">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-semibold ml-1">Número de Fecha</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={fixtureRound}
-                          onChange={(e) => setFixtureRound(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none font-medium text-sm"
-                          required
-                        />
+                        <h3 className="font-bold text-base flex items-center gap-2">
+                          <Upload className="w-4 h-4 text-primary" /> Cargar Fixture Copiado (Texto)
+                        </h3>
+                        <p className="text-muted-foreground text-xs">
+                          Pegá las fechas y partidos. El sistema asociará los equipos automáticamente. Ejemplo:<br />
+                          <code className="bg-muted/80 px-1.5 py-0.5 rounded text-[10px] text-primary font-bold">FECHA 1</code><br />
+                          <code className="bg-muted/80 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground ml-2">* Talleres vs. Dvo Norte</code>
+                        </p>
                       </div>
 
-                      {/* Local */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold ml-1">Equipo Local</label>
-                        <select
-                          value={fixtureHomeTeamId}
-                          onChange={(e) => setFixtureHomeTeamId(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm"
-                          required
-                        >
-                          <option value="">Seleccionar local...</option>
-                          {eligibleTeams.map(t => (
-                            <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
-                          ))}
-                        </select>
-                      </div>
+                      <textarea
+                        value={bulkText}
+                        onChange={(e) => setBulkText(e.target.value)}
+                        placeholder="ZONA CAMPEONATO&#10;&#10;PRIMERA FECHA&#10;&#10;* Talleres vs. Deportivo Norte&#10;* Kimberley vs. Once Unidos&#10;* Aldosivi vs. Banfield"
+                        rows={10}
+                        className="w-full px-4 py-3 bg-muted/20 border border-border/60 rounded-2xl focus:ring-2 focus:ring-primary/40 outline-none font-mono text-xs resize-y"
+                      />
 
-                      {/* Visitante */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold ml-1">Equipo Visitante</label>
-                        <select
-                          value={fixtureAwayTeamId}
-                          onChange={(e) => setFixtureAwayTeamId(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm"
-                          required
-                        >
-                          <option value="">Seleccionar visitante...</option>
-                          {eligibleTeams.map(t => (
-                            <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Submit */}
-                      <div className="flex items-end">
+                      <div className="flex justify-end gap-3">
                         <button
-                          type="submit"
-                          disabled={fixtureLoading}
-                          className="w-full bg-primary text-primary-foreground font-bold py-2.5 rounded-xl hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 text-sm flex items-center justify-center gap-1.5 shadow-md shadow-primary/10"
+                          onClick={handleParseBulkText}
+                          className="px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-xs flex items-center gap-1.5 hover:opacity-90 cursor-pointer"
                         >
-                          {fixtureLoading ? 'Agregando...' : 'Agregar Partido'}
+                          <Play className="w-3.5 h-3.5" />
+                          Procesar Fixture
                         </button>
                       </div>
+
+                      {parsedMatches.length > 0 && (
+                        <div className="space-y-4 pt-4 border-t border-border/50">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-sm">Partidos Previsualizados ({parsedMatches.length})</h4>
+                            <span className="text-xs text-muted-foreground">Mapeá los equipos que posean alertas ⚠️</span>
+                          </div>
+
+                          <div className="border border-border/50 rounded-2xl overflow-hidden max-h-[400px] overflow-y-auto">
+                            <table className="w-full text-xs text-left">
+                              <thead className="bg-muted/50 font-bold text-muted-foreground uppercase border-b border-border/50">
+                                <tr>
+                                  <th className="px-4 py-3 text-center w-16">Fecha</th>
+                                  <th className="px-4 py-3">Equipo Local (Detectado)</th>
+                                  <th className="px-4 py-3">Equipo Visitante (Detectado)</th>
+                                  <th className="px-4 py-3 text-center w-24">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/50">
+                                {parsedMatches.map((m, idx) => {
+                                  const isHomeMapped = !!m.homeTeamId;
+                                  const isAwayMapped = !!m.awayTeamId;
+                                  return (
+                                    <tr key={idx} className="hover:bg-muted/20">
+                                      <td className="px-4 py-3 text-center font-bold">Fecha {m.round}</td>
+                                      <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                          <span className="font-semibold text-muted-foreground text-[10px]">{m.homeName}</span>
+                                          <select
+                                            value={m.homeTeamId || ''}
+                                            onChange={(e) => {
+                                              const newId = e.target.value;
+                                              setParsedMatches(prev => prev.map((pm, pmIdx) => pmIdx === idx ? { ...pm, homeTeamId: newId } : pm));
+                                            }}
+                                            className={cn(
+                                              "px-2 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-primary/40 bg-background outline-none max-w-xs",
+                                              isHomeMapped ? "border-border" : "border-amber-400 bg-amber-500/5"
+                                            )}
+                                          >
+                                            <option value="">Seleccionar equipo local...</option>
+                                            {eligibleTeams.map(t => (
+                                              <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-1">
+                                          <span className="font-semibold text-muted-foreground text-[10px]">{m.awayName}</span>
+                                          <select
+                                            value={m.awayTeamId || ''}
+                                            onChange={(e) => {
+                                              const newId = e.target.value;
+                                              setParsedMatches(prev => prev.map((pm, pmIdx) => pmIdx === idx ? { ...pm, awayTeamId: newId } : pm));
+                                            }}
+                                            className={cn(
+                                              "px-2 py-1 text-xs border rounded-lg focus:ring-2 focus:ring-primary/40 bg-background outline-none max-w-xs",
+                                              isAwayMapped ? "border-border" : "border-amber-400 bg-amber-500/5"
+                                            )}
+                                          >
+                                            <option value="">Seleccionar equipo visitante...</option>
+                                            {eligibleTeams.map(t => (
+                                              <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        {isHomeMapped && isAwayMapped ? (
+                                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-600">
+                                            <Check className="w-3 h-3" /> Mapeado
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 animate-pulse">
+                                            <AlertTriangle className="w-3 h-3" /> Falta
+                                          </span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="flex justify-end gap-3 pt-3">
+                            <button
+                              onClick={() => setParsedMatches([])}
+                              className="px-4 py-2 border border-border text-muted-foreground font-bold rounded-xl text-xs hover:bg-muted cursor-pointer"
+                            >
+                              Limpiar
+                            </button>
+                            <button
+                              onClick={handleSaveBulkMatches}
+                              disabled={bulkLoading || parsedMatches.some(m => !m.homeTeamId || !m.awayTeamId)}
+                              className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 cursor-pointer shadow-md shadow-green-500/10"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              {bulkLoading ? 'Guardando...' : 'Confirmar y Guardar Fixture'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </form>
+                  )}
+
+                  {/* MODO ROUND ROBIN */}
+                  {fixtureMode === 'round_robin' && (
+                    <div className="bg-background border border-border/50 rounded-3xl p-6 space-y-6 shadow-sm">
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-base flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-primary" /> Generar Fixture Todos contra Todos
+                        </h3>
+                        <p className="text-muted-foreground text-xs">
+                          Seleccioná los equipos que formarán parte del torneo. El sistema calculará el fixture automáticamente (algoritmo Round Robin).
+                        </p>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Equipos Disponibles ({eligibleTeams.length})</span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setRoundRobinTeams(eligibleTeams.map(t => t.id))}
+                              className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                            >
+                              Seleccionar Todos
+                            </button>
+                            <span className="text-[10px] text-muted-foreground">|</span>
+                            <button
+                              onClick={() => setRoundRobinTeams([])}
+                              className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
+                            >
+                              Desmarcar Todos
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 bg-muted/10 p-4 border border-border/40 rounded-2xl max-h-[250px] overflow-y-auto">
+                          {eligibleTeams.map(t => {
+                            const isChecked = roundRobinTeams.includes(t.id);
+                            return (
+                              <label key={t.id} className="flex items-center gap-2 p-2 hover:bg-muted/40 rounded-xl cursor-pointer text-xs select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      setRoundRobinTeams(prev => prev.filter(id => id !== t.id));
+                                    } else {
+                                      setRoundRobinTeams(prev => [...prev, t.id]);
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary/40 focus:ring-2 outline-none"
+                                />
+                                <span className="font-semibold truncate">{t.display_name ?? t.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleGenerateRoundRobin}
+                          className="px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-xs flex items-center gap-1.5 hover:opacity-90 cursor-pointer shadow-md shadow-primary/10"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          Generar Fixture
+                        </button>
+                      </div>
+
+                      {roundRobinMatches.length > 0 && (
+                        <div className="space-y-4 pt-4 border-t border-border/50">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-sm">Fixture Generado ({roundRobinMatches.length} partidos)</h4>
+                            <span className="text-xs text-primary font-bold bg-primary/5 px-2.5 py-1 rounded-full border border-primary/10">
+                              {Array.from(new Set(roundRobinMatches.map(m => m.round))).length} Fechas Totales
+                            </span>
+                          </div>
+
+                          <div className="border border-border/50 rounded-2xl overflow-hidden max-h-[350px] overflow-y-auto">
+                            <table className="w-full text-xs text-left">
+                              <thead className="bg-muted/50 font-bold text-muted-foreground uppercase border-b border-border/50">
+                                <tr>
+                                  <th className="px-4 py-3 text-center w-16">Fecha</th>
+                                  <th className="px-4 py-3">Local</th>
+                                  <th className="px-4 py-3">Visitante</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border/50">
+                                {roundRobinMatches.map((m, idx) => {
+                                  const home = eligibleTeams.find(t => t.id === m.homeTeamId);
+                                  const away = eligibleTeams.find(t => t.id === m.awayTeamId);
+                                  return (
+                                    <tr key={idx} className="hover:bg-muted/20">
+                                      <td className="px-4 py-3 text-center font-bold">Fecha {m.round}</td>
+                                      <td className="px-4 py-3 font-semibold">{home?.display_name ?? home?.name ?? m.homeTeamId}</td>
+                                      <td className="px-4 py-3 font-semibold">{away?.display_name ?? away?.name ?? m.awayTeamId}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div className="flex justify-end gap-3 pt-3">
+                            <button
+                              onClick={() => setRoundRobinMatches([])}
+                              className="px-4 py-2 border border-border text-muted-foreground font-bold rounded-xl text-xs hover:bg-muted cursor-pointer"
+                            >
+                              Descartar
+                            </button>
+                            <button
+                              onClick={handleSaveRoundRobinMatches}
+                              disabled={bulkLoading}
+                              className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 hover:opacity-90 disabled:opacity-50 cursor-pointer shadow-md shadow-green-500/10"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              {bulkLoading ? 'Guardando...' : 'Confirmar y Guardar Fixture'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Listado de partidos agrupados por fecha */}
                   <div className="space-y-4">
@@ -1011,13 +1600,26 @@ export function AdminDashboard() {
                     </div>
                   </div>
 
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                        className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full"
-                      />
+                   {loading ? (
+                    <div className="space-y-3 animate-pulse">
+                      {Array.from({ length: 4 }).map((_, idx) => (
+                        <div key={idx} className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+                          <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[35%]">
+                            <div className="h-4 bg-muted rounded w-28"></div>
+                            <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
+                          </div>
+                          <div className="flex items-center gap-2 justify-center w-full sm:w-[30%]">
+                            <div className="w-12 h-10 bg-muted rounded-xl"></div>
+                            <div className="w-4 h-4 bg-muted rounded"></div>
+                            <div className="w-12 h-10 bg-muted rounded-xl"></div>
+                          </div>
+                          <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[35%]">
+                            <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
+                            <div className="h-4 bg-muted rounded w-28"></div>
+                          </div>
+                          <div className="w-24 h-10 bg-muted rounded-xl shrink-0"></div>
+                        </div>
+                      ))}
                     </div>
                   ) : matches.filter(m => m.round_number === selectedRound).length === 0 ? (
                     <div className="text-center py-12 border border-dashed border-border rounded-2xl bg-muted/10">

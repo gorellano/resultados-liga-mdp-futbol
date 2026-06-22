@@ -603,6 +603,81 @@ export async function deleteMatch(
 }
 
 /**
+ * Creates multiple matches in bulk.
+ */
+export async function createMatches(
+  matches: Omit<Match, 'id'>[]
+): Promise<Match[]> {
+  if (matches.length === 0) return [];
+  if (!isSupabaseActive()) {
+    const newMatches = matches.map((m, i) => ({
+      ...m,
+      id: `match-camp-${Date.now()}-${i}`
+    }));
+    const isProm = matches[0].zone_id === 'prom' || matches[0].zone_id === '22222222-0001-0001-0001-000000000002';
+    if (isProm) {
+      memoryMatchesProm.push(...newMatches);
+    } else {
+      memoryMatchesCamp.push(...newMatches);
+    }
+    return newMatches;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .insert(matches)
+      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date');
+    if (error) throw error;
+    return (data || []).map(m => ({
+      ...m,
+      status: m.status as 'scheduled' | 'finished' | 'postponed'
+    }));
+  } catch (err) {
+    console.error('Supabase createMatches failed, falling back to mock:', err);
+    const newMatches = matches.map((m, i) => ({
+      ...m,
+      id: `match-camp-${Date.now()}-${i}`
+    }));
+    const isProm = matches[0].zone_id === 'prom' || matches[0].zone_id === '22222222-0001-0001-0001-000000000002';
+    if (isProm) {
+      memoryMatchesProm.push(...newMatches);
+    } else {
+      memoryMatchesCamp.push(...newMatches);
+    }
+    return newMatches;
+  }
+}
+
+/**
+ * Clears all matches matching tournament, division, and zone filter.
+ */
+export async function deleteMatchesByFilter(
+  tournamentId: string,
+  divisionId: string,
+  zoneId: string
+): Promise<boolean> {
+  if (!isSupabaseActive()) {
+    const filter = (m: Match) => !(m.tournament_id === tournamentId && m.division_id === divisionId && m.zone_id === zoneId);
+    memoryMatchesCamp = memoryMatchesCamp.filter(filter);
+    memoryMatchesProm = memoryMatchesProm.filter(filter);
+    return true;
+  }
+  try {
+    const { error } = await supabase
+      .from('matches')
+      .delete()
+      .eq('tournament_id', tournamentId)
+      .eq('division_id', divisionId)
+      .eq('zone_id', zoneId);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('Supabase deleteMatchesByFilter failed:', err);
+    return false;
+  }
+}
+
+/**
  * Fetch contact messages (Admins only via RLS)
  */
 export async function fetchContactMessages(): Promise<ContactMessage[]> {

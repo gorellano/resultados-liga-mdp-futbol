@@ -183,7 +183,7 @@ describe('getCategoryYear', () => {
     expect(getCategoryYear('15ta División', 2025)).toBe(2017); // 15 + 2025 - 23 = 2017
   });
 
-  it('returns 0 for unknown division name format', () => {
-    expect(getCategoryYear('División Desconocida', 2026)).toBe(0);
+  it('returns null for unknown division name format', () => {
+    expect(getCategoryYear('División Desconocida', 2026)).toBeNull();
   });
 });

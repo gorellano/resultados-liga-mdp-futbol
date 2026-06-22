@@ -5,7 +5,6 @@ import { cn } from '../App';
 import { calculateStandings } from '../lib/standings';
 import { Shield, Share2, Copy, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
@@ -544,7 +543,7 @@ export function DivisionPage() {
                             )}
                           </button>
                         </div>
-                        {match.match_date && <span>{format(new Date(match.match_date), "d MMM, HH:mm", { locale: es })}</span>}
+                        {match.match_date && <span>{format(new Date(match.match_date), "HH:mm")} hs</span>}
                       </div>
                       <div className="flex justify-between items-center gap-4">
                         <div className="flex flex-col items-center gap-3 flex-1">

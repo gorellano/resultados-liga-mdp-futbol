@@ -295,13 +295,20 @@ export async function saveMatchResult(
   matchId: string, 
   homeGoals: number | null, 
   awayGoals: number | null,
-  status: 'scheduled' | 'finished'
+  status: 'scheduled' | 'finished',
+  matchDate?: string | null
 ): Promise<boolean> {
   if (!isSupabaseActive()) {
     // Update local session memory
     const updateMatch = (m: Match) => {
       if (m.id === matchId) {
-        return { ...m, home_goals: homeGoals, away_goals: awayGoals, status };
+        return { 
+          ...m, 
+          home_goals: homeGoals, 
+          away_goals: awayGoals, 
+          status,
+          ...(matchDate !== undefined ? { match_date: matchDate } : {})
+        };
       }
       return m;
     };
@@ -310,13 +317,18 @@ export async function saveMatchResult(
     return true;
   }
   try {
+    const updateFields: any = { 
+      home_goals: homeGoals, 
+      away_goals: awayGoals, 
+      status 
+    };
+    if (matchDate !== undefined) {
+      updateFields.match_date = matchDate;
+    }
+
     const { error } = await supabase
       .from('matches')
-      .update({ 
-        home_goals: homeGoals, 
-        away_goals: awayGoals, 
-        status 
-      })
+      .update(updateFields)
       .eq('id', matchId);
 
     if (error) throw error;

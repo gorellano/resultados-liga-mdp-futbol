@@ -33,6 +33,31 @@ import {
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 
+const DEFAULT_KICKOFF_TIMES: Record<string, string> = {
+  'Séptima División': '15:30',
+  'Octava División': '14:00',
+  'Novena División': '12:40',
+  'Décima División': '11:20',
+  'Undécima División': '10:10',
+  'Duodécima División': '09:00',
+  'Decimotercera División': '10:30',
+  'Decimocuarta División': '11:45',
+  'Decimoquinta División': '13:00',
+  'Decimosexta División': '14:00'
+};
+
+const formatMatchTime = (dateStr: string | null) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  } catch {
+    return '';
+  }
+};
+
 const containerVariants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.05 } },
@@ -78,6 +103,7 @@ export function AdminDashboard() {
 
   // Resultados editados temporalmente
   const [editingResults, setEditingResults] = useState<Record<string, { homeGoals: string; awayGoals: string }>>({});
+  const [editingTimes, setEditingTimes] = useState<Record<string, string>>({});
   const [savingStatus, setSavingStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   // Modales state
@@ -118,6 +144,7 @@ export function AdminDashboard() {
   const [fixtureRound, setFixtureRound] = useState<number>(1);
   const [fixtureHomeTeamId, setFixtureHomeTeamId] = useState<string>('');
   const [fixtureAwayTeamId, setFixtureAwayTeamId] = useState<string>('');
+  const [fixtureTime, setFixtureTime] = useState<string>('');
   const [fixtureError, setFixtureError] = useState('');
   const [fixtureLoading, setFixtureLoading] = useState(false);
 
@@ -130,10 +157,11 @@ export function AdminDashboard() {
     awayName: string;
     homeTeamId?: string;
     awayTeamId?: string;
+    time?: string;
   }
   const [parsedMatches, setParsedMatches] = useState<ParsedMatch[]>([]);
   const [roundRobinTeams, setRoundRobinTeams] = useState<string[]>([]);
-  const [roundRobinMatches, setRoundRobinMatches] = useState<{ round: number; homeTeamId: string; awayTeamId: string }[]>([]);
+  const [roundRobinMatches, setRoundRobinMatches] = useState<{ round: number; homeTeamId: string; awayTeamId: string; time?: string }[]>([]);
   const [bulkError, setBulkError] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
 
@@ -193,6 +221,15 @@ export function AdminDashboard() {
     loadAllMatches();
   }, [selectedTournamentId, selectedDivisionId]);
 
+  // Establecer horario por defecto cuando cambia la división
+  useEffect(() => {
+    if (selectedDivisionId && divisions.length > 0) {
+      const divName = divisions.find(d => d.id === selectedDivisionId)?.name || '';
+      const defaultTime = DEFAULT_KICKOFF_TIMES[divName] || '15:00';
+      setFixtureTime(defaultTime);
+    }
+  }, [selectedDivisionId, divisions]);
+
   // Auto-selección de fecha/ronda actual basado en la zona y partidos cargados
   useEffect(() => {
     const zoneMatches = allMatches.filter(m => m.zone_id === selectedZoneId);
@@ -215,13 +252,27 @@ export function AdminDashboard() {
   // Sincronizar inputs de goles editados cuando cambian los partidos cargados
   useEffect(() => {
     const initialEdits: Record<string, { homeGoals: string; awayGoals: string }> = {};
+    const initialTimes: Record<string, string> = {};
     matches.forEach(m => {
       initialEdits[m.id] = {
         homeGoals: m.home_goals !== null ? m.home_goals.toString() : '',
         awayGoals: m.away_goals !== null ? m.away_goals.toString() : '',
       };
+      if (m.match_date) {
+        try {
+          const d = new Date(m.match_date);
+          const hh = String(d.getHours()).padStart(2, '0');
+          const mm = String(d.getMinutes()).padStart(2, '0');
+          initialTimes[m.id] = `${hh}:${mm}`;
+        } catch {
+          initialTimes[m.id] = '';
+        }
+      } else {
+        initialTimes[m.id] = '';
+      }
     });
     setEditingResults(initialEdits);
+    setEditingTimes(initialTimes);
   }, [allMatches, selectedDivisionId, selectedZoneId]);
 
   // Cargar usuarios cuando se entra a la pestaña usuarios
@@ -295,6 +346,14 @@ export function AdminDashboard() {
     setSavingStatus(prev => ({ ...prev, [matchId]: 'idle' }));
   };
 
+  const handleTimeChange = (matchId: string, val: string) => {
+    setEditingTimes(prev => ({
+      ...prev,
+      [matchId]: val
+    }));
+    setSavingStatus(prev => ({ ...prev, [matchId]: 'idle' }));
+  };
+
   const handleSaveSingleMatch = async (matchId: string) => {
     const edit = editingResults[matchId];
     if (!edit) return;
@@ -308,11 +367,20 @@ export function AdminDashboard() {
     const awayGoals = awayVal === '' ? null : parseInt(awayVal);
     const status = (homeGoals !== null && awayGoals !== null) ? 'finished' : 'scheduled';
 
-    const success = await saveMatchResult(matchId, homeGoals, awayGoals, status);
+    const matchTime = editingTimes[matchId] || '15:00';
+    const matchDate = `2026-01-01T${matchTime}:00-03:00`;
+
+    const success = await saveMatchResult(matchId, homeGoals, awayGoals, status, matchDate);
     if (success) {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'saved' }));
       // Actualizar la lista local de partidos para reflejar el estado
-      setAllMatches(prev => prev.map(m => m.id === matchId ? { ...m, home_goals: homeGoals, away_goals: awayGoals, status } : m));
+      setAllMatches(prev => prev.map(m => m.id === matchId ? { 
+        ...m, 
+        home_goals: homeGoals, 
+        away_goals: awayGoals, 
+        status,
+        match_date: matchDate
+      } : m));
     } else {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'error' }));
     }
@@ -494,6 +562,9 @@ export function AdminDashboard() {
     setFixtureLoading(true);
     setFixtureError('');
     try {
+      const matchTime = fixtureTime || '15:00';
+      const matchDate = `2026-01-01T${matchTime}:00-03:00`;
+
       const res = await createMatch({
         tournament_id: selectedTournamentId,
         division_id: selectedDivisionId,
@@ -504,7 +575,7 @@ export function AdminDashboard() {
         home_goals: null,
         away_goals: null,
         status: 'scheduled',
-        match_date: null
+        match_date: matchDate
       });
       if (res) {
         setAllMatches(prev => [...prev, res]);
@@ -670,13 +741,16 @@ export function AdminDashboard() {
         if (homeName && awayName) {
           const homeTeam = findClosestTeam(homeName);
           const awayTeam = findClosestTeam(awayName);
+          const divName = divisions.find(d => d.id === selectedDivisionId)?.name || '';
+          const defaultTime = DEFAULT_KICKOFF_TIMES[divName] || '15:00';
           
           tempParsed.push({
             round: currentRound,
             homeName,
             awayName,
             homeTeamId: homeTeam?.id,
-            awayTeamId: awayTeam?.id
+            awayTeamId: awayTeam?.id,
+            time: defaultTime
           });
         }
       }
@@ -706,18 +780,22 @@ export function AdminDashboard() {
     try {
       await deleteMatchesByFilter(selectedTournamentId, selectedDivisionId, selectedZoneId);
       
-      const matchesToInsert = parsedMatches.map(m => ({
-        tournament_id: selectedTournamentId,
-        division_id: selectedDivisionId,
-        zone_id: selectedZoneId,
-        round_number: m.round,
-        home_team_id: m.homeTeamId!,
-        away_team_id: m.awayTeamId!,
-        home_goals: null,
-        away_goals: null,
-        status: 'scheduled' as const,
-        match_date: null
-      }));
+      const matchesToInsert = parsedMatches.map(m => {
+        const matchTime = m.time || '15:00';
+        const matchDate = `2026-01-01T${matchTime}:00-03:00`;
+        return {
+          tournament_id: selectedTournamentId,
+          division_id: selectedDivisionId,
+          zone_id: selectedZoneId,
+          round_number: m.round,
+          home_team_id: m.homeTeamId!,
+          away_team_id: m.awayTeamId!,
+          home_goals: null,
+          away_goals: null,
+          status: 'scheduled' as const,
+          match_date: matchDate
+        };
+      });
 
       await createMatches(matchesToInsert);
       
@@ -750,7 +828,9 @@ export function AdminDashboard() {
 
     const numTeams = list.length;
     const numRounds = numTeams - 1;
-    const matchesList: { round: number; homeTeamId: string; awayTeamId: string }[] = [];
+    const matchesList: { round: number; homeTeamId: string; awayTeamId: string; time?: string }[] = [];
+    const divName = divisions.find(d => d.id === selectedDivisionId)?.name || '';
+    const defaultTime = DEFAULT_KICKOFF_TIMES[divName] || '15:00';
 
     for (let round = 1; round <= numRounds; round++) {
       for (let i = 0; i < numTeams / 2; i++) {
@@ -763,7 +843,8 @@ export function AdminDashboard() {
           matchesList.push({
             round,
             homeTeamId: isHome ? homeId : awayId,
-            awayTeamId: isHome ? awayId : homeId
+            awayTeamId: isHome ? awayId : homeId,
+            time: defaultTime
           });
         }
       }
@@ -785,18 +866,22 @@ export function AdminDashboard() {
     try {
       await deleteMatchesByFilter(selectedTournamentId, selectedDivisionId, selectedZoneId);
       
-      const matchesToInsert = roundRobinMatches.map(m => ({
-        tournament_id: selectedTournamentId,
-        division_id: selectedDivisionId,
-        zone_id: selectedZoneId,
-        round_number: m.round,
-        home_team_id: m.homeTeamId,
-        away_team_id: m.awayTeamId,
-        home_goals: null,
-        away_goals: null,
-        status: 'scheduled' as const,
-        match_date: null
-      }));
+      const matchesToInsert = roundRobinMatches.map(m => {
+        const matchTime = m.time || '15:00';
+        const matchDate = `2026-01-01T${matchTime}:00-03:00`;
+        return {
+          tournament_id: selectedTournamentId,
+          division_id: selectedDivisionId,
+          zone_id: selectedZoneId,
+          round_number: m.round,
+          home_team_id: m.homeTeamId,
+          away_team_id: m.awayTeamId,
+          home_goals: null,
+          away_goals: null,
+          status: 'scheduled' as const,
+          match_date: matchDate
+        };
+      });
 
       await createMatches(matchesToInsert);
       
@@ -1164,10 +1249,10 @@ export function AdminDashboard() {
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         {/* Fecha */}
                         <div className="space-y-1.5">
-                          <label className="text-xs font-semibold ml-1">Número de Fecha</label>
+                          <label className="text-xs font-semibold ml-1">Fecha (Ronda)</label>
                           <input
                             type="number"
                             min="1"
@@ -1209,6 +1294,18 @@ export function AdminDashboard() {
                               <option key={t.id} value={t.id}>{t.display_name ?? t.name}</option>
                             ))}
                           </select>
+                        </div>
+
+                        {/* Horario */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-semibold ml-1">Horario</label>
+                          <input
+                            type="time"
+                            value={fixtureTime}
+                            onChange={(e) => setFixtureTime(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none font-medium text-sm"
+                            required
+                          />
                         </div>
 
                         {/* Submit */}
@@ -1271,6 +1368,7 @@ export function AdminDashboard() {
                                   <th className="px-4 py-3 text-center w-16">Fecha</th>
                                   <th className="px-4 py-3">Equipo Local (Detectado)</th>
                                   <th className="px-4 py-3">Equipo Visitante (Detectado)</th>
+                                  <th className="px-4 py-3 text-center w-28">Horario</th>
                                   <th className="px-4 py-3 text-center w-24">Estado</th>
                                 </tr>
                               </thead>
@@ -1322,6 +1420,17 @@ export function AdminDashboard() {
                                             ))}
                                           </select>
                                         </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-center">
+                                        <input
+                                          type="time"
+                                          value={m.time || ''}
+                                          onChange={(e) => {
+                                            const newTime = e.target.value;
+                                            setParsedMatches(prev => prev.map((pm, pmIdx) => pmIdx === idx ? { ...pm, time: newTime } : pm));
+                                          }}
+                                          className="px-2 py-1 text-xs border border-border/60 rounded-lg bg-background focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold"
+                                        />
                                       </td>
                                       <td className="px-4 py-3 text-center">
                                         {isHomeMapped && isAwayMapped ? (
@@ -1444,6 +1553,7 @@ export function AdminDashboard() {
                                   <th className="px-4 py-3 text-center w-16">Fecha</th>
                                   <th className="px-4 py-3">Local</th>
                                   <th className="px-4 py-3">Visitante</th>
+                                  <th className="px-4 py-3 text-center w-32">Horario</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border/50">
@@ -1455,6 +1565,17 @@ export function AdminDashboard() {
                                       <td className="px-4 py-3 text-center font-bold">Fecha {m.round}</td>
                                       <td className="px-4 py-3 font-semibold">{home?.display_name ?? home?.name ?? m.homeTeamId}</td>
                                       <td className="px-4 py-3 font-semibold">{away?.display_name ?? away?.name ?? m.awayTeamId}</td>
+                                      <td className="px-4 py-3 text-center">
+                                        <input
+                                          type="time"
+                                          value={m.time || ''}
+                                          onChange={(e) => {
+                                            const newTime = e.target.value;
+                                            setRoundRobinMatches(prev => prev.map((pm, pmIdx) => pmIdx === idx ? { ...pm, time: newTime } : pm));
+                                          }}
+                                          className="px-2 py-1 text-xs border border-border/60 rounded-lg bg-background focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold"
+                                        />
+                                      </td>
                                     </tr>
                                   );
                                 })}
@@ -1509,6 +1630,11 @@ export function AdminDashboard() {
                                       <div key={m.id} className="bg-background border border-border/50 rounded-2xl p-4 flex items-center justify-between hover:border-primary/20 transition-all duration-200 shadow-sm">
                                         <div className="flex items-center gap-3 min-w-0">
                                           <span className="font-semibold text-sm truncate">{home.display_name ?? home.name} vs {away.display_name ?? away.name}</span>
+                                          {m.match_date && (
+                                            <span className="text-xs text-muted-foreground font-semibold bg-muted px-2 py-0.5 rounded-md shrink-0">
+                                              {formatMatchTime(m.match_date)} hs
+                                            </span>
+                                          )}
                                         </div>
                                         <button
                                           onClick={() => handleDeleteMatch(m.id)}
@@ -1665,6 +1791,17 @@ export function AdminDashboard() {
                                 value={edit.awayGoals}
                                 onChange={(e) => handleGoalChange(match.id, 'away', e.target.value)}
                                 className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                              />
+                            </div>
+
+                            {/* Horario de Partido */}
+                            <div className="flex flex-col items-center gap-1 shrink-0 px-2">
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
+                              <input
+                                type="time"
+                                value={editingTimes[match.id] || ''}
+                                onChange={(e) => handleTimeChange(match.id, e.target.value)}
+                                className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold"
                               />
                             </div>
 

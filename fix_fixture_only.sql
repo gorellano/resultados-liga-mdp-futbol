@@ -363,4 +363,24 @@ BEGIN
       (v_tourn_id, div_record.id, v_zone_prom, 13, p02, p03); -- LIBERTAD vs. Circulo Deportivo
 
   END LOOP;
+
+  -- 3. Actualizar match_date con los horarios oficiales por categoría
+  UPDATE public.matches m
+  SET match_date = ('2026-01-01 ' || 
+    CASE d.name
+      WHEN 'Séptima División' THEN '15:30:00'
+      WHEN 'Octava División' THEN '14:00:00'
+      WHEN 'Novena División' THEN '12:40:00'
+      WHEN 'Décima División' THEN '11:20:00'
+      WHEN 'Undécima División' THEN '10:10:00'
+      WHEN 'Duodécima División' THEN '09:00:00'
+      WHEN 'Decimotercera División' THEN '10:30:00'
+      WHEN 'Decimocuarta División' THEN '11:45:00'
+      WHEN 'Decimoquinta División' THEN '13:00:00'
+      WHEN 'Decimosexta División' THEN '14:00:00'
+      ELSE '15:00:00'
+    END || '-03')::timestamptz
+  FROM public.divisions d
+  WHERE m.division_id = d.id;
+
 END $$;

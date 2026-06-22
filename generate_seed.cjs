@@ -319,6 +319,19 @@ INSERT INTO public.zones (name) SELECT 'Promoción' WHERE NOT EXISTS (SELECT 1 F
 -- 3. CREATE TEAMS
 `;
 
+const KICKOFF_TIMES = {
+  'Séptima División': '15:30:00-03:00',
+  'Octava División': '14:00:00-03:00',
+  'Novena División': '12:40:00-03:00',
+  'Décima División': '11:20:00-03:00',
+  'Undécima División': '10:10:00-03:00',
+  'Duodécima División': '09:00:00-03:00',
+  'Decimotercera División': '10:30:00-03:00',
+  'Decimocuarta División': '11:45:00-03:00',
+  'Decimoquinta División': '13:00:00-03:00',
+  'Decimosexta División': '14:00:00-03:00'
+};
+
 allTeams.forEach(t => {
   sql += `INSERT INTO public.teams (name, display_name, logo_url) SELECT '${t[0]}', ${t[1] ? `'${t[1]}'` : 'NULL'}, '${t[2]}' WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = '${t[0]}');\n`;
 });
@@ -349,6 +362,9 @@ divisions.forEach(div => {
 `;
 
     if (!['Primera División', 'Quinta División', 'Sexta División'].includes(div)) {
+      const timeStr = KICKOFF_TIMES[div] || '15:00:00-03:00';
+      const dummyTimestamp = `2026-01-01 ${timeStr}`;
+
       sql += `
     IF NOT EXISTS (SELECT 1 FROM public.matches WHERE division_id = v_div_id AND tournament_id = v_tourn_id LIMIT 1) THEN
         -- Campeonato Matches
@@ -357,14 +373,14 @@ divisions.forEach(div => {
       FIXTURE_CAMPEONATO.forEach(match => {
         const fullHome = campMap[match.home];
         const fullAway = campMap[match.away];
-        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_camp, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}');\n`;
+        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, match_date) SELECT v_tourn_id, v_div_id, v_zone_camp, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}'), '${dummyTimestamp}'::timestamptz;\n`;
       });
 
       sql += `\n        -- Promocion Matches\n`;
       FIXTURE_PROMOCION.forEach(match => {
         const fullHome = promMap[match.home];
         const fullAway = promMap[match.away];
-        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_prom, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}');\n`;
+        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, match_date) SELECT v_tourn_id, v_div_id, v_zone_prom, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}'), '${dummyTimestamp}'::timestamptz;\n`;
       });
 
       sql += `    END IF;\n`;

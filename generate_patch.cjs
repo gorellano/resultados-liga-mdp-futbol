@@ -291,6 +291,13 @@ const FIXTURE_PROMOCION = [
   { round: 13, home: "LIBERTAD",        away: "CIRCULO DVO" },
 ];
 
+const KICKOFF_TIMES = {
+  'Decimotercera División': '10:30:00-03:00',
+  'Decimocuarta División': '11:45:00-03:00',
+  'Decimoquinta División': '13:00:00-03:00',
+  'Decimosexta División': '14:00:00-03:00'
+};
+
 let sql = `-- PATCH SCRIPT FOR 13th to 16th DIVISION
 DO $$
 DECLARE
@@ -306,6 +313,9 @@ BEGIN
 `;
 
 divisions.forEach(div => {
+  const timeStr = KICKOFF_TIMES[div] || '15:00:00-03:00';
+  const dummyTimestamp = `2026-01-01 ${timeStr}`;
+
   sql += `
     -- ${div}
     IF NOT EXISTS (SELECT 1 FROM public.divisions WHERE name = '${div}') THEN
@@ -320,14 +330,14 @@ divisions.forEach(div => {
       FIXTURE_CAMPEONATO.forEach(match => {
         const fullHome = campMap[match.home];
         const fullAway = campMap[match.away];
-        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_camp, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}');\n`;
+        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, match_date) SELECT v_tourn_id, v_div_id, v_zone_camp, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}'), '${dummyTimestamp}'::timestamptz;\n`;
       });
 
       sql += `\n        -- Promocion\n`;
       FIXTURE_PROMOCION.forEach(match => {
         const fullHome = promMap[match.home];
         const fullAway = promMap[match.away];
-        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id) SELECT v_tourn_id, v_div_id, v_zone_prom, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}');\n`;
+        sql += `        INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, match_date) SELECT v_tourn_id, v_div_id, v_zone_prom, ${match.round}, (SELECT id FROM public.teams WHERE name = '${fullHome}'), (SELECT id FROM public.teams WHERE name = '${fullAway}'), '${dummyTimestamp}'::timestamptz;\n`;
       });
 
       sql += `    END IF;\n`;

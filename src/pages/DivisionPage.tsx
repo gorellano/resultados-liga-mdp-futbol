@@ -201,12 +201,19 @@ export function DivisionPage() {
 
         const roundsList = Array.from(new Set(data.map(m => m.round_number))).sort((a, b) => a - b);
         if (roundsList.length > 0) {
-          const scheduledRounds = Array.from(new Set(data.filter(m => m.status === 'scheduled').map(m => m.round_number))).sort((a, b) => a - b);
-          if (scheduledRounds.length > 0) {
-            setSelectedRound(scheduledRounds[0]);
-          } else {
-            setSelectedRound(roundsList[roundsList.length - 1]);
+          let activeRound = roundsList[roundsList.length - 1]; // por defecto la última
+          for (const round of roundsList) {
+            const roundMatches = data.filter(m => m.round_number === round);
+            const finishedCount = roundMatches.filter(m => m.status === 'finished').length;
+            const completionRate = roundMatches.length > 0 ? (finishedCount / roundMatches.length) : 0;
+            
+            // Si la fecha tiene menos del 85% cargado, nos quedamos en esta fecha
+            if (completionRate < 0.85) {
+              activeRound = round;
+              break;
+            }
           }
+          setSelectedRound(activeRound);
         } else {
           setSelectedRound(1);
         }

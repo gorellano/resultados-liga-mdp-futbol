@@ -31,8 +31,16 @@ export function HomePage() {
             if (divMatches.length === 0) {
               statuses[div.id] = 'en_curso';
             } else {
-              const allFinished = divMatches.every(m => m.status === 'finished');
-              statuses[div.id] = allFinished ? 'finalizado' : 'en_curso';
+              // Validar si están el 90% de los partidos de la fecha 13 cargados
+              const round13Matches = divMatches.filter(m => m.round_number === 13);
+              const round13Finished = round13Matches.filter(m => m.status === 'finished').length;
+              const round13Total = round13Matches.length;
+              
+              if (round13Total > 0 && (round13Finished / round13Total) >= 0.9) {
+                statuses[div.id] = 'finalizado';
+              } else {
+                statuses[div.id] = 'en_curso';
+              }
             }
           });
           setDivisionStatuses(statuses);

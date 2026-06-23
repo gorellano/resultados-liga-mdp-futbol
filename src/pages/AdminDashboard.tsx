@@ -174,6 +174,35 @@ export function AdminDashboard() {
     }
   }, [navigate]);
 
+  // Timeout de sesión (10 minutos de inactividad)
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+    
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        handleLogout();
+      }, 10 * 60 * 1000); // 10 minutos
+    };
+
+    // Eventos que reinician el timer
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    
+    events.forEach(event => {
+      document.addEventListener(event, resetTimer, true);
+    });
+
+    // Iniciar el timer la primera vez
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        document.removeEventListener(event, resetTimer, true);
+      });
+    };
+  }, []);
+
   // Cargar datos base al montar
   useEffect(() => {
     async function loadBaseData() {
@@ -212,6 +241,7 @@ export function AdminDashboard() {
       try {
         const data = await fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId);
         setAllMatches(data);
+        setLastAutoSelectedZone(''); // Forzar re-evaluación al cambiar de división o cargar nuevos datos
       } catch (err) {
         console.error('Error loading tournament matches:', err);
       } finally {
@@ -230,22 +260,37 @@ export function AdminDashboard() {
     }
   }, [selectedDivisionId, divisions]);
 
-  // Auto-selección de fecha/ronda actual basado en la zona y partidos cargados
+  // Auto-selección de fecha/ronda actual (al cambiar de zona/división)
+  const [lastAutoSelectedZone, setLastAutoSelectedZone] = useState<string>('');
+
   useEffect(() => {
+    const key = `${selectedDivisionId}-${selectedZoneId}`;
+    if (lastAutoSelectedZone === key) return;
+
     const zoneMatches = allMatches.filter(m => m.zone_id === selectedZoneId);
+    if (zoneMatches.length === 0) return;
+
     const roundsList = Array.from(new Set(zoneMatches.map(m => m.round_number))).sort((a, b) => a - b);
     if (roundsList.length > 0) {
-      const scheduledRounds = Array.from(new Set(zoneMatches.filter(m => m.status === 'scheduled').map(m => m.round_number))).sort((a, b) => a - b);
-      if (scheduledRounds.length > 0) {
-        setSelectedRound(scheduledRounds[0]);
-      } else {
-        setSelectedRound(roundsList[roundsList.length - 1]);
+      let activeRound = roundsList[roundsList.length - 1]; // por defecto la última
+      for (const round of roundsList) {
+        const roundMatches = zoneMatches.filter(m => m.round_number === round);
+        const finishedCount = roundMatches.filter(m => m.status === 'finished').length;
+        const completionRate = roundMatches.length > 0 ? (finishedCount / roundMatches.length) : 0;
+        
+        // Si la fecha tiene menos del 85% cargado, nos quedamos en esta fecha
+        if (completionRate < 0.85) {
+          activeRound = round;
+          break;
+        }
       }
+      setSelectedRound(activeRound);
+      setLastAutoSelectedZone(key);
     } else {
       setSelectedRound(1);
+      setLastAutoSelectedZone(key);
     }
-  }, [allMatches, selectedZoneId]);
-
+  }, [allMatches, selectedZoneId, selectedDivisionId, lastAutoSelectedZone]);
   // Filtrar partidos locales del tab activo
   const matches = allMatches.filter(m => m.zone_id === selectedZoneId);
 

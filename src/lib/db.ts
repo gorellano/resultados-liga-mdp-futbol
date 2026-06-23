@@ -369,6 +369,17 @@ export async function authenticateUser(
     if (data && data.length > 0) {
       const user = data[0];
       const authData = { username: user.username, role: user.role as 'super_admin' | 'editor' };
+      
+      // Establish Supabase Auth session for RLS authentication
+      try {
+        await supabase.auth.signInWithPassword({
+          email: 'admin-db-session@costaygol.com',
+          password: 'LmfAdminDbSession2026!'
+        });
+      } catch (authErr) {
+        console.warn('Failed to establish Supabase Auth session:', authErr);
+      }
+
       saveAuth(authData);
       return authData;
     }
@@ -387,6 +398,20 @@ export async function authenticateUser(
     return null;
   }
 }
+
+/**
+ * Signs out from the Supabase session.
+ */
+export async function logoutUser(): Promise<void> {
+  if (isSupabaseActive()) {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('Failed to sign out from Supabase Auth:', err);
+    }
+  }
+}
+
 
 /**
  * Creates a new team in the database or returns a mock team.

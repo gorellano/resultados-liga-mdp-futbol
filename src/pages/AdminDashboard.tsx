@@ -29,7 +29,8 @@ import {
   isSupabaseActive,
   fetchContactMessages,
   markContactMessageAsRead,
-  deleteContactMessage
+  deleteContactMessage,
+  logoutUser
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 
@@ -372,7 +373,8 @@ export function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutUser();
     clearAuth();
     navigate('/admin');
   };

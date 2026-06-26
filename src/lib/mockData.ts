@@ -78,11 +78,55 @@ const TEAMS_PROMOCION_NAMES = [
   "San Isidro",
 ];
 
+// Sitios web oficiales de los equipos (cuando aplique)
+export const WEBSITES: Record<string, string> = {
+  "Aldosivi": "https://www.aldosivi.com",
+  "Alvarado": "https://clubalvarado.com.ar",
+  "Kimberley": "https://www.clubkimberley.com.ar",
+  "Once Unidos": "https://onceunidos.com",
+  "Quilmes": "https://clubquilmes.com.ar",
+  "Argentinos del Sud": "https://argentinosdelsud.com.ar/",
+  "Circulo Deportivo": "http://clubcirculodeportivo.com/",
+};
+
+// Cuentas de Instagram oficiales de los equipos (cuando aplique)
+export const INSTAGRAMS: Record<string, string> = {
+  "Aldosivi": "https://www.instagram.com/aldosivi_oficial",
+  "Alvarado": "https://www.instagram.com/clubalvaradooficial",
+  "Kimberley": "https://www.instagram.com/clubkimberleyoficial",
+  "Once Unidos": "https://www.instagram.com/clubonceunidos",
+  "Quilmes": "https://www.instagram.com/clubquilmesmdp",
+  "Talleres de Mar del Plata": "https://www.instagram.com/talleres_mdp",
+  "Deportivo Norte": "https://www.instagram.com/clubdeportivonorte",
+  "River Plate": "https://www.instagram.com/clubriverplatelmf",
+  "Banfield": "https://www.instagram.com/clubbanfieldmdp",
+  "Argentinos del Sud": "https://www.instagram.com/c.a.argentinosdelsud",
+  "San Lorenzo": "https://www.instagram.com/sanlorenzomdp",
+  "Circulo Deportivo": "https://www.instagram.com/clubcirculodeportivo",
+  "General Urquiza": "https://www.instagram.com/clubgeneralurquiza",
+  "Boca Juniors": "https://www.instagram.com/bocajuniors_mdp",
+  "San José": "https://www.instagram.com/clubsanjosemdp",
+  "Racing": "https://www.instagram.com/racingclubmdp",
+  "San Isidro": "https://www.instagram.com/sanisidro.club",
+  "Club Banco Provincia de Mar del Plata": "https://www.instagram.com/clubbancoprovincialmf",
+  "Club Social y Deportivo Chapadmalal": "https://www.instagram.com/chapadmalalclub",
+  "Libertad": "https://www.instagram.com/clubatleticolibertad",
+  "Almagro Florida": "https://www.instagram.com/clubalmagroflorida",
+  "Cadetes": "https://www.instagram.com/cadetesdesanmartin",
+  "Nacion": "https://www.instagram.com/clubatleticonacion",
+  "Al Ver Veras": "https://www.instagram.com/clubalververas",
+  "El cañon": "https://www.instagram.com/clubelcanon",
+  "Atlético Mar del Plata": "https://www.instagram.com/clubatleticomdp",
+  "General Mitre": "https://www.instagram.com/clubgeneralmitre",
+};
+
 export const MOCK_TEAMS_CAMPEONATO: Team[] = TEAMS_CAMPEONATO_NAMES.map((name, i) => ({
   id: `camp-team-${i}`,
   name,
   display_name: DISPLAY_NAMES[name],
   logo_url: LOGOS[name] || null,
+  website_url: WEBSITES[name] || null,
+  instagram_url: INSTAGRAMS[name] || null,
 }));
 
 export const MOCK_TEAMS_PROMOCION: Team[] = TEAMS_PROMOCION_NAMES.map((name, i) => ({
@@ -90,6 +134,8 @@ export const MOCK_TEAMS_PROMOCION: Team[] = TEAMS_PROMOCION_NAMES.map((name, i) 
   name,
   display_name: DISPLAY_NAMES[name],
   logo_url: LOGOS[name] || null,
+  website_url: WEBSITES[name] || null,
+  instagram_url: INSTAGRAMS[name] || null,
 }));
 
 // ─── Torneos ──────────────────────────────────────────────────────────────────

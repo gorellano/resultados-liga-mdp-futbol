@@ -3,6 +3,8 @@ export interface Team {
   name: string;           // nombre canonical completo
   display_name?: string;  // nombre corto para la UI (opcional)
   logo_url: string | null;
+  website_url?: string | null;
+  instagram_url?: string | null;
   deleted_at?: string | null;
 }
 

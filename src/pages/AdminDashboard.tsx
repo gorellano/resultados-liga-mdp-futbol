@@ -209,16 +209,21 @@ export function AdminDashboard() {
     async function loadBaseData() {
       setLoading(true);
       try {
-        const [tourns, divs, zns, tms] = await Promise.all([
+        const [tourns, divs, zns, tms, msgs] = await Promise.all([
           fetchTournaments(),
           fetchDivisions(),
           fetchZones(),
           fetchTeams(),
+          fetchContactMessages().catch(err => {
+            console.error('Error loading messages on mount:', err);
+            return [];
+          })
         ]);
         setTournaments(tourns);
         setDivisions(divs);
         setZones(zns);
         setTeams(tms);
+        setMessages(msgs);
 
         if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
         const validDivs = divs.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
@@ -963,6 +968,8 @@ export function AdminDashboard() {
     { label: 'Zonas',    value: zones.length,         icon: BarChart3,     color: 'text-green-500',  bg: 'bg-green-500/10'  },
   ];
 
+  const unreadCount = messages.filter(m => !m.is_read && !m.is_deleted).length;
+
   const navItems = [
     { id: 'teams'       as const, label: 'Gestión de Equipos',   icon: Shield   },
     { id: 'tournaments' as const, label: 'Torneos y Años',        icon: Trophy   },
@@ -1042,14 +1049,26 @@ export function AdminDashboard() {
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={cn(
-                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300',
+                  'w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300',
                   activeTab === item.id
                     ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
                     : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                 )}
               >
-                <item.icon className="w-5 h-5" />
-                {item.label}
+                <div className="flex items-center gap-3">
+                  <item.icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                </div>
+                {item.id === 'messages' && unreadCount > 0 && (
+                  <span className={cn(
+                    "flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold transition-all duration-300",
+                    activeTab === 'messages'
+                      ? "bg-primary-foreground text-primary animate-pulse"
+                      : "bg-red-500 text-white animate-pulse"
+                  )}>
+                    {unreadCount}
+                  </span>
+                )}
               </button>
             ))}
           </div>

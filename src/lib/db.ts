@@ -5,7 +5,9 @@ import {
   MOCK_TEAMS_PROMOCION, 
   MOCK_MATCHES_CAMPEONATO, 
   MOCK_MATCHES_PROMOCION, 
-  MOCK_TOURNAMENTS 
+  MOCK_TOURNAMENTS,
+  WEBSITES,
+  INSTAGRAMS
 } from './mockData';
 import { saveAuth } from './auth';
 
@@ -133,7 +135,9 @@ export async function fetchTeams(): Promise<Team[]> {
     };
     return (data || []).map(t => ({
       ...t,
-      display_name: t.display_name || DISPLAY_NAMES[t.name]
+      display_name: t.display_name || DISPLAY_NAMES[t.name],
+      website_url: WEBSITES[t.name] || null,
+      instagram_url: INSTAGRAMS[t.name] || null
     }));
   } catch (err) {
     console.warn('Supabase fetchTeams failed, falling back to mocks:', err);

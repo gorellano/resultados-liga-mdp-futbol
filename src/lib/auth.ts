@@ -45,17 +45,17 @@ export function validatePassword(password: string): string | null {
 export function saveAuth(user: AuthUser): void {
   const payload = JSON.stringify(user);
   const sig = simpleHash(payload + TOKEN_SECRET);
-  localStorage.setItem(AUTH_KEY, JSON.stringify({ payload, sig }));
+  sessionStorage.setItem(AUTH_KEY, JSON.stringify({ payload, sig }));
 }
 
 export function loadAuth(): AuthUser | null {
   try {
-    const raw = localStorage.getItem(AUTH_KEY);
+    const raw = sessionStorage.getItem(AUTH_KEY);
     if (!raw) return null;
     const { payload, sig } = JSON.parse(raw);
     if (simpleHash(payload + TOKEN_SECRET) !== sig) {
       // Token tampered — clear and reject
-      localStorage.removeItem(AUTH_KEY);
+      sessionStorage.removeItem(AUTH_KEY);
       return null;
     }
     return JSON.parse(payload) as AuthUser;
@@ -65,7 +65,7 @@ export function loadAuth(): AuthUser | null {
 }
 
 export function clearAuth(): void {
-  localStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
 }
 
 // ─── Rate Limiting ──────────────────────────────────────────────────────────

@@ -3,11 +3,12 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings } from '../lib/standings';
-import { Shield, Share2, Copy, Calendar } from 'lucide-react';
+import { Shield, Share2, Copy, Calendar, MapPin } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
+import { villasDeportivas } from '../lib/villasDeportivas';
 
 function StandingsSkeleton() {
   return (
@@ -524,6 +525,9 @@ export function DivisionPage() {
                   const home = teams.find(t => t.id === match.home_team_id);
                   const away = teams.find(t => t.id === match.away_team_id);
                   if (!home || !away) return null;
+
+                  const homeVilla = villasDeportivas[home.name];
+                  const mapsUrl = homeVilla?.googleMapsUrl;
  
                   // Mostramos todos los partidos del fixture
                   return (
@@ -549,6 +553,17 @@ export function DivisionPage() {
                               <Copy className="w-3.5 h-3.5" />
                             )}
                           </button>
+                          {mapsUrl && (
+                            <a
+                              href={mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-emerald-500 transition-all duration-200 cursor-pointer flex items-center justify-center"
+                              title={`Ubicación: ${homeVilla.stadiumName || 'Villa Deportiva'}`}
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
+                            </a>
+                          )}
                         </div>
                         {match.match_date && <span>{format(new Date(match.match_date), "HH:mm")} hs</span>}
                       </div>

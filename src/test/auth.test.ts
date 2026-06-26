@@ -6,7 +6,7 @@ import {
   type AuthUser,
 } from '../lib/auth';
 
-// ─── Mock localStorage ───────────────────────────────────────────────────────
+// ─── Mock localStorage & sessionStorage ───────────────────────────────────────
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
   return {
@@ -16,9 +16,22 @@ const localStorageMock = (() => {
     clear:      () => { store = {}; },
   };
 })();
+const sessionStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem:    (key: string) => store[key] ?? null,
+    setItem:    (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear:      () => { store = {}; },
+  };
+})();
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
+Object.defineProperty(globalThis, 'sessionStorage', { value: sessionStorageMock });
 
-beforeEach(() => localStorageMock.clear());
+beforeEach(() => {
+  localStorageMock.clear();
+  sessionStorageMock.clear();
+});
 
 // ─── Auth token ──────────────────────────────────────────────────────────────
 describe('Auth token', () => {
@@ -37,9 +50,9 @@ describe('Auth token', () => {
   it('returns null and clears storage when token is tampered', () => {
     saveAuth(user);
     // Tamper: overwrite with bad signature
-    localStorage.setItem('admin_auth', JSON.stringify({ payload: JSON.stringify(user), sig: 'bad-sig' }));
+    sessionStorage.setItem('admin_auth', JSON.stringify({ payload: JSON.stringify(user), sig: 'bad-sig' }));
     expect(loadAuth()).toBeNull();
-    expect(localStorage.getItem('admin_auth')).toBeNull();
+    expect(sessionStorage.getItem('admin_auth')).toBeNull();
   });
 
   it('clearAuth removes the stored token', () => {

@@ -70,7 +70,7 @@ export const villasDeportivas: Record<string, VillaDeportiva> = {
     teamName: "Cadetes",
     stadiumName: "Villa Deportiva Cadetes de San Martín",
     address: "Calle Silvestre Tohel, Mar del Plata",
-    googleMapsUrl: ""
+    googleMapsUrl: "https://maps.app.goo.gl/5PBLZXjjqLVTFr998"
   },
   "Nacion": {
     teamName: "Nacion",
@@ -124,7 +124,7 @@ export const villasDeportivas: Record<string, VillaDeportiva> = {
     teamName: "El cañon",
     stadiumName: "Sede / Predio El Cañón",
     address: "11 de Septiembre 4776, Mar del Plata",
-    googleMapsUrl: ""
+    googleMapsUrl: "https://maps.app.goo.gl/vjcXn3erqr7u98jw7"
   },
   "Almagro Florida": {
     teamName: "Almagro Florida",
@@ -142,7 +142,7 @@ export const villasDeportivas: Record<string, VillaDeportiva> = {
     teamName: "Colegiales/Siciliano",
     stadiumName: "Predio Auxiliar LMF (Localía a convenir)",
     address: "Mar del Plata, Provincia de Buenos Aires",
-    googleMapsUrl: ""
+    googleMapsUrl: "https://maps.app.goo.gl/QCTzgGi6UWANPL788"
   },
   "Club Banco Provincia de Mar del Plata": {
     teamName: "Club Banco Provincia de Mar del Plata",
@@ -172,6 +172,6 @@ export const villasDeportivas: Record<string, VillaDeportiva> = {
     teamName: "San Isidro",
     stadiumName: "Villa Deportiva San Isidro",
     address: "Calle 461 & Calle 12, Mar del Plata",
-    googleMapsUrl: ""
+    googleMapsUrl: "https://maps.app.goo.gl/oiby5cx2FtgzSSCz6"
   }
 };

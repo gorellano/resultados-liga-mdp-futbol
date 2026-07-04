@@ -9,6 +9,8 @@ import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches 
 import { getCategoryYear } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 import { villasDeportivas } from '../lib/villasDeportivas';
+import { SponsorBanner } from '../components/SponsorBanner';
+import { createSlug } from '../lib/slug';
 
 function StandingsSkeleton() {
   return (
@@ -192,8 +194,8 @@ export function DivisionPage() {
     async function loadFilteredMatches() {
       setLoading(true);
       try {
-        // Encontrar UUID de división correspondiente al nombre de la URL
-        const currentDiv = divisions.find(d => d.name === name) || divisions[0];
+        // Encontrar UUID de división correspondiente al nombre o slug de la URL
+        const currentDiv = divisions.find(d => d.name === name || createSlug(d.name) === name) || divisions[0];
         const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         const currentZone = zones.find(z => normalize(z.name) === normalize(zone)) || zones[0];
 
@@ -378,6 +380,7 @@ export function DivisionPage() {
           tab === 'posiciones' ? <StandingsSkeleton /> : <FixtureSkeleton />
         )}
         {!loading && tab === 'posiciones' && (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground font-bold uppercase bg-muted/30 border-b border-border/50">
@@ -456,6 +459,10 @@ export function DivisionPage() {
               </tbody>
             </table>
           </div>
+          <div className="mt-6 mb-4">
+            <SponsorBanner />
+          </div>
+        </>
         )}
 
         {!loading && tab === 'fixture' && (

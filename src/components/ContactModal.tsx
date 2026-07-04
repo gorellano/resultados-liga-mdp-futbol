@@ -113,6 +113,15 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              
+              <div className="px-6 pt-4 pb-2">
+                <p className="text-sm text-muted-foreground">
+                  Envianos un mensaje y nos pondremos en contacto con vos a la brevedad.
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  También podés escribirnos directamente a <a href="mailto:costaygolmdq@gmail.com" className="text-primary hover:underline font-medium">costaygolmdq@gmail.com</a>
+                </p>
+              </div>
 
               <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-4">
                 {error && (

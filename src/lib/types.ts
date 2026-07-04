@@ -68,3 +68,24 @@ export interface ContactMessage {
   is_deleted: boolean;
   created_at: string;
 }
+
+export interface Sponsor {
+  id: string;
+  name: string;
+  image_url: string;
+  link_url?: string;
+  is_active: boolean;
+  display_order: number;
+  created_at?: string;
+}
+
+export interface PushSubscription {
+  id: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  team_id: string;
+  created_at?: string;
+}

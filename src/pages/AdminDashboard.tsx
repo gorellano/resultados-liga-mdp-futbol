@@ -5,9 +5,10 @@ import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
   Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare,
-  Upload, Play, Check, FileText, Sparkles
+  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard
 } from 'lucide-react';
 import { cn } from '../App';
+import { SponsorsSettings } from './SponsorsSettings';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
 import { 
   fetchTournaments, 
@@ -33,6 +34,7 @@ import {
   logoutUser
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
+import { supabase } from '../lib/supabase';
 
 const DEFAULT_KICKOFF_TIMES: Record<string, string> = {
   'Séptima División': '15:30',
@@ -84,7 +86,7 @@ const TEAMS_PROMOCION_NAMES = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ username: string; role: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings'>('teams');
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -166,6 +168,11 @@ export function AdminDashboard() {
   const [bulkError, setBulkError] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
 
+  // Feature flags y textos de notificaciones
+  const [sendNotificationsFlag, setSendNotificationsFlag] = useState(true);
+  const [notifTitleNew, setNotifTitleNew] = useState('¡Resultado Cargado!');
+  const [notifTitleEdit, setNotifTitleEdit] = useState('¡Resultado Actualizado!');
+
   useEffect(() => {
     const auth = loadAuth();
     if (!auth) {
@@ -236,7 +243,28 @@ export function AdminDashboard() {
       }
     }
     loadBaseData();
+
+    // Cargar feature flags y textos de notificaciones
+    supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['send_notifications', 'notification_title_new', 'notification_title_edit'])
+      .then(({ data }) => {
+        if (data) {
+          data.forEach(row => {
+            if (row.key === 'send_notifications') {
+              setSendNotificationsFlag(row.value === 'true' || row.value === true);
+            } else if (row.key === 'notification_title_new' && row.value) {
+              setNotifTitleNew(row.value);
+            } else if (row.key === 'notification_title_edit' && row.value) {
+              setNotifTitleEdit(row.value);
+            }
+          });
+        }
+      })
+      .catch(() => {}); // Si no existe la tabla aun, ignorar silenciosamente
   }, []);
+
 
   // Cargar partidos de la división y torneo seleccionados
   useEffect(() => {
@@ -425,6 +453,28 @@ export function AdminDashboard() {
     const success = await saveMatchResult(matchId, homeGoals, awayGoals, status, matchDate);
     if (success) {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'saved' }));
+      
+      const match = allMatches.find(m => m.id === matchId);
+      
+      // Auto-send push notification if finished and feature flag is ON
+      if (status === 'finished' && match && homeGoals !== null && awayGoals !== null && sendNotificationsFlag) {
+        const isEdit = match.status === 'finished';
+        const zone = zones.find(z => z.id === match.zone_id);
+        supabase.functions.invoke('notify-subscribers', {
+          body: {
+            match_id: matchId,
+            home_team_id: match.home_team_id,
+            away_team_id: match.away_team_id,
+            home_name: match.home_team?.name || 'Local',
+            away_name: match.away_team?.name || 'Visitante',
+            result: `${homeGoals} - ${awayGoals}`,
+            is_edit: isEdit,
+            title: isEdit ? notifTitleEdit : notifTitleNew,
+            division_id: zone?.division_id || null
+          }
+        }).catch(err => console.error('Error auto-sending push:', err));
+      }
+
       // Actualizar la lista local de partidos para reflejar el estado
       setAllMatches(prev => prev.map(m => m.id === matchId ? { 
         ...m, 
@@ -435,6 +485,45 @@ export function AdminDashboard() {
       } : m));
     } else {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'error' }));
+    }
+  };
+
+  const handleSendPushNotification = async (matchId: string) => {
+    const match = allMatches.find(m => m.id === matchId);
+    if (!match || match.status !== 'finished') {
+       alert("Solo se pueden notificar partidos finalizados.");
+       return;
+    }
+    
+    try {
+      setSavingStatus(prev => ({ ...prev, [matchId]: 'saving' })); // Reusing status for UI feedback
+      const zone = zones.find(z => z.id === match.zone_id);
+      const { error } = await supabase.functions.invoke('notify-subscribers', {
+        body: {
+          match_id: match.id,
+          home_team_id: match.home_team_id,
+          away_team_id: match.away_team_id,
+          home_name: match.home_team?.name || 'Local',
+          away_name: match.away_team?.name || 'Visitante',
+          result: `${match.home_goals} - ${match.away_goals}`,
+          is_edit: true,
+          title: notifTitleEdit,
+          division_id: zone?.division_id || null
+        }
+      });
+      if (error) throw error;
+      setSavingStatus(prev => ({ ...prev, [matchId]: 'saved' }));
+      setTimeout(() => {
+        setSavingStatus(prev => {
+          const newStatus = { ...prev };
+          delete newStatus[matchId];
+          return newStatus;
+        });
+      }, 2000);
+    } catch (e) {
+      console.error(e);
+      setSavingStatus(prev => ({ ...prev, [matchId]: 'error' }));
+      alert("Error enviando notificación.");
     }
   };
 
@@ -977,6 +1066,7 @@ export function AdminDashboard() {
     { id: 'fixture'     as const, label: 'Fixture y Resultados',  icon: Calendar },
     { id: 'users'       as const, label: 'Gestión de Usuarios',   icon: Users },
     { id: 'messages'    as const, label: 'Mensajes',              icon: MessageSquare },
+    { id: 'settings'    as const, label: 'Sponsors y Ajustes',    icon: LayoutDashboard },
   ];
 
   return (
@@ -1891,27 +1981,42 @@ export function AdminDashboard() {
                               </span>
                             </div>
 
-                            <button
-                              onClick={() => handleSaveSingleMatch(match.id)}
-                              disabled={statusState === 'saving'}
-                              className={cn(
-                                "px-4 py-2 rounded-xl text-sm font-semibold transition-all border shrink-0 w-full sm:w-auto flex items-center justify-center gap-1.5",
-                                statusState === 'saved' 
-                                  ? "bg-green-500/10 text-green-600 border-green-500/20"
-                                  : statusState === 'error'
-                                  ? "bg-red-500/10 text-red-600 border-red-500/20"
-                                  : "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
-                              )}
-                            >
-                              {statusState === 'saving' && (
-                                <motion.span
-                                  animate={{ rotate: 360 }}
-                                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                                  className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block"
-                                />
-                              )}
-                              {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
-                            </button>
+                            <div className="flex gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
+                              <button
+                                onClick={() => handleSendPushNotification(match.id)}
+                                disabled={statusState === 'saving' || match.status !== 'finished'}
+                                className={cn(
+                                  "px-3 py-2 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center gap-1.5",
+                                  match.status === 'finished' 
+                                    ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20"
+                                    : "bg-muted text-muted-foreground border-border/50 cursor-not-allowed"
+                                )}
+                                title={match.status === 'finished' ? "Notificar a los suscriptores" : "Sólo finalizados"}
+                              >
+                                <BellRing className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleSaveSingleMatch(match.id)}
+                                disabled={statusState === 'saving'}
+                                className={cn(
+                                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5",
+                                  statusState === 'saved' 
+                                    ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                    : statusState === 'error'
+                                    ? "bg-red-500/10 text-red-600 border-red-500/20"
+                                    : "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
+                                )}
+                              >
+                                {statusState === 'saving' && (
+                                  <motion.span
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                                    className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block"
+                                  />
+                                )}
+                                {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
+                              </button>
+                            </div>
                           </motion.div>
                         );
                       })}
@@ -2109,6 +2214,13 @@ export function AdminDashboard() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* ── SETTINGS TAB ── */}
+              {activeTab === 'settings' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <SponsorsSettings />
                 </div>
               )}
             </motion.div>

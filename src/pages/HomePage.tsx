@@ -5,6 +5,8 @@ import { cn } from '../App';
 import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Division } from '../lib/types';
+import { SponsorBanner } from '../components/SponsorBanner';
+import { createSlug } from '../lib/slug';
 
 export function HomePage() {
   const currentYear = new Date().getFullYear();
@@ -85,6 +87,8 @@ export function HomePage() {
         </div>
       </section>
 
+      <SponsorBanner />
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {loading ? (
           Array.from({ length: 8 }).map((_, i) => (
@@ -100,7 +104,7 @@ export function HomePage() {
           divisionsList.map((div, i) => (
             <Link
               key={i}
-              to={div.soon ? "#" : `/division/${encodeURIComponent(div.name)}`}
+              to={div.soon ? "#" : `/division/${createSlug(div.name)}`}
               className={cn(
                 "group flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 min-h-[120px] text-center",
                 div.soon

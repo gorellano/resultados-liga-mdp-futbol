@@ -73,7 +73,6 @@ function Layout({ children }: { children: React.ReactNode }) {
               title="Panel de Administración"
             >
               <Lock className="h-4 w-4" />
-              <span className="hidden sm:inline">Admin</span>
             </Link>
           </div>
         </div>
@@ -105,11 +104,41 @@ function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </AnimatePresence>
       </main>
-      <footer className="border-t border-border py-6">
-        <div className="container mx-auto px-4 sm:px-8 flex items-center justify-center">
-          <p className="text-sm text-muted-foreground text-center">
+      <footer className="border-t border-border py-8 bg-muted/10 mt-auto">
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-sm text-muted-foreground text-center sm:text-left">
             &copy; {new Date().getFullYear()} Costa y Gol. Todos los derechos reservados.
           </p>
+          
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://www.facebook.com/share/185R7osMKw/?mibextid=wwXIfr"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Facebook Costa y Gol"
+              className="p-2 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            >
+              <svg xmlns="http://www.react.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+            </a>
+            <a 
+              href="https://www.instagram.com/costaygol/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Instagram Costa y Gol"
+              className="p-2 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            >
+              <svg xmlns="http://www.react.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+            </a>
+            <a 
+              href="https://www.youtube.com/@CostayGol"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="YouTube Costa y Gol"
+              className="p-2 rounded-full bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+            >
+              <svg xmlns="http://www.react.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
+            </a>
+          </div>
         </div>
       </footer>
     </div>

@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Globe, MapPin, Shield } from 'lucide-react';
+import { Search, Globe, MapPin, Shield, Bell, BellRing } from 'lucide-react';
 import { fetchTeams } from '../lib/db';
 import { villasDeportivas } from '../lib/villasDeportivas';
+import { subscribeToTeamAndDivisions, unsubscribeFromTeam, getSubscribedTeamsAndDivisions } from '../lib/push';
 import type { Team } from '../lib/types';
+import { SubscribeModal } from '../components/SubscribeModal';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -49,14 +51,23 @@ function TeamCardSkeleton() {
 
 export function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>([]);
+  const [subscribedTeams, setSubscribedTeams] = useState<Map<string, string[] | null>>(new Map());
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [subscribeModalOpen, setSubscribeModalOpen] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   useEffect(() => {
     async function loadTeams() {
       try {
-        const data = await fetchTeams();
+        const [data, subs] = await Promise.all([
+          fetchTeams(),
+          getSubscribedTeamsAndDivisions()
+        ]);
         setTeams(data);
+        setSubscribedTeams(subs);
       } catch (err) {
         console.error('Failed to load teams:', err);
       } finally {
@@ -65,6 +76,70 @@ export function TeamsPage() {
     }
     loadTeams();
   }, []);
+
+  const handleToggleSubscribe = async (team: Team) => {
+    const teamId = team.id;
+    try {
+      const isSubscribed = subscribedTeams.has(teamId);
+      if (isSubscribed) {
+        setIsSubscribing(true);
+        const success = await unsubscribeFromTeam(teamId);
+        if (success) {
+          setSubscribedTeams(prev => {
+             const newMap = new Map(prev);
+             newMap.delete(teamId);
+             return newMap;
+          });
+        } else {
+          alert('Error al desuscribirse. Revisa los permisos de notificaciones.');
+        }
+        setIsSubscribing(false);
+      } else {
+        // Request notification permission if not already granted
+        if (Notification.permission === 'default') {
+          const perm = await Notification.requestPermission();
+          if (perm !== 'granted') {
+            alert('Debes permitir las notificaciones para poder suscribirte.');
+            return;
+          }
+        } else if (Notification.permission === 'denied') {
+          alert('Las notificaciones están bloqueadas en tu navegador.');
+          return;
+        }
+
+        // Open modal
+        setSelectedTeam(team);
+        setSubscribeModalOpen(true);
+      }
+    } catch (err) {
+      console.error(err);
+      setIsSubscribing(false);
+    }
+  };
+
+  const handleSaveSubscriptions = async (divisionIds: string[] | null) => {
+    if (!selectedTeam) return;
+    
+    setIsSubscribing(true);
+    try {
+      const success = await subscribeToTeamAndDivisions(selectedTeam.id, divisionIds);
+      if (success) {
+        setSubscribedTeams(prev => {
+           const newMap = new Map(prev);
+           newMap.set(selectedTeam.id, divisionIds);
+           return newMap;
+        });
+        setSubscribeModalOpen(false);
+      } else {
+         alert('Error al suscribirse. (Puede que falten configurar las VAPID keys en el servidor).');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error inesperado.');
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   // Sort teams alphabetically by display name (or name if display name is missing)
   const sortedTeams = useMemo(() => {
@@ -236,6 +311,26 @@ export function TeamsPage() {
                       <MapPin className="w-4 h-4" />
                     </button>
                   )}
+
+                  {/* Notification Subscribe Button */}
+                  <button
+                    onClick={() => handleToggleSubscribe(team)}
+                    disabled={isSubscribing}
+                    className={`flex items-center justify-center p-2 rounded-xl transition-all duration-300 flex-1 ${
+                      subscribedTeams.has(team.id)
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                        : 'bg-muted text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600'
+                    }`}
+                    title={subscribedTeams.has(team.id) ? 'Configurar notificaciones' : 'Recibir notificaciones'}
+                  >
+                    {isSubscribing ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : subscribedTeams.has(team.id) ? (
+                      <BellRing className="w-4 h-4" />
+                    ) : (
+                      <Bell className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </motion.div>
             );
@@ -248,6 +343,15 @@ export function TeamsPage() {
           </p>
         </div>
       )}
+
+      <SubscribeModal 
+        isOpen={subscribeModalOpen}
+        onClose={() => setSubscribeModalOpen(false)}
+        team={selectedTeam}
+        initialDivisions={selectedTeam ? (subscribedTeams.get(selectedTeam.id) ?? []) : []}
+        onSave={handleSaveSubscriptions}
+        isSaving={isSubscribing}
+      />
     </motion.div>
   );
 }

@@ -86,20 +86,39 @@ CREATE POLICY "Admins can manage sponsors"
   USING (true) WITH CHECK (true);
 ```
 
-### 2c. Columna division_id en push_subscriptions
-
-Solo ejecutar si ya tenes la tabla push_subscriptions creada.
+### 2c. Tabla push_subscriptions
 
 ```sql
+-- Crear la tabla si no existe (incluye division_id desde el inicio)
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  endpoint    TEXT NOT NULL,
+  keys        JSONB NOT NULL,
+  team_id     UUID REFERENCES teams(id) ON DELETE CASCADE,
+  division_id UUID REFERENCES divisions(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (endpoint, team_id, division_id)
+);
+
+-- Si la tabla YA existia sin division_id, agregar la columna
 ALTER TABLE push_subscriptions
   ADD COLUMN IF NOT EXISTS division_id UUID REFERENCES divisions(id) ON DELETE CASCADE;
 
+-- Limpiar constraint viejo si existia, y crear el nuevo con division_id
 ALTER TABLE push_subscriptions
   DROP CONSTRAINT IF EXISTS push_subscriptions_endpoint_team_id_key;
 
-ALTER TABLE push_subscriptions
-  ADD CONSTRAINT push_subscriptions_endpoint_team_id_division_id_key
-  UNIQUE NULLS NOT DISTINCT (endpoint, team_id, division_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'push_subscriptions_endpoint_team_id_division_id_key'
+  ) THEN
+    ALTER TABLE push_subscriptions
+      ADD CONSTRAINT push_subscriptions_endpoint_team_id_division_id_key
+      UNIQUE NULLS NOT DISTINCT (endpoint, team_id, division_id);
+  END IF;
+END $$;
 
 ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 
@@ -116,6 +135,7 @@ BEGIN
   END IF;
 END $$;
 ```
+
 
 ---
 

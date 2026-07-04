@@ -35,7 +35,7 @@ self.addEventListener('notificationclick', (event) => {
   
   if (event.notification.data && event.notification.data.url) {
     event.waitUntil(
-      clients.openWindow(event.notification.data.url)
+      self.clients.openWindow(event.notification.data.url)
     );
   }
 });

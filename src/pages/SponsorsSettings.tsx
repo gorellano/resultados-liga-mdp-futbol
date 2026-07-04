@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Sponsor } from '../lib/types';
 import { Trash2, Plus, Edit2, Check, X, Image as ImageIcon } from 'lucide-react';
-import { cn } from '../App';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function SponsorsSettings() {

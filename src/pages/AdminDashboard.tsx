@@ -245,11 +245,12 @@ export function AdminDashboard() {
     loadBaseData();
 
     // Cargar feature flags y textos de notificaciones
-    supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['send_notifications', 'notification_title_new', 'notification_title_edit'])
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', ['send_notifications', 'notification_title_new', 'notification_title_edit']);
         if (data) {
           data.forEach(row => {
             if (row.key === 'send_notifications') {
@@ -261,8 +262,10 @@ export function AdminDashboard() {
             }
           });
         }
-      })
-      .catch(() => {}); // Si no existe la tabla aun, ignorar silenciosamente
+      } catch (_) {
+        // Si no existe la tabla aun, ignorar silenciosamente
+      }
+    })();
   }, []);
 
 
@@ -459,20 +462,21 @@ export function AdminDashboard() {
       // Auto-send push notification if finished and feature flag is ON
       if (status === 'finished' && match && homeGoals !== null && awayGoals !== null && sendNotificationsFlag) {
         const isEdit = match.status === 'finished';
-        const zone = zones.find(z => z.id === match.zone_id);
+        const homeTeam = teams.find(t => t.id === match.home_team_id);
+        const awayTeam = teams.find(t => t.id === match.away_team_id);
         supabase.functions.invoke('notify-subscribers', {
           body: {
             match_id: matchId,
             home_team_id: match.home_team_id,
             away_team_id: match.away_team_id,
-            home_name: match.home_team?.name || 'Local',
-            away_name: match.away_team?.name || 'Visitante',
+            home_name: homeTeam?.display_name || homeTeam?.name || 'Local',
+            away_name: awayTeam?.display_name || awayTeam?.name || 'Visitante',
             result: `${homeGoals} - ${awayGoals}`,
             is_edit: isEdit,
             title: isEdit ? notifTitleEdit : notifTitleNew,
-            division_id: zone?.division_id || null
+            division_id: match.division_id
           }
-        }).catch(err => console.error('Error auto-sending push:', err));
+        }).then(undefined, err => console.error('Error auto-sending push:', err));
       }
 
       // Actualizar la lista local de partidos para reflejar el estado
@@ -497,18 +501,19 @@ export function AdminDashboard() {
     
     try {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'saving' })); // Reusing status for UI feedback
-      const zone = zones.find(z => z.id === match.zone_id);
+      const homeTeam = teams.find(t => t.id === match.home_team_id);
+      const awayTeam = teams.find(t => t.id === match.away_team_id);
       const { error } = await supabase.functions.invoke('notify-subscribers', {
         body: {
           match_id: match.id,
           home_team_id: match.home_team_id,
           away_team_id: match.away_team_id,
-          home_name: match.home_team?.name || 'Local',
-          away_name: match.away_team?.name || 'Visitante',
+          home_name: homeTeam?.display_name || homeTeam?.name || 'Local',
+          away_name: awayTeam?.display_name || awayTeam?.name || 'Visitante',
           result: `${match.home_goals} - ${match.away_goals}`,
           is_edit: true,
           title: notifTitleEdit,
-          division_id: zone?.division_id || null
+          division_id: match.division_id
         }
       });
       if (error) throw error;

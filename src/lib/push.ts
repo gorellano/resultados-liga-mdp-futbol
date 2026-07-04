@@ -156,7 +156,7 @@ export async function getSubscribedTeamsAndDivisions(): Promise<Map<string, stri
              }
           } else {
              const existing = result.get(tId);
-             if (existing !== null && dId !== null) {
+             if (existing !== undefined && existing !== null && dId !== null) {
                 existing.push(dId);
              } else if (dId === null) {
                 result.set(tId, null); // Se pisa por "todas"

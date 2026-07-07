@@ -42,7 +42,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             <div className="w-10 h-10 bg-primary/5 rounded-xl group-hover:bg-primary/10 transition-all duration-300 overflow-hidden border border-border/50 shadow-inner group-hover:scale-105">
               <img src="/logo_costa_y_gol.png" alt="Costa y Gol" className="w-full h-full object-cover" />
             </div>
-            <span className="font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">Costa y Gol</span>
+            <span className="hidden sm:block font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">Costa y Gol</span>
           </Link>
           <div className="flex items-center space-x-4">
             <Link

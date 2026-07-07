@@ -1928,8 +1928,11 @@ export function AdminDashboard() {
                             variants={itemVariants}
                             className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 hover:border-primary/20 transition-colors"
                           >
-                            <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[35%]">
-                              <span className="font-semibold text-sm text-right">{home.display_name ?? home.name}</span>
+                            {/* Local Team */}
+                            <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[28%] min-w-0">
+                              <span className="font-semibold text-sm text-right truncate max-w-[120px] sm:max-w-none" title={home.display_name ?? home.name}>
+                                {home.display_name ?? home.name}
+                              </span>
                               <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
                                 {home.logo_url 
                                   ? <img src={home.logo_url} className="w-6 h-6 object-contain" alt={home.name} />
@@ -1937,6 +1940,7 @@ export function AdminDashboard() {
                               </div>
                             </div>
 
+                            {/* Goals Inputs */}
                             <div className="flex items-center gap-2 shrink-0">
                               <input
                                 type="text"
@@ -1956,28 +1960,32 @@ export function AdminDashboard() {
                             </div>
 
                             {/* Horario de Partido */}
-                            <div className="flex flex-col items-center gap-1 shrink-0 px-2">
+                            <div className="flex flex-col items-center gap-1 shrink-0 px-2 w-[80px]">
                               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
                               <input
                                 type="time"
                                 value={editingTimes[match.id] || ''}
                                 onChange={(e) => handleTimeChange(match.id, e.target.value)}
-                                className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold"
+                                className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
                               />
                             </div>
 
-                            <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[35%]">
+                            {/* Visitor Team */}
+                            <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[28%] min-w-0">
                               <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
                                 {away.logo_url 
                                   ? <img src={away.logo_url} className="w-6 h-6 object-contain" alt={away.name} />
                                   : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
                               </div>
-                              <span className="font-semibold text-sm">{away.display_name ?? away.name}</span>
+                              <span className="font-semibold text-sm truncate max-w-[120px] sm:max-w-none" title={away.display_name ?? away.name}>
+                                {away.display_name ?? away.name}
+                              </span>
                             </div>
 
-                            <div className="flex items-center gap-3 w-full sm:w-[15%] justify-center sm:justify-start shrink-0">
+                            {/* Status Badge */}
+                            <div className="flex items-center w-full sm:w-[12%] justify-center sm:justify-start shrink-0">
                               <span className={cn(
-                                "px-2.5 py-1 rounded-full text-xs font-bold",
+                                "px-2.5 py-1 rounded-full text-xs font-bold w-full text-center sm:text-left",
                                 match.status === 'finished' 
                                   ? "bg-green-500/10 text-green-600 border border-green-500/20"
                                   : "bg-slate-500/10 text-slate-600 border border-slate-500/20"
@@ -1986,12 +1994,13 @@ export function AdminDashboard() {
                               </span>
                             </div>
 
-                            <div className="flex gap-2 w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
+                            {/* Buttons */}
+                            <div className="flex gap-2 w-full sm:w-[15%] shrink-0 mt-2 sm:mt-0 justify-end">
                               <button
                                 onClick={() => handleSendPushNotification(match.id)}
                                 disabled={statusState === 'saving' || match.status !== 'finished'}
                                 className={cn(
-                                  "px-3 py-2 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center gap-1.5",
+                                  "p-2.5 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center shrink-0",
                                   match.status === 'finished' 
                                     ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20"
                                     : "bg-muted text-muted-foreground border-border/50 cursor-not-allowed"
@@ -2004,7 +2013,7 @@ export function AdminDashboard() {
                                 onClick={() => handleSaveSingleMatch(match.id)}
                                 disabled={statusState === 'saving'}
                                 className={cn(
-                                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5",
+                                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-w-[85px]",
                                   statusState === 'saved' 
                                     ? "bg-green-500/10 text-green-600 border-green-500/20"
                                     : statusState === 'error'
@@ -2016,10 +2025,12 @@ export function AdminDashboard() {
                                   <motion.span
                                     animate={{ rotate: 360 }}
                                     transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                                    className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block"
+                                    className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block shrink-0"
                                   />
                                 )}
-                                {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
+                                <span className="truncate">
+                                  {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
+                                </span>
                               </button>
                             </div>
                           </motion.div>

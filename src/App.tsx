@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Lock, Mail, CheckCircle2, Shirt } from 'lucide-react';
+import { Lock, Mail, CheckCircle2, Shirt, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from "clsx";
@@ -10,6 +10,7 @@ import { AdminLogin } from './pages/AdminLogin';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminPage } from './pages/AdminPage';
 import { TeamsPage } from './pages/TeamsPage';
+import { CampeonesPage } from './pages/CampeonesPage';
 import { ContactModal } from './components/ContactModal';
 
 export function cn(...inputs: ClassValue[]) {
@@ -44,6 +45,14 @@ function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">Costa y Gol</span>
           </Link>
           <div className="flex items-center space-x-4">
+            <Link
+              to="/campeones"
+              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
+              aria-label="Salón de la Fama"
+              title="Campeones"
+            >
+              <Trophy className="w-5 h-5" />
+            </Link>
             <Link
               to="/equipos"
               className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
@@ -153,6 +162,7 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/division/:name" element={<DivisionPage />} />
           <Route path="/equipos" element={<TeamsPage />} />
+          <Route path="/campeones" element={<CampeonesPage />} />
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/*" element={<AdminPage />} />

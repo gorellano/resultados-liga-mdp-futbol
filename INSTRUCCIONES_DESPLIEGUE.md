@@ -236,3 +236,44 @@ Despues de agregar la variable `VITE_VAPID_PUBLIC_KEY` en Vercel, hay que hacer 
 | **3. Push VAPID** | Alertas push a usuarios | Cuando quieras | Independiente |
 
 > **Nota:** Los pasos 2 y 3 son completamente independientes entre si. Podes hacer el 2 sin el 3 y viceversa. Si corres el 2 sin haber hecho el 3, los switches del admin van a estar visibles pero las notificaciones simplemente no se van a enviar (sin error visible para el usuario).
+
+---
+
+## PASO 4 — Sección Historial de Campeones (Salón de la Fama)
+
+Este paso agrega la base de datos necesaria para mostrar los campeones históricos por división, zona, año y torneo.
+
+### 4a. Crear la tabla `champions` en Supabase
+
+1. Entrá a [supabase.com](https://supabase.com) → tu proyecto.
+2. En el menú izquierdo, hacé clic en **SQL Editor**.
+3. Creá un nuevo query con el botón **+ New Query**.
+4. Copiá y pegá el contenido completo del archivo local `create_champions_table.sql`:
+   ```sql
+   CREATE TABLE IF NOT EXISTS public.champions (
+       id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       year        INTEGER NOT NULL,
+       tournament  TEXT NOT NULL,
+       division_id UUID REFERENCES public.divisions(id) ON DELETE CASCADE,
+       zone_name   TEXT NOT NULL CHECK (zone_name IN ('campeonato', 'promocion')),
+       team_id     UUID REFERENCES public.teams(id) ON DELETE CASCADE,
+       created_at  TIMESTAMPTZ DEFAULT NOW(),
+       updated_at  TIMESTAMPTZ DEFAULT NOW(),
+       CONSTRAINT unique_champion_per_tournament UNIQUE (year, tournament, division_id, zone_name)
+   );
+
+   ALTER TABLE public.champions ENABLE ROW LEVEL SECURITY;
+
+   DROP POLICY IF EXISTS "Anyone can read champions" ON public.champions;
+   CREATE POLICY "Anyone can read champions" ON public.champions FOR SELECT TO public USING (true);
+
+   DROP POLICY IF EXISTS "Admins can manage champions" ON public.champions;
+   CREATE POLICY "Admins can manage champions" ON public.champions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+   ```
+5. Hacé clic en **Run** (Ejecutar) abajo a la derecha.
+
+### 4b. Push del código a producción
+
+Una vez que la tabla esté creada, podés hacer push de los últimos cambios de código de la rama master:
+- El deploy en Vercel incluirá de inmediato la copa/trofeo en el header de navegación, la vista `/campeones` pública y la pestaña "Historial Campeones" dentro de tu Panel de Administración.
+

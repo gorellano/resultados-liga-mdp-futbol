@@ -86,7 +86,7 @@ const TEAMS_PROMOCION_NAMES = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ username: string; role: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings' | 'champions'>('teams');
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -97,6 +97,12 @@ export function AdminDashboard() {
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Estados de Campeones en Admin
+  const [adminChampions, setAdminChampions] = useState<Record<string, Record<'campeonato' | 'promocion', string>>>({});
+  const [savingChampions, setSavingChampions] = useState(false);
+  const [selectedChampYear, setSelectedChampYear] = useState<number>(new Date().getFullYear());
+  const [selectedChampTournament, setSelectedChampTournament] = useState<string>('Apertura');
 
   // Filtros seleccionados
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
@@ -267,6 +273,85 @@ export function AdminDashboard() {
       }
     })();
   }, []);
+
+
+  // Cargar campeones en la pestaña del admin
+  useEffect(() => {
+    if (activeTab !== 'champions') return;
+    
+    async function loadChampionsAdmin() {
+      try {
+        const { data, error } = await supabase
+          .from('champions')
+          .select('*')
+          .eq('year', selectedChampYear)
+          .eq('tournament', selectedChampTournament);
+        
+        if (error) throw error;
+        
+        const mapped: Record<string, Record<'campeonato' | 'promocion', string>> = {};
+        data?.forEach(row => {
+          if (!mapped[row.division_id]) {
+            mapped[row.division_id] = { campeonato: '', promocion: '' };
+          }
+          mapped[row.division_id][row.zone_name as 'campeonato' | 'promocion'] = row.team_id;
+        });
+        setAdminChampions(mapped);
+      } catch (err) {
+        console.error('Error cargando campeones en admin:', err);
+      }
+    }
+    loadChampionsAdmin();
+  }, [activeTab, selectedChampYear, selectedChampTournament]);
+
+  const handleSaveChampions = async () => {
+    setSavingChampions(true);
+    try {
+      const recordsToUpsert: any[] = [];
+      
+      for (const divisionId of Object.keys(adminChampions)) {
+        const zonesObj = adminChampions[divisionId];
+        
+        if (zonesObj.campeonato) {
+          recordsToUpsert.push({
+            year: selectedChampYear,
+            tournament: selectedChampTournament,
+            division_id: divisionId,
+            zone_name: 'campeonato',
+            team_id: zonesObj.campeonato
+          });
+        }
+        if (zonesObj.promocion) {
+          recordsToUpsert.push({
+            year: selectedChampYear,
+            tournament: selectedChampTournament,
+            division_id: divisionId,
+            zone_name: 'promocion',
+            team_id: zonesObj.promocion
+          });
+        }
+      }
+      
+      // Borramos primero para evitar duplicidad o conflictos
+      await supabase
+        .from('champions')
+        .delete()
+        .eq('year', selectedChampYear)
+        .eq('tournament', selectedChampTournament);
+
+      if (recordsToUpsert.length > 0) {
+        const { error } = await supabase.from('champions').insert(recordsToUpsert);
+        if (error) throw error;
+      }
+      
+      alert('Historial de Campeones guardado con éxito.');
+    } catch (err) {
+      console.error('Error guardando campeones:', err);
+      alert('Hubo un error al guardar los campeones.');
+    } finally {
+      setSavingChampions(false);
+    }
+  };
 
 
   // Cargar partidos de la división y torneo seleccionados
@@ -1069,6 +1154,7 @@ export function AdminDashboard() {
     { id: 'tournaments' as const, label: 'Torneos y Años',        icon: Trophy   },
     ...(isSuperAdmin ? [{ id: 'fixture_config' as const, label: 'Configurar Fixture', icon: Settings }] : []),
     { id: 'fixture'     as const, label: 'Fixture y Resultados',  icon: Calendar },
+    { id: 'champions'   as const, label: 'Historial Campeones',   icon: Trophy   },
     { id: 'users'       as const, label: 'Gestión de Usuarios',   icon: Users },
     { id: 'messages'    as const, label: 'Mensajes',              icon: MessageSquare },
     { id: 'settings'    as const, label: 'Sponsors y Ajustes',    icon: LayoutDashboard },
@@ -2229,6 +2315,126 @@ export function AdminDashboard() {
                         ))}
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── CHAMPIONS TAB ── */}
+              {activeTab === 'champions' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/50 pb-5">
+                    <div>
+                      <h2 className="text-2xl font-bold">Historial de Campeones</h2>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Asigna de forma explícita el campeón de cada división por torneo y zona.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <select
+                        value={selectedChampYear}
+                        onChange={(e) => setSelectedChampYear(Number(e.target.value))}
+                        className="bg-background border border-border/60 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                      >
+                        {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map(yr => (
+                          <option key={yr} value={yr}>Año {yr}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedChampTournament}
+                        onChange={(e) => setSelectedChampTournament(e.target.value)}
+                        className="bg-background border border-border/60 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                      >
+                        <option value="Apertura">Apertura</option>
+                        <option value="Clausura">Clausura</option>
+                      </select>
+                      
+                      <button
+                        onClick={handleSaveChampions}
+                        disabled={savingChampions}
+                        className="px-5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-sm transition-colors shadow-md disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                      >
+                        {savingChampions ? 'Guardando...' : 'Guardar Cambios'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-card border border-border/50 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-muted/40 border-b border-border/50 text-xs font-black uppercase text-muted-foreground tracking-wider">
+                            <th className="p-4 pl-6">División</th>
+                            <th className="p-4">🏆 Campeón Zona Campeonato</th>
+                            <th className="p-4 pr-6">🥈 Ganador Zona Promoción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40">
+                          {divisions.map((div) => {
+                            const currentCamp = adminChampions[div.id]?.campeonato || '';
+                            const currentProm = adminChampions[div.id]?.promocion || '';
+
+                            return (
+                              <tr key={div.id} className="hover:bg-muted/10 transition-colors">
+                                <td className="p-4 pl-6 font-bold text-sm text-foreground">
+                                  {div.name}
+                                </td>
+                                
+                                {/* Zona Campeonato */}
+                                <td className="p-4">
+                                  <select
+                                    value={currentCamp}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAdminChampions(prev => ({
+                                        ...prev,
+                                        [div.id]: {
+                                          ...(prev[div.id] || { campeonato: '', promocion: '' }),
+                                          campeonato: val
+                                        }
+                                      }));
+                                    }}
+                                    className="bg-background border border-border/60 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm w-full max-w-xs font-semibold"
+                                  >
+                                    <option value="">-- Sin definir --</option>
+                                    {[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(team => (
+                                      <option key={team.id} value={team.id}>
+                                        {team.display_name ?? team.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+
+                                {/* Zona Promoción */}
+                                <td className="p-4 pr-6">
+                                  <select
+                                    value={currentProm}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setAdminChampions(prev => ({
+                                        ...prev,
+                                        [div.id]: {
+                                          ...(prev[div.id] || { campeonato: '', promocion: '' }),
+                                          promocion: val
+                                        }
+                                      }));
+                                    }}
+                                    className="bg-background border border-border/60 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm w-full max-w-xs font-semibold"
+                                  >
+                                    <option value="">-- Sin definir --</option>
+                                    {[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(team => (
+                                      <option key={team.id} value={team.id}>
+                                        {team.display_name ?? team.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}

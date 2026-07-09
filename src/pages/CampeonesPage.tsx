@@ -15,6 +15,7 @@ interface Champion {
 
 export function CampeonesPage() {
   const currentYear = new Date().getFullYear();
+  const startYear = 2026;
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedTournament, setSelectedTournament] = useState<string>('Apertura');
   
@@ -23,7 +24,11 @@ export function CampeonesPage() {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const availableYears = Array.from({ length: 6 }, (_, i) => currentYear - i); // [2026, 2025, 2024...]
+  // Dynamic years list from 2026 up to currentYear
+  const availableYears = Array.from(
+    { length: Math.max(1, currentYear - startYear + 1) },
+    (_, i) => currentYear - i
+  );
 
   useEffect(() => {
     async function loadData() {

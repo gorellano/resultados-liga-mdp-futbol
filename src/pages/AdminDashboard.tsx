@@ -2336,7 +2336,10 @@ export function AdminDashboard() {
                         onChange={(e) => setSelectedChampYear(Number(e.target.value))}
                         className="bg-background border border-border/60 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
                       >
-                        {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map(yr => (
+                        {Array.from(
+                          { length: Math.max(1, new Date().getFullYear() - 2026 + 1) },
+                          (_, i) => new Date().getFullYear() - i
+                        ).map(yr => (
                           <option key={yr} value={yr}>Año {yr}</option>
                         ))}
                       </select>

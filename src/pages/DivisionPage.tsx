@@ -415,7 +415,7 @@ export function DivisionPage() {
                           <Shield className="w-5 h-5 text-muted-foreground" />
                         )}
                       </div>
-                      <span className="truncate max-w-[120px] sm:max-w-none text-base">{row.team.display_name ?? row.team.name}</span>
+                      <span className="truncate max-w-[175px] xs:max-w-[210px] sm:max-w-none text-base">{row.team.display_name ?? row.team.name}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-bold text-base">

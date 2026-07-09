@@ -412,8 +412,12 @@ export function SocialMediaGenerator() {
                       </div>
 
                       {/* Footer signatures */}
-                      <div className="border-t border-slate-200/80 pt-4 flex items-center justify-between text-xs font-bold text-slate-450 uppercase tracking-widest shrink-0 mt-4">
-                        <span>Costa y Gol</span>
+                      <div className="border-t border-slate-200/80 pt-4 flex items-center justify-between text-[11px] font-black text-slate-400 uppercase tracking-wider shrink-0 mt-4">
+                        <div className="flex space-x-3">
+                          <span>#CostaYGol</span>
+                          <span>#LMF</span>
+                          <span>#MdP</span>
+                        </div>
                         <span>@costaygol</span>
                       </div>
                     </div>

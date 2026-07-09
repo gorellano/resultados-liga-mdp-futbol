@@ -35,6 +35,7 @@ import {
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
+import { SocialMediaGenerator } from '../components/SocialMediaGenerator';
 
 const DEFAULT_KICKOFF_TIMES: Record<string, string> = {
   'Séptima División': '15:30',
@@ -86,7 +87,7 @@ const TEAMS_PROMOCION_NAMES = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ username: string; role: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings' | 'champions'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings' | 'champions' | 'social_generator'>('teams');
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -1155,6 +1156,7 @@ export function AdminDashboard() {
     ...(isSuperAdmin ? [{ id: 'fixture_config' as const, label: 'Configurar Fixture', icon: Settings }] : []),
     { id: 'fixture'     as const, label: 'Fixture y Resultados',  icon: Calendar },
     { id: 'champions'   as const, label: 'Historial Campeones',   icon: Trophy   },
+    { id: 'social_generator' as const, label: 'Generador de Placas', icon: ImageIcon },
     { id: 'users'       as const, label: 'Gestión de Usuarios',   icon: Users },
     { id: 'messages'    as const, label: 'Mensajes',              icon: MessageSquare },
     { id: 'settings'    as const, label: 'Sponsors y Ajustes',    icon: LayoutDashboard },
@@ -2439,6 +2441,13 @@ export function AdminDashboard() {
                       </table>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* ── SOCIAL PLATES GENERATOR TAB ── */}
+              {activeTab === 'social_generator' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <SocialMediaGenerator />
                 </div>
               )}
 

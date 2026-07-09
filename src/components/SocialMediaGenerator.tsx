@@ -163,7 +163,7 @@ export function SocialMediaGenerator() {
           className="w-full xl:w-auto px-6 py-3 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-2xl transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <Download className="w-5 h-5" />
-          {downloading ? 'Generando Imagen...' : 'Descargar Placa (PNG)'}
+          {downloading ? 'Generando...' : 'Descargar'}
         </button>
       </div>
 
@@ -259,11 +259,16 @@ export function SocialMediaGenerator() {
               <div 
                 ref={previewRef}
                 id="placa-instagram" 
-                className="w-[800px] h-[800px] bg-white text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200"
+                className="w-[800px] h-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 overflow-hidden"
               >
+                {/* Background Watermark Logo */}
+                <div className="absolute right-[-100px] bottom-[-100px] w-[500px] h-[500px] opacity-[0.04] pointer-events-none transform rotate-12 select-none z-0">
+                  <img src="/logo_costa_y_gol.png" alt="" className="w-full h-full object-contain" />
+                </div>
+
                 {/* ── HEADER ── */}
-                <div className="flex items-center space-x-5 border-b-4 border-blue-600 pb-5">
-                  <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center p-1 shadow-sm shrink-0">
+                <div className="flex items-center space-x-5 border-b-4 border-blue-600 pb-5 relative z-10">
+                  <div className="w-20 h-20 bg-white border border-slate-200/80 rounded-2xl flex items-center justify-center p-1 shadow-sm shrink-0">
                     <img 
                       src="/logo_costa_y_gol.png" 
                       alt="Costa y Gol" 
@@ -281,7 +286,7 @@ export function SocialMediaGenerator() {
                 </div>
 
                 {/* ── CONTENT BODY ── */}
-                <div className="flex flex-1 mt-6 gap-6 overflow-hidden">
+                <div className="flex flex-1 mt-6 gap-6 overflow-hidden relative z-10">
                   
                   {/* LEFT COLUMN: Results */}
                   <div className="w-[50%] flex flex-col border-r border-slate-200 pr-5">
@@ -289,7 +294,7 @@ export function SocialMediaGenerator() {
                       Resultados de la Fecha
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-3.5 pr-1">
+                    <div className="flex-1 overflow-hidden space-y-3.5 pr-1">
                       {roundMatches.map(match => {
                         const home = teams.find(t => t.id === match.home_team_id);
                         const away = teams.find(t => t.id === match.away_team_id);

@@ -385,55 +385,55 @@ export function DivisionPage() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted-foreground font-bold uppercase bg-muted/30 border-b border-border/50">
                 <tr>
-                  <th className="px-6 py-5 text-center w-16">Pos</th>
-                  <th className="px-6 py-5">Equipo</th>
-                  <th className="px-6 py-5 text-center">Pts</th>
-                  <th className="px-6 py-5 text-center">PJ</th>
-                  <th className="px-6 py-5 text-center hidden sm:table-cell">G</th>
-                  <th className="px-6 py-5 text-center hidden sm:table-cell">E</th>
-                  <th className="px-6 py-5 text-center hidden sm:table-cell">P</th>
-                  <th className="px-6 py-5 text-center hidden md:table-cell">GF</th>
-                  <th className="px-6 py-5 text-center hidden md:table-cell">GC</th>
-                  <th className="px-6 py-5 text-center">DIF</th>
-                  <th className="px-6 py-5 text-center">Forma</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center w-10 sm:w-16">Pos</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6">Equipo</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">Pts</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">PJ</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">G</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">E</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">P</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden md:table-cell">GF</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden md:table-cell">GC</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">DIF</th>
+                  <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">Forma</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
                 {standings.map((row, index) => (
                   <tr key={row.team.id} className="hover:bg-muted/40 transition-colors group">
-                    <td className="px-6 py-4 font-semibold text-muted-foreground text-center">
-                      {index === 0 ? <span className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-500/20 text-yellow-600 mx-auto">1</span> : 
-                       index === 1 ? <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-400/20 text-slate-500 mx-auto">2</span> : 
-                       index === 2 ? <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-700/20 text-amber-700 mx-auto">3</span> : 
-                       index + 1}
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 font-semibold text-muted-foreground text-center">
+                      {index === 0 ? <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-yellow-500/20 text-yellow-600 mx-auto">1</span> : 
+                       index === 1 ? <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-slate-400/20 text-slate-500 mx-auto">2</span> : 
+                       index === 2 ? <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-amber-700/20 text-amber-700 mx-auto">3</span> : 
+                       <span className="text-xs sm:text-sm">{index + 1}</span>}
                     </td>
-                    <td className="px-6 py-4 font-semibold flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 transition-transform duration-300">
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 font-semibold flex items-center gap-1.5 sm:gap-4">
+                      <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 transition-transform duration-300">
                         {row.team.logo_url ? (
-                          <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1.5" />
+                          <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
                         ) : (
-                          <Shield className="w-5 h-5 text-muted-foreground" />
+                          <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                         )}
                       </div>
-                      <span className="truncate max-w-[175px] xs:max-w-[210px] sm:max-w-none text-base">{row.team.display_name ?? row.team.name}</span>
+                      <span className="truncate max-w-[95px] xs:max-w-[130px] sm:max-w-none text-xs sm:text-base">{row.team.display_name ?? row.team.name}</span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-bold text-base">
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-primary/10 text-primary font-bold text-xs sm:text-base">
                         {row.points}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center text-muted-foreground font-medium">{row.played}</td>
-                    <td className="px-6 py-4 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.won}</td>
-                    <td className="px-6 py-4 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.drawn}</td>
-                    <td className="px-6 py-4 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.lost}</td>
-                    <td className="px-6 py-4 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsFor}</td>
-                    <td className="px-6 py-4 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsAgainst}</td>
-                    <td className="px-6 py-4 text-center font-bold">
-                      <span className={cn("px-2 py-1 rounded-md text-xs", row.goalDifference > 0 ? "bg-green-500/10 text-green-600" : row.goalDifference < 0 ? "bg-red-500/10 text-red-600" : "bg-muted text-muted-foreground")}>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center text-muted-foreground font-semibold text-xs sm:text-sm">{row.played}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.won}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.drawn}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.lost}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsFor}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsAgainst}</td>
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center font-bold">
+                      <span className={cn("px-1.5 py-0.5 rounded text-[10px] sm:text-xs", row.goalDifference > 0 ? "bg-green-500/10 text-green-600" : row.goalDifference < 0 ? "bg-red-500/10 text-red-600" : "bg-muted text-muted-foreground")}>
                         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 hidden sm:table-cell">
                       <div className="flex items-center justify-center gap-1.5">
                         {formByTeam[row.team.id]?.map((outcome, idx) => (
                           <span

@@ -262,10 +262,12 @@ export function SocialMediaGenerator() {
                 className="w-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 overflow-hidden"
                 style={{ minHeight: '800px' }}
               >
-                {/* Background Watermark Logo — centered over the full card */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
-                  <img src="/logo_costa_y_gol.png" alt="" className="w-[520px] h-[520px] object-contain opacity-[0.07]" />
-                </div>
+                {/* Background Watermark Logo — truly centered via translate */}
+                <img 
+                  src="/logo_costa_y_gol.png" 
+                  alt="" 
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] object-contain opacity-[0.07] pointer-events-none select-none z-0"
+                />
 
                 {/* ── HEADER ── */}
                 <div className="flex items-center space-x-5 border-b-4 border-blue-600 pb-5 relative z-10">
@@ -287,16 +289,16 @@ export function SocialMediaGenerator() {
                 </div>
 
                 {/* ── CONTENT BODY ── */}
-                <div className="flex flex-1 mt-6 gap-6 relative z-10">
+                <div className="grid grid-cols-2 mt-6 gap-6 relative z-10">
                   
-                  {/* LEFT COLUMN: Results */}
-                  <div className="w-[50%] flex flex-col border-r border-slate-200 pr-5">
+                  {/* LEFT COLUMN: Results — grows with content */}
+                  <div className="flex flex-col border-r border-slate-200 pr-5">
                     <div className="bg-blue-600 text-white font-black text-center py-2.5 rounded-lg text-sm uppercase tracking-wider mb-4 shrink-0 shadow-sm">
                       Resultados de la Fecha
                     </div>
 
                     {/* Dynamic spacing: tighter when 7+ matches to ensure all fit */}
-                    <div className={`flex-1 pr-1 ${ roundMatches.length >= 7 ? 'space-y-2' : 'space-y-3.5' }`}>
+                    <div className={roundMatches.length >= 7 ? 'space-y-2' : 'space-y-3.5'}>
                       {roundMatches.map(match => {
                         const home = teams.find(t => t.id === match.home_team_id);
                         const away = teams.find(t => t.id === match.away_team_id);
@@ -355,7 +357,7 @@ export function SocialMediaGenerator() {
                   </div>
 
                   {/* RIGHT COLUMN: Top 5 Standings */}
-                  <div className="w-[50%] flex flex-col pl-1">
+                  <div className="flex flex-col pl-1">
                     <div className="bg-blue-600 text-white font-black text-center py-2.5 rounded-lg text-sm uppercase tracking-wider mb-4 shrink-0 shadow-sm">
                       Tabla de Posiciones
                     </div>

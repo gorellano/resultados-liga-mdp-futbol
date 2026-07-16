@@ -259,14 +259,26 @@ export function SocialMediaGenerator() {
               <div 
                 ref={previewRef}
                 id="placa-instagram" 
-                className="w-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 overflow-hidden"
+                className="w-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 rounded-2xl"
                 style={{ minHeight: '800px' }}
               >
-                {/* Background Watermark Logo — truly centered via translate */}
+                {/* Background Watermark Logo — inline style centering, immune to overflow issues */}
                 <img 
                   src="/logo_costa_y_gol.png" 
                   alt="" 
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] object-contain opacity-[0.07] pointer-events-none select-none z-0"
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: '500px',
+                    height: '500px',
+                    objectFit: 'contain',
+                    opacity: 0.07,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                    zIndex: 0,
+                  }}
                 />
 
                 {/* ── HEADER ── */}

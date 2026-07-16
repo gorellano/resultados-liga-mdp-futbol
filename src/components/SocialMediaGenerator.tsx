@@ -255,15 +255,16 @@ export function SocialMediaGenerator() {
           <div className="w-full flex justify-center items-center overflow-auto p-4 bg-muted/30 border border-border/40 rounded-2xl">
             <div className="origin-center scale-[0.45] xs:scale-[0.55] sm:scale-[0.75] md:scale-90 xl:scale-100 py-10 shrink-0">
               
-              {/* Placa node targeted by html-to-image. Fixed w-800 h-800 for 1:1 post */}
+              {/* Placa node targeted by html-to-image. Dynamic height for 7+ matches */}
               <div 
                 ref={previewRef}
                 id="placa-instagram" 
-                className="w-[800px] h-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 overflow-hidden"
+                className="w-[800px] bg-gradient-to-br from-slate-50 via-white to-blue-50/40 text-slate-900 flex flex-col p-8 font-sans relative shadow-lg border border-slate-200 overflow-hidden"
+                style={{ minHeight: '800px' }}
               >
-                {/* Background Watermark Logo */}
-                <div className="absolute right-[-100px] bottom-[-100px] w-[500px] h-[500px] opacity-[0.04] pointer-events-none transform rotate-12 select-none z-0">
-                  <img src="/logo_costa_y_gol.png" alt="" className="w-full h-full object-contain" />
+                {/* Background Watermark Logo — centered over the full card */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
+                  <img src="/logo_costa_y_gol.png" alt="" className="w-[520px] h-[520px] object-contain opacity-[0.07]" />
                 </div>
 
                 {/* ── HEADER ── */}
@@ -286,7 +287,7 @@ export function SocialMediaGenerator() {
                 </div>
 
                 {/* ── CONTENT BODY ── */}
-                <div className="flex flex-1 mt-6 gap-6 overflow-hidden relative z-10">
+                <div className="flex flex-1 mt-6 gap-6 relative z-10">
                   
                   {/* LEFT COLUMN: Results */}
                   <div className="w-[50%] flex flex-col border-r border-slate-200 pr-5">
@@ -294,20 +295,26 @@ export function SocialMediaGenerator() {
                       Resultados de la Fecha
                     </div>
 
-                    <div className="flex-1 overflow-hidden space-y-3.5 pr-1">
+                    {/* Dynamic spacing: tighter when 7+ matches to ensure all fit */}
+                    <div className={`flex-1 pr-1 ${ roundMatches.length >= 7 ? 'space-y-2' : 'space-y-3.5' }`}>
                       {roundMatches.map(match => {
                         const home = teams.find(t => t.id === match.home_team_id);
                         const away = teams.find(t => t.id === match.away_team_id);
                         if (!home || !away) return null;
+                        // Smaller shields when 7+ matches so everything fits
+                        const isCompact = roundMatches.length >= 7;
+                        const shieldSize = isCompact ? 'w-[40px] h-[40px]' : 'w-[50px] h-[50px]';
+                        const cardPad = isCompact ? 'p-2' : 'p-3';
+                        const scoreSize = isCompact ? 'text-xl' : 'text-2xl';
 
                         return (
                           <div 
                             key={match.id} 
-                            className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex items-center justify-between shadow-sm"
+                            className={`bg-slate-50 border border-slate-100 rounded-xl ${cardPad} flex items-center justify-between shadow-sm`}
                           >
                             {/* Home team circular shield */}
                             <div className="w-[30%] flex justify-center">
-                              <div className="w-[50px] h-[50px] bg-white border border-slate-200/80 rounded-full flex items-center justify-center p-1.5 shadow-sm">
+                              <div className={`${shieldSize} bg-white border border-slate-200/80 rounded-full flex items-center justify-center p-1.5 shadow-sm`}>
                                 <img 
                                   src={home.logo_url || '/placeholder_shield.png'} 
                                   alt={home.name} 
@@ -320,7 +327,7 @@ export function SocialMediaGenerator() {
                             {/* Score */}
                             <div className="w-[40%] text-center">
                               {match.status === 'finished' ? (
-                                <span className="text-2xl font-black text-blue-600 tracking-wider">
+                                <span className={`${scoreSize} font-black text-blue-600 tracking-wider`}>
                                   {match.home_goals} - {match.away_goals}
                                 </span>
                               ) : (
@@ -332,7 +339,7 @@ export function SocialMediaGenerator() {
 
                             {/* Away team circular shield */}
                             <div className="w-[30%] flex justify-center">
-                              <div className="w-[50px] h-[50px] bg-white border border-slate-200/80 rounded-full flex items-center justify-center p-1.5 shadow-sm">
+                              <div className={`${shieldSize} bg-white border border-slate-200/80 rounded-full flex items-center justify-center p-1.5 shadow-sm`}>
                                 <img 
                                   src={away.logo_url || '/placeholder_shield.png'} 
                                   alt={away.name} 

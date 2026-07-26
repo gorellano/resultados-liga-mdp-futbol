@@ -52,3 +52,4 @@ supabase_seed.sql
 
 # Unlighthouse reports
 .unlighthouse/
+.vercel

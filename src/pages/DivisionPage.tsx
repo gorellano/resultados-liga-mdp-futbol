@@ -306,7 +306,7 @@ export function DivisionPage() {
               </span>
             )}
           </h1>
-          <p className="text-muted-foreground mt-1">Temporada {selectedYear} - Torneo {currentTournament?.name ?? '—'}</p>
+          <p className="text-muted-foreground mt-1">Temporada {selectedYear} - {currentTournament?.name ?? '—'}</p>
         </div>
         <div className="flex bg-muted/50 p-1.5 rounded-xl backdrop-blur-sm border border-border/50">
           <button

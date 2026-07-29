@@ -26,13 +26,13 @@ CREATE TABLE IF NOT EXISTS public.divisions (
 
 CREATE TABLE IF NOT EXISTS public.zones (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
+  name text NOT NULL,
   created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS public.teams (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL UNIQUE,
+  name text NOT NULL,
   display_name text,
   logo_url text,
   website_url text,
@@ -78,32 +78,19 @@ CREATE POLICY "Public Read Teams" ON public.teams FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Public Read Matches" ON public.matches;
 CREATE POLICY "Public Read Matches" ON public.matches FOR SELECT USING (true);
 
--- Permisos de escritura anónima / autenticada para permitir edición desde admin dashboard
 DROP POLICY IF EXISTS "Enable All Matches" ON public.matches;
 CREATE POLICY "Enable All Matches" ON public.matches FOR ALL USING (true) WITH CHECK (true);
 
--- ─── 3. INSERTAR / ASEGURAR ZONAS ──────────────────────────────────────────
+-- ─── 3. INSERTAR / ASEGURAR ZONAS (SIN ON CONFLICT DEEPENDENCY) ──────────────
 
-INSERT INTO public.zones (name) VALUES ('Campeonato') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Promoción') ON CONFLICT (name) DO NOTHING;
-
--- Zonas Primera
-INSERT INTO public.zones (name) VALUES ('Zona 1 - Primera') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 2 - Primera') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 3 - Primera') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Eliminatoria - Primera') ON CONFLICT (name) DO NOTHING;
-
--- Zonas Quinta
-INSERT INTO public.zones (name) VALUES ('Zona 1 - Quinta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 2 - Quinta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 3 - Quinta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Eliminatoria - Quinta') ON CONFLICT (name) DO NOTHING;
-
--- Zonas Sexta
-INSERT INTO public.zones (name) VALUES ('Zona 1 - Sexta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 2 - Sexta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Zona 3 - Sexta') ON CONFLICT (name) DO NOTHING;
-INSERT INTO public.zones (name) VALUES ('Eliminatoria - Sexta') ON CONFLICT (name) DO NOTHING;
+INSERT INTO public.zones (name)
+SELECT name FROM (VALUES 
+  ('Campeonato'), ('Promoción'),
+  ('Zona 1 - Primera'), ('Zona 2 - Primera'), ('Zona 3 - Primera'), ('Eliminatoria - Primera'),
+  ('Zona 1 - Quinta'), ('Zona 2 - Quinta'), ('Zona 3 - Quinta'), ('Eliminatoria - Quinta'),
+  ('Zona 1 - Sexta'), ('Zona 2 - Sexta'), ('Zona 3 - Sexta'), ('Eliminatoria - Sexta')
+) AS z(name)
+WHERE NOT EXISTS (SELECT 1 FROM public.zones existing WHERE existing.name = z.name);
 
 -- ─── 4. INSERTAR / ASEGURAR DIVISIONES ─────────────────────────────────────
 
@@ -125,7 +112,9 @@ UPDATE public.divisions SET is_active = true;
 
 -- ─── 5. INSERTAR / ASEGURAR EQUIPOS ───────────────────────────────────────
 
-INSERT INTO public.teams (name, display_name, logo_url) VALUES
+INSERT INTO public.teams (name, display_name, logo_url)
+SELECT name, display_name, logo_url
+FROM (VALUES
   ('Talleres de Mar del Plata', 'Talleres', '/logos/talleres.png'),
   ('Deportivo Norte', NULL, '/logos/deportivo_norte.png'),
   ('Kimberley', NULL, '/logos/kimberley.png'),
@@ -156,9 +145,8 @@ INSERT INTO public.teams (name, display_name, logo_url) VALUES
   ('San Isidro', NULL, '/logos/san_isidro.png'),
   ('General Mitre', 'Gral. Mitre', '/logos/general_mitre.svg'),
   ('Unión', NULL, '/logos/union.svg')
-ON CONFLICT (name) DO UPDATE SET 
-  display_name = EXCLUDED.display_name,
-  logo_url = EXCLUDED.logo_url;
+) AS new_teams(name, display_name, logo_url)
+WHERE NOT EXISTS (SELECT 1 FROM public.teams t WHERE t.name = new_teams.name);
 
 -- ─── 6. GESTIÓN DE TORNEOS (SEPARACIÓN EXACTA) ────────────────────────────────
 
@@ -174,7 +162,6 @@ BEGIN
   LIMIT 1;
 
   IF v_clausura_juveniles_id IS NULL THEN
-    -- Si no existe, se crea el torneo para juveniles
     INSERT INTO public.tournaments (name, year, is_current)
     VALUES ('Torneo Clausura 2026', 2026, true)
     RETURNING id INTO v_clausura_juveniles_id;
@@ -233,15 +220,12 @@ DECLARE
   t_sanlorenzo uuid; t_depnorte uuid; t_urquiza uuid; t_mdp uuid; t_canon uuid;
   t_colegia uuid; t_banfield uuid; t_nacion uuid;
 BEGIN
-  -- Obtener Torneo Cacho Mendez
   SELECT id INTO v_tourn FROM public.tournaments WHERE name ILIKE '%cacho%' LIMIT 1;
 
-  -- Divisiones
   SELECT id INTO v_div_prim FROM public.divisions WHERE name = 'Primera División' LIMIT 1;
   SELECT id INTO v_div_qui  FROM public.divisions WHERE name = 'Quinta División' LIMIT 1;
   SELECT id INTO v_div_sex  FROM public.divisions WHERE name = 'Sexta División' LIMIT 1;
 
-  -- Zonas
   SELECT id INTO v_z1_prim FROM public.zones WHERE name = 'Zona 1 - Primera' LIMIT 1;
   SELECT id INTO v_z2_prim FROM public.zones WHERE name = 'Zona 2 - Primera' LIMIT 1;
   SELECT id INTO v_z3_prim FROM public.zones WHERE name = 'Zona 3 - Primera' LIMIT 1;
@@ -254,7 +238,6 @@ BEGIN
   SELECT id INTO v_z2_sex  FROM public.zones WHERE name = 'Zona 2 - Sexta' LIMIT 1;
   SELECT id INTO v_z3_sex  FROM public.zones WHERE name = 'Zona 3 - Sexta' LIMIT 1;
 
-  -- Búsqueda de Equipos
   SELECT id INTO t_almagro   FROM public.teams WHERE name ILIKE '%Almagro%' LIMIT 1;
   SELECT id INTO t_river     FROM public.teams WHERE name ILIKE '%River%' LIMIT 1;
   SELECT id INTO t_argsud    FROM public.teams WHERE name ILIKE '%Argentinos%' LIMIT 1;
@@ -289,23 +272,16 @@ BEGIN
   -- ── A. PRIMERA DIVISIÓN (Sábado 01/08 - 15:30 hs) ───────────────────────────
   DELETE FROM public.matches WHERE tournament_id = v_tourn AND division_id = v_div_prim AND round_number = 1;
 
-  -- Zona 1
   INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
     (v_tourn, v_div_prim, v_z1_prim, 1, t_almagro, t_river, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z1_prim, 1, t_argsud, t_indep, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z1_prim, 1, t_alvarado, t_libertad, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
-    (v_tourn, v_div_prim, v_z1_prim, 1, t_quilmes, t_alver, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz);
-
-  -- Zona 2
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_prim, v_z1_prim, 1, t_quilmes, t_alver, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z2_prim, 1, t_sanjose, t_circulo, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z2_prim, 1, t_mitre, t_boca, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z2_prim, 1, t_union, t_racing, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z2_prim, 1, t_sanisidro, t_cadetes, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
-    (v_tourn, v_div_prim, v_z2_prim, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz);
-
-  -- Zona 3
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_prim, v_z2_prim, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z3_prim, 1, t_sanlorenzo, t_depnorte, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z3_prim, 1, t_urquiza, t_mdp, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_prim, v_z3_prim, 1, t_canon, t_colegia, 'scheduled', '2026-08-01T15:30:00-03:00'::timestamptz),
@@ -314,24 +290,17 @@ BEGIN
   -- ── B. QUINTA DIVISIÓN (Sábado 01/08 - 13:30 hs & Miércoles 05/08 - 15:30 hs) ───
   DELETE FROM public.matches WHERE tournament_id = v_tourn AND division_id = v_div_qui AND round_number = 1;
 
-  -- Zona 1
   INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
     (v_tourn, v_div_qui, v_z1_qui, 1, t_almagro, t_river, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z1_qui, 1, t_argsud, t_indep, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z1_qui, 1, t_alvarado, t_libertad, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z1_qui, 1, t_quilmes, t_alver, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
-    (v_tourn, v_div_qui, v_z1_qui, 1, t_banco, t_talleres, 'scheduled', '2026-08-05T15:30:00-03:00'::timestamptz);
-
-  -- Zona 2
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_qui, v_z1_qui, 1, t_banco, t_talleres, 'scheduled', '2026-08-05T15:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z2_qui, 1, t_sanjose, t_circulo, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z2_qui, 1, t_mitre, t_boca, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z2_qui, 1, t_union, t_racing, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z2_qui, 1, t_sanisidro, t_cadetes, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
-    (v_tourn, v_div_qui, v_z2_qui, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz);
-
-  -- Zona 3
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_qui, v_z2_qui, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z3_qui, 1, t_sanlorenzo, t_depnorte, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z3_qui, 1, t_urquiza, t_mdp, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
     (v_tourn, v_div_qui, v_z3_qui, 1, t_canon, t_colegia, 'scheduled', '2026-08-01T13:30:00-03:00'::timestamptz),
@@ -340,22 +309,15 @@ BEGIN
   -- ── C. SEXTA DIVISIÓN (Sábado 01/08 - 12:00 hs & Miércoles 05/08 - 14:00 hs) ────
   DELETE FROM public.matches WHERE tournament_id = v_tourn AND division_id = v_div_sex AND round_number = 1;
 
-  -- Zona 1
   INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
     (v_tourn, v_div_sex, v_z1_sex, 1, t_argsud, t_indep, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z1_sex, 1, t_alvarado, t_libertad, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z1_sex, 1, t_quilmes, t_alver, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
-    (v_tourn, v_div_sex, v_z1_sex, 1, t_banco, t_talleres, 'scheduled', '2026-08-05T14:00:00-03:00'::timestamptz);
-
-  -- Zona 2
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_sex, v_z1_sex, 1, t_banco, t_talleres, 'scheduled', '2026-08-05T14:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z2_sex, 1, t_sanjose, t_circulo, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z2_sex, 1, t_mitre, t_boca, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z2_sex, 1, t_sanisidro, t_cadetes, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
-    (v_tourn, v_div_sex, v_z2_sex, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz);
-
-  -- Zona 3
-  INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status, match_date) VALUES
+    (v_tourn, v_div_sex, v_z2_sex, 1, t_chap, t_kimber, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z3_sex, 1, t_sanlorenzo, t_depnorte, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z3_sex, 1, t_urquiza, t_mdp, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),
     (v_tourn, v_div_sex, v_z3_sex, 1, t_canon, t_colegia, 'scheduled', '2026-08-01T12:00:00-03:00'::timestamptz),

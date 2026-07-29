@@ -142,8 +142,8 @@ export const MOCK_TEAMS_PROMOCION: Team[] = TEAMS_PROMOCION_NAMES.map((name, i) 
 
 // ─── Torneos ──────────────────────────────────────────────────────────────────
 export const MOCK_TOURNAMENTS: Tournament[] = [
-  { id: 't1', name: 'Anual', year: 2026 },
-  { id: 't2', name: 'Anual', year: 2025 },
+  { id: 't1', name: 'Clausura Joaquín "Cacho" Méndez', year: 2026, is_current: true },
+  { id: 't2', name: 'Apertura', year: 2026 },
 ];
 
 // ─── Helper: obtener ID de equipo campeonato por nombre abreviado ──────────────

@@ -505,11 +505,11 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
       const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
       setZonesData(foundZones.map(z => z ? { zoneId: z.id, zoneName: z.name, matches: [] } : null));
 
-      // Select most recent tournament
-      const latest = tourns.sort((a, b) => b.year - a.year)[0];
-      if (latest) {
-        setSelectedYear(latest.year);
-        setSelectedTournamentId(latest.id);
+      // Select current or most recent tournament
+      const currentTourn = tourns.find(t => t.is_current) || tourns.sort((a, b) => b.year - a.year)[0];
+      if (currentTourn) {
+        setSelectedYear(currentTourn.year);
+        setSelectedTournamentId(currentTourn.id);
       }
     }
     loadMeta();

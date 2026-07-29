@@ -12,6 +12,7 @@ export interface Tournament {
   id: string;
   name: string; // e.g. "Apertura"
   year: number; // e.g. 2026
+  is_current?: boolean;
 }
 
 export interface Division {

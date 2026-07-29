@@ -14,7 +14,14 @@ INSERT INTO public.teams (name, display_name, logo_url)
   SELECT 'Unión', NULL, '/logos/union.svg'
   WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Unión');
 
--- ─── 2. TORNEO ───────────────────────────────────────────────────────────────
+-- Borrar partidos y torneos de prueba ("Torneo Anual", "Anual", "Torneo Anual 2026", etc.)
+DELETE FROM public.matches 
+WHERE tournament_id IN (SELECT id FROM public.tournaments WHERE name ILIKE '%anual%');
+
+DELETE FROM public.tournaments 
+WHERE name ILIKE '%anual%';
+
+-- ─── 2. TORNEO OFICIAL ───────────────────────────────────────────────────────
 
 INSERT INTO public.tournaments (name, year, is_current)
   SELECT 'Clausura Joaquín "Cacho" Méndez', 2026, true
@@ -23,7 +30,7 @@ INSERT INTO public.tournaments (name, year, is_current)
     WHERE name = 'Clausura Joaquín "Cacho" Méndez' AND year = 2026
   );
 
--- Si existía un torneo con nombre generico "Clausura 2026", lo actualizamos:
+-- Si existía un torneo con nombre genérico "Clausura 2026", lo actualizamos:
 UPDATE public.tournaments
   SET name = 'Clausura Joaquín "Cacho" Méndez', is_current = true
   WHERE name = 'Clausura 2026' AND year = 2026;

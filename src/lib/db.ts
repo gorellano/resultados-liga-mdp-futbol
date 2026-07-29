@@ -40,7 +40,7 @@ export async function fetchTournaments(): Promise<Tournament[]> {
   try {
     const { data, error } = await supabase
       .from('tournaments')
-      .select('id, name, year')
+      .select('id, name, year, is_current')
       .order('year', { ascending: false });
 
     if (error) throw error;

@@ -187,8 +187,14 @@ export function DivisionPage() {
         setAllTeams(tms);
 
         if (tourns.length > 0) {
-          setSelectedYear(tourns[0].year);
-          setSelectedTournamentId(tourns[0].id);
+          // Para divisiones de liga (7ma a 16ta), seleccionamos el torneo de liga (no el Clausura de 3 zonas)
+          const leagueTourn = tourns.find(t => 
+            !t.name.toLowerCase().includes('cacho') && 
+            !t.name.toLowerCase().includes('reyes')
+          ) || tourns.find(t => t.is_current) || tourns[0];
+
+          setSelectedYear(leagueTourn.year);
+          setSelectedTournamentId(leagueTourn.id);
         }
       } catch (err) {
         console.error('Error loading base data:', err);

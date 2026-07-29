@@ -22,11 +22,17 @@ export interface TournamentDivisionConfig {
    * El índice 0 = Zona 1, 1 = Zona 2, 2 = Zona 3.
    */
   zoneNames: [string, string, string];
+  /** Búsquedas por palabras clave para emparejar equipos de cada zona */
+  zoneTeamKeywords: [string[], string[], string[]];
   /** True si la fase eliminatoria arranca con 16avos de final */
   hasRoundOf16: boolean;
   /** Nombre del partido final de temporada (Super Final / Final Anual) */
   finalName: string;
 }
+
+const PRIMERA_QUINTA_ZONA1_KEYWORDS = ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Almagro', 'Banco'];
+const PRIMERA_QUINTA_ZONA2_KEYWORDS = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre', 'Union', 'Unión'];
+const ZONA3_KEYWORDS = ['Mar del Plata', 'Deportivo Norte', 'Once Unidos', 'Banfield', 'cañon', 'canon', 'nacio', 'San Lorenzo', 'Colegiales', 'Urquiza'];
 
 export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionConfig> = {
   'primera-division': {
@@ -35,6 +41,7 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Quilmes',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Primera', 'Zona 2 - Primera', 'Zona 3 - Primera'],
+    zoneTeamKeywords: [PRIMERA_QUINTA_ZONA1_KEYWORDS, PRIMERA_QUINTA_ZONA2_KEYWORDS, ZONA3_KEYWORDS],
     hasRoundOf16: true,
     finalName: 'Super Final 2026',
   },
@@ -44,6 +51,7 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Once Unidos',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Quinta', 'Zona 2 - Quinta', 'Zona 3 - Quinta'],
+    zoneTeamKeywords: [PRIMERA_QUINTA_ZONA1_KEYWORDS, PRIMERA_QUINTA_ZONA2_KEYWORDS, ZONA3_KEYWORDS],
     hasRoundOf16: false,
     finalName: 'Final Anual 2026',
   },
@@ -53,6 +61,11 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Kimberley',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Sexta', 'Zona 2 - Sexta', 'Zona 3 - Sexta'],
+    zoneTeamKeywords: [
+      ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Banco'],
+      ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre'],
+      ZONA3_KEYWORDS,
+    ],
     hasRoundOf16: true,
     finalName: 'Final Anual 2026',
   },

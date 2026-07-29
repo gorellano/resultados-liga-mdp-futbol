@@ -583,9 +583,10 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
 
   const allMatches = useMemo(() => zonesData.flatMap(z => z?.matches ?? []), [zonesData]);
   const allZoneTeams = useMemo(() => {
-    const ids = new Set(allMatches.flatMap(m => [m.home_team_id, m.away_team_id]));
-    return allTeams.filter(t => ids.has(t.id));
-  }, [allMatches, allTeams]);
+    const map = new Map<string, Team>();
+    zoneTeams.flatMap(teams => teams).forEach(t => map.set(t.id, t));
+    return Array.from(map.values());
+  }, [zoneTeams]);
   const promedioStandings = useMemo(
     () => calculatePromedioStandings(allMatches, allZoneTeams),
     [allMatches, allZoneTeams]

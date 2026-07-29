@@ -30,9 +30,14 @@ export interface TournamentDivisionConfig {
   finalName: string;
 }
 
-const PRIMERA_QUINTA_ZONA1_KEYWORDS = ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Almagro', 'Banco'];
-const PRIMERA_QUINTA_ZONA2_KEYWORDS = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre', 'Union', 'Unión'];
-const ZONA3_KEYWORDS = ['Mar del Plata', 'Deportivo Norte', 'Once Unidos', 'Banfield', 'cañon', 'canon', 'nacio', 'San Lorenzo', 'Colegiales', 'Urquiza'];
+const ZONA1_PRIMERA_KEYWORDS = ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Almagro'];
+const ZONA1_QUINTA_KEYWORDS   = ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Almagro', 'Banco'];
+const ZONA1_SEXTA_KEYWORDS    = ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Banco'];
+
+const ZONA2_FULL_KEYWORDS     = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre', 'Union', 'Unión'];
+const ZONA2_SEXTA_KEYWORDS    = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre'];
+
+const ZONA3_KEYWORDS          = ['Mar del Plata', 'Deportivo Norte', 'Once Unidos', 'Banfield', 'cañon', 'canon', 'nacio', 'San Lorenzo', 'Colegiales', 'Urquiza'];
 
 export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionConfig> = {
   'primera-division': {
@@ -41,7 +46,7 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Quilmes',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Primera', 'Zona 2 - Primera', 'Zona 3 - Primera'],
-    zoneTeamKeywords: [PRIMERA_QUINTA_ZONA1_KEYWORDS, PRIMERA_QUINTA_ZONA2_KEYWORDS, ZONA3_KEYWORDS],
+    zoneTeamKeywords: [ZONA1_PRIMERA_KEYWORDS, ZONA2_FULL_KEYWORDS, ZONA3_KEYWORDS],
     hasRoundOf16: true,
     finalName: 'Super Final 2026',
   },
@@ -51,7 +56,7 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Once Unidos',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Quinta', 'Zona 2 - Quinta', 'Zona 3 - Quinta'],
-    zoneTeamKeywords: [PRIMERA_QUINTA_ZONA1_KEYWORDS, PRIMERA_QUINTA_ZONA2_KEYWORDS, ZONA3_KEYWORDS],
+    zoneTeamKeywords: [ZONA1_QUINTA_KEYWORDS, ZONA2_FULL_KEYWORDS, ZONA3_KEYWORDS],
     hasRoundOf16: false,
     finalName: 'Final Anual 2026',
   },
@@ -61,11 +66,7 @@ export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionC
     aperturaCampeon: 'Kimberley',
     copaName: 'Copa "Carlos de los Reyes"',
     zoneNames: ['Zona 1 - Sexta', 'Zona 2 - Sexta', 'Zona 3 - Sexta'],
-    zoneTeamKeywords: [
-      ['Quilmes', 'River', 'Argentinos', 'Alvarado', 'Independiente', 'Talleres', 'Veras', 'Libertad', 'Banco'],
-      ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre'],
-      ZONA3_KEYWORDS,
-    ],
+    zoneTeamKeywords: [ZONA1_SEXTA_KEYWORDS, ZONA2_SEXTA_KEYWORDS, ZONA3_KEYWORDS],
     hasRoundOf16: true,
     finalName: 'Final Anual 2026',
   },

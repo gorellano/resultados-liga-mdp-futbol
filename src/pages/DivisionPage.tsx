@@ -11,6 +11,7 @@ import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 import { villasDeportivas } from '../lib/villasDeportivas';
 import { SponsorBanner } from '../components/SponsorBanner';
 import { createSlug } from '../lib/slug';
+import { MOCK_TEAMS_CAMPEONATO, MOCK_TEAMS_PROMOCION } from '../lib/mockData';
 import { isTournamentDivision } from '../lib/divisionConfig';
 import { TournamentDivisionView } from './TournamentDivisionView';
 
@@ -240,7 +241,7 @@ export function DivisionPage() {
 
   // 3. Filtrar los equipos de la zona seleccionada
   const teams = useMemo(() => {
-    if (allTeams.length === 0) return [];
+    if (allTeams.length === 0) return zone === 'campeonato' ? MOCK_TEAMS_CAMPEONATO : MOCK_TEAMS_PROMOCION;
     
     // Si estamos en modo mock local (los IDs empiezan con 'camp-team' o 'prom-team')
     if (allTeams[0].id.includes('team')) {
@@ -251,7 +252,10 @@ export function DivisionPage() {
     
     // Si estamos con Supabase real, filtramos los equipos basándonos en los partidos cargados
     const activeTeamIds = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
-    return allTeams.filter(t => activeTeamIds.has(t.id));
+    const matched = allTeams.filter(t => activeTeamIds.has(t.id));
+    if (matched.length > 0) return matched;
+
+    return zone === 'campeonato' ? MOCK_TEAMS_CAMPEONATO : MOCK_TEAMS_PROMOCION;
   }, [allTeams, zone, matches]);
 
   const standings = useMemo(() => calculateStandings(matches, teams), [matches, teams]);

@@ -183,17 +183,22 @@ export async function fetchMatches(
       .eq('tournament_id', tournamentId);
 
     if (error) throw error;
-    return (data || []).map(m => ({
-      ...m,
-      status: m.status as 'scheduled' | 'finished' | 'postponed'
-    }));
+    if (data && data.length > 0) {
+      return data.map(m => ({
+        ...m,
+        status: m.status as 'scheduled' | 'finished' | 'postponed'
+      }));
+    }
+
+    // Fallback mock fixture when Supabase has no matches yet for this division/zone/tournament
+    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
+    const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
+    return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
   } catch (err) {
     console.warn('Supabase fetchMatches failed, falling back to mocks:', err);
-    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002';
+    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
     const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
-    return source
-      .filter(m => m.tournament_id === tournamentId)
-      .map(m => ({ ...m, division_id: divisionId, zone_id: zoneId }));
+    return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
   }
 }
 

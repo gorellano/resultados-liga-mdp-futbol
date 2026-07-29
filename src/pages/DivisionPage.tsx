@@ -559,8 +559,23 @@ export function DivisionPage() {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 {matchesByRound.map(match => {
-                  const home = teams.find(t => t.id === match.home_team_id);
-                  const away = teams.find(t => t.id === match.away_team_id);
+                  const findTeam = (teamId: string) => {
+                    let found = allTeams.find(t => t.id === teamId) || teams.find(t => t.id === teamId);
+                    if (found) return found;
+                    const mockTeam = MOCK_TEAMS_CAMPEONATO.find(t => t.id === teamId) || MOCK_TEAMS_PROMOCION.find(t => t.id === teamId);
+                    if (mockTeam) {
+                      const byName = allTeams.find(t => 
+                        t.name.toLowerCase() === mockTeam.name.toLowerCase() ||
+                        (t.display_name && t.display_name.toLowerCase() === (mockTeam.display_name || mockTeam.name).toLowerCase())
+                      );
+                      if (byName) return byName;
+                      return mockTeam;
+                    }
+                    return null;
+                  };
+
+                  const home = findTeam(match.home_team_id);
+                  const away = findTeam(match.away_team_id);
                   if (!home || !away) return null;
 
                   const homeVilla = villasDeportivas[home.name];

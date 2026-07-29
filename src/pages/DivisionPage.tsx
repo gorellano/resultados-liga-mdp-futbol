@@ -11,6 +11,8 @@ import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 import { villasDeportivas } from '../lib/villasDeportivas';
 import { SponsorBanner } from '../components/SponsorBanner';
 import { createSlug } from '../lib/slug';
+import { isTournamentDivision } from '../lib/divisionConfig';
+import { TournamentDivisionView } from './TournamentDivisionView';
 
 function StandingsSkeleton() {
   return (
@@ -92,6 +94,13 @@ function FixtureSkeleton() {
 
 export function DivisionPage() {
   const { name } = useParams();
+
+  // Divisiones con formato torneo (3 zonas + fase eliminatoria)
+  // se renderizan con el nuevo componente dedicado
+  if (name && isTournamentDivision(name)) {
+    return <TournamentDivisionView slug={name} />;
+  }
+
   const [zone, setZone] = useState<'campeonato' | 'promocion'>('campeonato');
   const [tab, setTab] = useState<'posiciones' | 'fixture'>('posiciones');
   const [selectedRound, setSelectedRound] = useState<number>(1);

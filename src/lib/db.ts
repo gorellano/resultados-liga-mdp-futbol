@@ -93,6 +93,18 @@ export async function fetchZones(): Promise<Zone[]> {
   const mockZones: Zone[] = [
     { id: '22222222-0001-0001-0001-000000000001', name: 'Campeonato' },
     { id: '22222222-0001-0001-0001-000000000002', name: 'Promoción' },
+    // Zonas torneo - Primera División
+    { id: '22222222-0001-0001-0001-000000000011', name: 'Zona 1 - Primera' },
+    { id: '22222222-0001-0001-0001-000000000012', name: 'Zona 2 - Primera' },
+    { id: '22222222-0001-0001-0001-000000000013', name: 'Zona 3 - Primera' },
+    // Zonas torneo - Quinta División
+    { id: '22222222-0001-0001-0001-000000000021', name: 'Zona 1 - Quinta' },
+    { id: '22222222-0001-0001-0001-000000000022', name: 'Zona 2 - Quinta' },
+    { id: '22222222-0001-0001-0001-000000000023', name: 'Zona 3 - Quinta' },
+    // Zonas torneo - Sexta División
+    { id: '22222222-0001-0001-0001-000000000031', name: 'Zona 1 - Sexta' },
+    { id: '22222222-0001-0001-0001-000000000032', name: 'Zona 2 - Sexta' },
+    { id: '22222222-0001-0001-0001-000000000033', name: 'Zona 3 - Sexta' },
   ];
 
   if (!isSupabaseActive()) {
@@ -132,6 +144,7 @@ export async function fetchTeams(): Promise<Team[]> {
       "Club Banco Provincia de Mar del Plata": "Banco Provincia",
       "Club Social y Deportivo Chapadmalal":   "Chapadmalal",
       "El cañon":                             "El Cañón",
+      "General Mitre":                        "Gral. Mitre",
     };
     return (data || []).map(t => ({
       ...t,

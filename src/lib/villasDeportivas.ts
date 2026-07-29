@@ -173,5 +173,17 @@ export const villasDeportivas: Record<string, VillaDeportiva> = {
     stadiumName: "Villa Deportiva San Isidro",
     address: "Calle 461 & Calle 12, Mar del Plata",
     googleMapsUrl: "https://maps.app.goo.gl/oiby5cx2FtgzSSCz6"
+  },
+  "General Mitre": {
+    teamName: "General Mitre",
+    stadiumName: "Villa Deportiva Mitre",
+    address: "Mar del Plata",
+    googleMapsUrl: "https://www.google.com/maps/place/Villa+deportiva+%22MITRE%22/data=!4m2!3m1!1s0x0:0xd010596ef269b1d9?sa=X&ved=1t:2428&ictx=111"
+  },
+  "Unión": {
+    teamName: "Unión",
+    stadiumName: "Villa Deportiva Unión",
+    address: "Mar del Plata",
+    googleMapsUrl: "https://maps.google.com/?q=Club+Atletico+Union+Mar+del+Plata"
   }
 };

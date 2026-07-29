@@ -57,12 +57,12 @@ export function HomePage() {
   }, []);
 
   const divisionsList = activeDivs.map(d => {
-    const isSoon = ['primera división', 'quinta división', 'sexta división'].includes(d.name.toLowerCase().trim());
+    // Las 3 divisiones ahora tienen su propia página completa
     return {
       id: d.id,
       name: d.name,
-      soon: isSoon,
-      status: isSoon ? 'soon' : (divisionStatuses[d.id] || 'en_curso')
+      soon: false,
+      status: divisionStatuses[d.id] || 'en_curso'
     };
   });
 

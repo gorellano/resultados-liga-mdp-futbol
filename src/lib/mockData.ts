@@ -30,7 +30,8 @@ const LOGOS: Record<string, string> = {
   "San José": "/logos/san_jose.png",
   "Racing": "/logos/racing.png",
   "San Isidro": "/logos/san_isidro.png",
-  "General Mitre": "/logos/general_mitre.png",
+  "General Mitre": "/logos/general_mitre.svg",
+  "Unión": "/logos/union.svg",
 };
 
 // Nombres cortos para la UI (cuando el nombre completo es muy largo)
@@ -118,6 +119,7 @@ export const INSTAGRAMS: Record<string, string> = {
   "El cañon": "https://www.instagram.com/clubelcanon",
   "Atlético Mar del Plata": "https://www.instagram.com/clubatleticomdp",
   "General Mitre": "https://www.instagram.com/clubgeneralmitre",
+  "Unión": "https://www.instagram.com/clubunionmdp",
 };
 
 export const MOCK_TEAMS_CAMPEONATO: Team[] = TEAMS_CAMPEONATO_NAMES.map((name, i) => ({

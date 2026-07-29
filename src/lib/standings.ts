@@ -73,3 +73,29 @@ export function calculateStandings(matches: Match[], teams: Team[]): Standing[] 
 
   return standingsArray;
 }
+
+/**
+ * Calcula la tabla general combinando los partidos de todas las zonas,
+ * ordenada por promedio (puntos / partidos jugados) para normalizar
+ * equipos de zonas con distinta cantidad de participantes.
+ */
+export function calculatePromedioStandings(
+  allMatches: Match[],
+  allTeams: Team[]
+): (Standing & { promedio: number })[] {
+  const standings = calculateStandings(allMatches, allTeams);
+
+  return standings
+    .map(s => ({
+      ...s,
+      promedio: s.played > 0 ? s.points / s.played : 0,
+    }))
+    .sort((a, b) => {
+      const diff = b.promedio - a.promedio;
+      if (Math.abs(diff) > 0.0001) return diff;
+      if (b.points !== a.points) return b.points - a.points;
+      if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+      if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+      return a.team.name.localeCompare(b.team.name);
+    });
+}

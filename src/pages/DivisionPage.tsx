@@ -187,14 +187,17 @@ export function DivisionPage() {
         setAllTeams(tms);
 
         if (tourns.length > 0) {
-          // Para divisiones de liga (7ma a 16ta), seleccionamos el torneo de liga (no el Clausura de 3 zonas)
-          const leagueTourn = tourns.find(t => 
+          const leagueTourns = tourns.filter(t => 
             !t.name.toLowerCase().includes('cacho') && 
             !t.name.toLowerCase().includes('reyes')
-          ) || tourns.find(t => t.is_current) || tourns[0];
+          );
+          const currentLeague = leagueTourns.find(t => t.name.toLowerCase().includes('clausura') && t.is_current) ||
+                                leagueTourns.find(t => t.name.toLowerCase().includes('clausura')) ||
+                                leagueTourns.find(t => t.is_current) || 
+                                leagueTourns[0] || tourns[0];
 
-          setSelectedYear(leagueTourn.year);
-          setSelectedTournamentId(leagueTourn.id);
+          setSelectedYear(currentLeague.year);
+          setSelectedTournamentId(currentLeague.id);
         }
       } catch (err) {
         console.error('Error loading base data:', err);
@@ -300,13 +303,21 @@ export function DivisionPage() {
     return tournaments.find(t => t.id === selectedTournamentId);
   }, [tournaments, selectedTournamentId]);
   
-  const uniqueYears = useMemo(() => {
-    return Array.from(new Set(tournaments.map(t => t.year))).sort((a, b) => b - a);
+  const availableTournaments = useMemo(() => {
+    // Para divisiones de liga (7ma a 16ta), excluimos el torneo especial de 3 zonas "Cacho Méndez" / "Carlos de los Reyes"
+    return tournaments.filter(t => 
+      !t.name.toLowerCase().includes('cacho') && 
+      !t.name.toLowerCase().includes('reyes')
+    );
   }, [tournaments]);
 
+  const uniqueYears = useMemo(() => {
+    return Array.from(new Set(availableTournaments.map(t => t.year))).sort((a, b) => b - a);
+  }, [availableTournaments]);
+
   const tournamentsForYear = useMemo(() => {
-    return tournaments.filter(t => t.year === selectedYear);
-  }, [tournaments, selectedYear]);
+    return availableTournaments.filter(t => t.year === selectedYear);
+  }, [availableTournaments, selectedYear]);
 
   return (
     <motion.div

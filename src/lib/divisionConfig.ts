@@ -37,7 +37,7 @@ const ZONA1_SEXTA_KEYWORDS    = ['Quilmes', 'River', 'Argentinos', 'Alvarado', '
 const ZONA2_FULL_KEYWORDS     = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre', 'Union', 'Unión'];
 const ZONA2_SEXTA_KEYWORDS    = ['Kimberley', 'San Isidro', 'Circulo', 'Cadetes', 'Racing', 'San Jos', 'Boca', 'Chapadmalal', 'Mitre'];
 
-const ZONA3_KEYWORDS          = ['Mar del Plata', 'Deportivo Norte', 'Once Unidos', 'Banfield', 'cañon', 'canon', 'nacio', 'San Lorenzo', 'Colegiales', 'Urquiza'];
+const ZONA3_KEYWORDS          = ['Atlético', 'Atletico', 'Deportivo Norte', 'Once Unidos', 'Banfield', 'cañon', 'canon', 'nacio', 'San Lorenzo', 'Colegiales', 'Urquiza'];
 
 export const TOURNAMENT_DIVISION_CONFIGS: Record<TorneoSlug, TournamentDivisionConfig> = {
   'primera-division': {

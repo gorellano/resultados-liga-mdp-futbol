@@ -545,12 +545,14 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
   // ── Derived data ───────────────────────────────────────────────────────────
   const zoneTeams = useMemo(() =>
     zonesData.map((z, zoneIdx) => {
-      const keywords = config?.zoneTeamKeywords[zoneIdx] ?? [];
+      const keywords = config?.zoneTeamKeywords[zoneIdx];
+      if (keywords && keywords.length > 0) {
+        return allTeams.filter(t =>
+          keywords.some(kw => t.name.toLowerCase().includes(kw.toLowerCase()))
+        );
+      }
       const matchIds = new Set(z?.matches.flatMap(m => [m.home_team_id, m.away_team_id]) ?? []);
-      return allTeams.filter(t =>
-        matchIds.has(t.id) ||
-        keywords.some(kw => t.name.toLowerCase().includes(kw.toLowerCase()))
-      );
+      return allTeams.filter(t => matchIds.has(t.id));
     }),
     [zonesData, allTeams, config]
   );

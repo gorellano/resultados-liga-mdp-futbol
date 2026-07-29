@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -110,6 +110,25 @@ export function AdminDashboard() {
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [selectedRound, setSelectedRound] = useState<number>(1);
+
+  const availableZonesForDivision = useMemo(() => {
+    const selectedDiv = divisions.find(d => d.id === selectedDivisionId);
+    if (!selectedDiv) return zones;
+
+    const divName = selectedDiv.name;
+    if (divName === 'Primera División' || divName === 'Quinta División' || divName === 'Sexta División') {
+      const categoryKeyword = divName.split(' ')[0]; // 'Primera', 'Quinta', 'Sexta'
+      return zones.filter((z: Zone) => z.name.includes(categoryKeyword));
+    } else {
+      return zones.filter((z: Zone) => z.name === 'Campeonato' || z.name === 'Promoción');
+    }
+  }, [zones, divisions, selectedDivisionId]);
+
+  useEffect(() => {
+    if (availableZonesForDivision.length > 0 && !availableZonesForDivision.some((z: Zone) => z.id === selectedZoneId)) {
+      setSelectedZoneId(availableZonesForDivision[0].id);
+    }
+  }, [availableZonesForDivision, selectedZoneId]);
 
   // Resultados editados temporalmente
   const [editingResults, setEditingResults] = useState<Record<string, { homeGoals: string; awayGoals: string }>>({});
@@ -1440,7 +1459,7 @@ export function AdminDashboard() {
                         onChange={(e) => setSelectedZoneId(e.target.value)}
                         className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
                       >
-                        {zones.map(z => (
+                        {availableZonesForDivision.map(z => (
                           <option key={z.id} value={z.id}>{z.name}</option>
                         ))}
                       </select>
@@ -1954,7 +1973,7 @@ export function AdminDashboard() {
                         onChange={(e) => setSelectedZoneId(e.target.value)}
                         className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
                       >
-                        {zones.map(z => (
+                        {availableZonesForDivision.map(z => (
                           <option key={z.id} value={z.id}>{z.name}</option>
                         ))}
                       </select>

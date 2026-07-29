@@ -222,14 +222,14 @@ BEGIN
   SELECT id INTO v_z_camp FROM public.zones WHERE name = 'Campeonato' LIMIT 1;
   SELECT id INTO v_z_prom FROM public.zones WHERE name = 'Promoción' LIMIT 1;
 
-  -- Equipos Campeonato
+  -- Equipos Campeonato (Búsqueda estricta para evitar colisión entre Atlético Mar del Plata y otros clubes)
   SELECT id INTO t_talleres   FROM public.teams WHERE name ILIKE '%Talleres%' LIMIT 1;
   SELECT id INTO t_depnorte   FROM public.teams WHERE name ILIKE '%Deportivo Norte%' OR name ILIKE '%Dvo%Norte%' LIMIT 1;
   SELECT id INTO t_kimberLEY  FROM public.teams WHERE name ILIKE '%Kimberley%' LIMIT 1;
   SELECT id INTO t_onceunidos FROM public.teams WHERE name ILIKE '%Once Unidos%' LIMIT 1;
   SELECT id INTO t_aldosivi   FROM public.teams WHERE name ILIKE '%Aldosivi%' LIMIT 1;
   SELECT id INTO t_banfield   FROM public.teams WHERE name ILIKE '%Banfield%' LIMIT 1;
-  SELECT id INTO t_mdp        FROM public.teams WHERE name ILIKE '%Mar del Plata%' LIMIT 1;
+  SELECT id INTO t_mdp        FROM public.teams WHERE name ILIKE '%Atl%tico Mar del Plata%' OR (name ILIKE '%Mar del Plata%' AND name NOT ILIKE '%Talleres%' AND name NOT ILIKE '%Banco%') LIMIT 1;
   SELECT id INTO t_argsud     FROM public.teams WHERE name ILIKE '%Argentinos%' LIMIT 1;
   SELECT id INTO t_indep      FROM public.teams WHERE name ILIKE '%Independiente%' LIMIT 1;
   SELECT id INTO t_river      FROM public.teams WHERE name ILIKE '%River%' LIMIT 1;
@@ -258,239 +258,214 @@ BEGIN
     SELECT id FROM public.divisions 
     WHERE name NOT IN ('Primera División', 'Quinta División', 'Sexta División')
   LOOP
-    -- Limpiar fixture previo si existía de esas divisiones en ese torneo
     DELETE FROM public.matches WHERE tournament_id = v_tourn_juv AND division_id = div_rec.id;
 
-    -- ── ZONA CAMPEONATO (13 FECHAS DE LA CAPTURA) ───────────────────────────
-    -- Fecha 1
+    -- ── ZONA CAMPEONATO (13 FECHAS EXACTAS SEGÚN FIXTURE OFICIAL) ─────────────
     INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      -- Fecha 1
       (v_tourn_juv, div_rec.id, v_z_camp, 1, t_talleres, t_depnorte, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 1, t_kimberLEY, t_onceunidos, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 1, t_aldosivi, t_banfield, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 1, t_mdp, t_argsud, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 1, t_mdp, t_argsud, 'scheduled'), -- MAR DEL PLATA vs. ARG. DEL SUD
       (v_tourn_juv, div_rec.id, v_z_camp, 1, t_indep, t_river, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 1, t_cadetes, t_nacion, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 1, t_alvarado, t_quilmes, 'scheduled');
-    -- Fecha 2
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 1, t_alvarado, t_quilmes, 'scheduled'),
+      -- Fecha 2
       (v_tourn_juv, div_rec.id, v_z_camp, 2, t_alvarado, t_talleres, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 2, t_quilmes, t_cadetes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 2, t_nacion, t_indep, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 2, t_river, t_mdp, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 2, t_river, t_mdp, 'scheduled'), -- RIVER PLATE vs. MAR DEL PLATA
       (v_tourn_juv, div_rec.id, v_z_camp, 2, t_argsud, t_aldosivi, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 2, t_banfield, t_kimberLEY, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 2, t_onceunidos, t_depnorte, 'scheduled');
-    -- Fecha 3
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 2, t_onceunidos, t_depnorte, 'scheduled'),
+      -- Fecha 3
       (v_tourn_juv, div_rec.id, v_z_camp, 3, t_talleres, t_onceunidos, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 3, t_depnorte, t_banfield, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 3, t_kimberLEY, t_argsud, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 3, t_aldosivi, t_river, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 3, t_mdp, t_nacion, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 3, t_mdp, t_nacion, 'scheduled'), -- MAR DEL PLATA vs. NACION
       (v_tourn_juv, div_rec.id, v_z_camp, 3, t_indep, t_quilmes, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 3, t_cadetes, t_alvarado, 'scheduled');
-    -- Fecha 4
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 3, t_cadetes, t_alvarado, 'scheduled'),
+      -- Fecha 4
       (v_tourn_juv, div_rec.id, v_z_camp, 4, t_cadetes, t_talleres, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 4, t_alvarado, t_indep, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 4, t_quilmes, t_mdp, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 4, t_quilmes, t_mdp, 'scheduled'), -- QUILMES vs. MAR DEL PLATA
       (v_tourn_juv, div_rec.id, v_z_camp, 4, t_nacion, t_aldosivi, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 4, t_river, t_kimberLEY, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 4, t_argsud, t_depnorte, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 4, t_banfield, t_onceunidos, 'scheduled');
-    -- Fecha 5
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 4, t_banfield, t_onceunidos, 'scheduled'),
+      -- Fecha 5
       (v_tourn_juv, div_rec.id, v_z_camp, 5, t_talleres, t_banfield, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 5, t_onceunidos, t_argsud, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 5, t_depnorte, t_river, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 5, t_kimberLEY, t_nacion, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 5, t_aldosivi, t_quilmes, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 5, t_mdp, t_alvarado, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 5, t_indep, t_cadetes, 'scheduled');
-    -- Fecha 6
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 5, t_mdp, t_alvarado, 'scheduled'), -- MAR DEL PLATA vs. ALVARADO
+      (v_tourn_juv, div_rec.id, v_z_camp, 5, t_indep, t_cadetes, 'scheduled'),
+      -- Fecha 6
       (v_tourn_juv, div_rec.id, v_z_camp, 6, t_indep, t_talleres, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 6, t_cadetes, t_mdp, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 6, t_cadetes, t_mdp, 'scheduled'), -- CADETES vs. MAR DEL PLATA
       (v_tourn_juv, div_rec.id, v_z_camp, 6, t_alvarado, t_aldosivi, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 6, t_quilmes, t_kimberLEY, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 6, t_nacion, t_depnorte, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 6, t_river, t_onceunidos, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 6, t_argsud, t_banfield, 'scheduled');
-    -- Fecha 7
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 6, t_argsud, t_banfield, 'scheduled'),
+      -- Fecha 7
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_talleres, t_argsud, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_banfield, t_river, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_onceunidos, t_nacion, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_depnorte, t_quilmes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_kimberLEY, t_alvarado, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 7, t_aldosivi, t_cadetes, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 7, t_mdp, t_indep, 'scheduled');
-    -- Fecha 8
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
-      (v_tourn_juv, div_rec.id, v_z_camp, 8, t_mdp, t_talleres, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 7, t_mdp, t_indep, 'scheduled'), -- MAR DEL PLATA vs. INDEPENDIENTE
+      -- Fecha 8
+      (v_tourn_juv, div_rec.id, v_z_camp, 8, t_mdp, t_talleres, 'scheduled'), -- MAR DEL PLATA vs. TALLERES
       (v_tourn_juv, div_rec.id, v_z_camp, 8, t_indep, t_aldosivi, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 8, t_cadetes, t_kimberLEY, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 8, t_alvarado, t_depnorte, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 8, t_quilmes, t_onceunidos, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 8, t_nacion, t_banfield, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 8, t_river, t_argsud, 'scheduled');
-    -- Fecha 9
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 8, t_river, t_argsud, 'scheduled'),
+      -- Fecha 9
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_talleres, t_river, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_argsud, t_nacion, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_banfield, t_quilmes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_onceunidos, t_alvarado, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_depnorte, t_cadetes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 9, t_kimberLEY, t_indep, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 9, t_aldosivi, t_mdp, 'scheduled');
-    -- Fecha 10
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 9, t_aldosivi, t_mdp, 'scheduled'), -- ALDOSIVI vs. MAR DEL PLATA
+      -- Fecha 10
       (v_tourn_juv, div_rec.id, v_z_camp, 10, t_aldosivi, t_talleres, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 10, t_mdp, t_kimberLEY, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 10, t_mdp, t_kimberLEY, 'scheduled'), -- MAR DEL PLATA vs. KIMBERLEY
       (v_tourn_juv, div_rec.id, v_z_camp, 10, t_indep, t_depnorte, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 10, t_cadetes, t_onceunidos, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 10, t_alvarado, t_banfield, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 10, t_quilmes, t_argsud, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 10, t_nacion, t_river, 'scheduled');
-    -- Fecha 11
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 10, t_nacion, t_river, 'scheduled'),
+      -- Fecha 11
       (v_tourn_juv, div_rec.id, v_z_camp, 11, t_talleres, t_nacion, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 11, t_river, t_quilmes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 11, t_argsud, t_alvarado, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 11, t_banfield, t_cadetes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 11, t_onceunidos, t_indep, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 11, t_depnorte, t_mdp, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 11, t_kimberLEY, t_aldosivi, 'scheduled');
-    -- Fecha 12
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 11, t_depnorte, t_mdp, 'scheduled'), -- DVO NORTE vs. MAR DEL PLATA
+      (v_tourn_juv, div_rec.id, v_z_camp, 11, t_kimberLEY, t_aldosivi, 'scheduled'),
+      -- Fecha 12
       (v_tourn_juv, div_rec.id, v_z_camp, 12, t_kimberLEY, t_talleres, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 12, t_aldosivi, t_depnorte, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 12, t_mdp, t_onceunidos, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 12, t_mdp, t_onceunidos, 'scheduled'), -- MAR DEL PLATA vs. ONCE UNIDOS
       (v_tourn_juv, div_rec.id, v_z_camp, 12, t_indep, t_banfield, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 12, t_cadetes, t_argsud, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 12, t_alvarado, t_river, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 12, t_quilmes, t_nacion, 'scheduled');
-    -- Fecha 13
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_camp, 12, t_quilmes, t_nacion, 'scheduled'),
+      -- Fecha 13
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_talleres, t_quilmes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_nacion, t_alvarado, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_river, t_cadetes, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_argsud, t_indep, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_camp, 13, t_banfield, t_mdp, 'scheduled'),
+      (v_tourn_juv, div_rec.id, v_z_camp, 13, t_banfield, t_mdp, 'scheduled'), -- BANFIELD vs. MAR DEL PLATA
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_onceunidos, t_aldosivi, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_camp, 13, t_depnorte, t_kimberLEY, 'scheduled');
 
-    -- ── ZONA PROMOCIÓN (13 FECHAS DE LA CAPTURA) ─────────────────────────────
-    -- Fecha 1
+    -- ── ZONA PROMOCIÓN (13 FECHAS EXACTAS SEGÚN FIXTURE OFICIAL) ─────────────
     INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      -- Fecha 1
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_boca, t_libertad, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_circulo, t_sanlorenzo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_urquiza, t_canon, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_almagro, t_alver, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_colegia, t_banco, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 1, t_chap, t_sanjose, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 1, t_racing, t_sanisidro, 'scheduled');
-    -- Fecha 2
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 1, t_racing, t_sanisidro, 'scheduled'),
+      -- Fecha 2
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_racing, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_sanisidro, t_chap, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_sanjose, t_colegia, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_banco, t_almagro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_alver, t_urquiza, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 2, t_canon, t_circulo, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 2, t_sanlorenzo, t_libertad, 'scheduled');
-    -- Fecha 3
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 2, t_sanlorenzo, t_libertad, 'scheduled'),
+      -- Fecha 3
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_boca, t_sanlorenzo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_libertad, t_canon, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_circulo, t_alver, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_urquiza, t_banco, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_almagro, t_sanjose, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 3, t_colegia, t_sanisidro, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 3, t_chap, t_racing, 'scheduled');
-    -- Fecha 4
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 3, t_chap, t_racing, 'scheduled'),
+      -- Fecha 4
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_chap, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_racing, t_colegia, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_sanisidro, t_almagro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_sanjose, t_urquiza, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_banco, t_circulo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 4, t_alver, t_libertad, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 4, t_canon, t_sanlorenzo, 'scheduled');
-    -- Fecha 5
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 4, t_canon, t_sanlorenzo, 'scheduled'),
+      -- Fecha 5
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_boca, t_canon, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_sanlorenzo, t_alver, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_libertad, t_banco, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_circulo, t_sanjose, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_urquiza, t_sanisidro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 5, t_almagro, t_racing, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 5, t_colegia, t_chap, 'scheduled');
-    -- Fecha 6
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 5, t_colegia, t_chap, 'scheduled'),
+      -- Fecha 6
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_colegia, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_chap, t_almagro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_racing, t_urquiza, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_sanisidro, t_circulo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_sanjose, t_libertad, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 6, t_banco, t_sanlorenzo, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 6, t_alver, t_canon, 'scheduled');
-    -- Fecha 7
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 6, t_alver, t_canon, 'scheduled'),
+      -- Fecha 7
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_boca, t_alver, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_canon, t_banco, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_sanlorenzo, t_sanjose, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_libertad, t_sanisidro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_circulo, t_racing, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 7, t_urquiza, t_chap, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 7, t_almagro, t_colegia, 'scheduled');
-    -- Fecha 8
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 7, t_almagro, t_colegia, 'scheduled'),
+      -- Fecha 8
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_almagro, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_colegia, t_urquiza, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_chap, t_circulo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_racing, t_libertad, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_sanisidro, t_sanlorenzo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 8, t_sanjose, t_canon, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 8, t_banco, t_alver, 'scheduled');
-    -- Fecha 9
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 8, t_banco, t_alver, 'scheduled'),
+      -- Fecha 9
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_boca, t_banco, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_alver, t_sanjose, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_canon, t_sanisidro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_sanlorenzo, t_racing, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_libertad, t_chap, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 9, t_circulo, t_colegia, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 9, t_urquiza, t_almagro, 'scheduled');
-    -- Fecha 10
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 9, t_urquiza, t_almagro, 'scheduled'),
+      -- Fecha 10
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_urquiza, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_almagro, t_circulo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_colegia, t_libertad, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_chap, t_sanlorenzo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_racing, t_canon, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 10, t_sanisidro, t_alver, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 10, t_sanjose, t_banco, 'scheduled');
-    -- Fecha 11
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 10, t_sanjose, t_banco, 'scheduled'),
+      -- Fecha 11
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_boca, t_sanjose, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_banco, t_sanisidro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_alver, t_racing, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_canon, t_chap, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_sanlorenzo, t_colegia, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 11, t_libertad, t_almagro, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 11, t_circulo, t_urquiza, 'scheduled');
-    -- Fecha 12
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 11, t_circulo, t_urquiza, 'scheduled'),
+      -- Fecha 12
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_circulo, t_boca, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_urquiza, t_libertad, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_almagro, t_sanlorenzo, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_colegia, t_canon, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_chap, t_alver, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 12, t_racing, t_banco, 'scheduled'),
-      (v_tourn_juv, div_rec.id, v_z_prom, 12, t_sanisidro, t_sanjose, 'scheduled');
-    -- Fecha 13
-    INSERT INTO public.matches (tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, status) VALUES
+      (v_tourn_juv, div_rec.id, v_z_prom, 12, t_sanisidro, t_sanjose, 'scheduled'),
+      -- Fecha 13
       (v_tourn_juv, div_rec.id, v_z_prom, 13, t_boca, t_sanisidro, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 13, t_sanjose, t_racing, 'scheduled'),
       (v_tourn_juv, div_rec.id, v_z_prom, 13, t_banco, t_chap, 'scheduled'),

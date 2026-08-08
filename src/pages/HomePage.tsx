@@ -56,15 +56,17 @@ export function HomePage() {
     loadData();
   }, []);
 
-  const divisionsList = activeDivs.map(d => {
-    // Las 3 divisiones ahora tienen su propia página completa
-    return {
-      id: d.id,
-      name: d.name,
-      soon: false,
-      status: divisionStatuses[d.id] || 'en_curso'
-    };
-  });
+  const divisionsList = activeDivs
+    .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
+    .map(d => {
+      // Las divisiones juveniles de 7ma a 16ta tienen su propia página completa
+      return {
+        id: d.id,
+        name: d.name,
+        soon: false,
+        status: divisionStatuses[d.id] || 'en_curso'
+      };
+    });
 
   return (
     <motion.div

@@ -62,22 +62,23 @@ export function H2HPage() {
     loadMatches();
   }, [selectedDivisionId]);
 
-  const divisionTeams = useMemo(() => {
-    if (matches.length === 0) return teams;
-    const teamIds = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
-    const filtered = teams.filter(t => teamIds.has(t.id));
-    return filtered.length >= 2 ? filtered : teams;
-  }, [matches, teams]);
+  const sortedTeams = useMemo(() => {
+    return [...teams].sort((a, b) => {
+      const nameA = a.display_name ?? a.name;
+      const nameB = b.display_name ?? b.name;
+      return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+    });
+  }, [teams]);
 
   useEffect(() => {
-    if (divisionTeams.length >= 2) {
-      const validA = divisionTeams.some(t => t.id === teamAId) ? teamAId : divisionTeams[0].id;
-      const availableForB = divisionTeams.filter(t => t.id !== validA);
+    if (sortedTeams.length >= 2) {
+      const validA = sortedTeams.some(t => t.id === teamAId) ? teamAId : sortedTeams[0].id;
+      const availableForB = sortedTeams.filter(t => t.id !== validA);
       const validB = availableForB.some(t => t.id === teamBId) ? teamBId : (availableForB[0]?.id ?? '');
       setTeamAId(validA);
       setTeamBId(validB);
     }
-  }, [divisionTeams]);
+  }, [sortedTeams]);
 
   const teamA = useMemo(() => teams.find(t => t.id === teamAId) || null, [teams, teamAId]);
   const teamB = useMemo(() => teams.find(t => t.id === teamBId) || null, [teams, teamBId]);
@@ -147,7 +148,7 @@ export function H2HPage() {
               onChange={(e) => setTeamAId(e.target.value)}
               className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
             >
-              {divisionTeams.map(t => (
+              {sortedTeams.map(t => (
                 <option key={t.id} value={t.id} disabled={t.id === teamBId}>
                   {t.display_name ?? t.name}
                 </option>
@@ -163,7 +164,7 @@ export function H2HPage() {
               onChange={(e) => setTeamBId(e.target.value)}
               className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
             >
-              {divisionTeams.map(t => (
+              {sortedTeams.map(t => (
                 <option key={t.id} value={t.id} disabled={t.id === teamAId}>
                   {t.display_name ?? t.name}
                 </option>

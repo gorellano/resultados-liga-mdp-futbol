@@ -62,6 +62,23 @@ export function H2HPage() {
     loadMatches();
   }, [selectedDivisionId]);
 
+  const divisionTeams = useMemo(() => {
+    if (matches.length === 0) return teams;
+    const teamIds = new Set(matches.flatMap(m => [m.home_team_id, m.away_team_id]));
+    const filtered = teams.filter(t => teamIds.has(t.id));
+    return filtered.length >= 2 ? filtered : teams;
+  }, [matches, teams]);
+
+  useEffect(() => {
+    if (divisionTeams.length >= 2) {
+      const validA = divisionTeams.some(t => t.id === teamAId) ? teamAId : divisionTeams[0].id;
+      const availableForB = divisionTeams.filter(t => t.id !== validA);
+      const validB = availableForB.some(t => t.id === teamBId) ? teamBId : (availableForB[0]?.id ?? '');
+      setTeamAId(validA);
+      setTeamBId(validB);
+    }
+  }, [divisionTeams]);
+
   const teamA = useMemo(() => teams.find(t => t.id === teamAId) || null, [teams, teamAId]);
   const teamB = useMemo(() => teams.find(t => t.id === teamBId) || null, [teams, teamBId]);
 
@@ -80,27 +97,34 @@ export function H2HPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -15 }}
+      exit={{ opacity: 0, y: -20 }}
       className="space-y-8 max-w-4xl mx-auto"
     >
-      {/* Cabecera */}
-      <div>
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-primary mb-2 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Volver a Inicio
-        </Link>
-        <h1 className="text-3xl font-black tracking-tight flex items-center gap-2.5">
-          <Swords className="w-8 h-8 text-primary" /> Comparador Cara a Cara (H2H)
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Analizá el historial de enfrentamientos directos y estadísticas comparadas entre dos equipos.
-        </p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/40 border border-border/50 p-6 rounded-3xl backdrop-blur-md">
+        <div>
+          <Link
+            to="/equipos"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary mb-2 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Volver a Equipos
+          </Link>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-2.5">
+            <Swords className="w-7 h-7 text-primary shrink-0" />
+            Comparador Head-to-Head (H2H)
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            Analizá el historial de duelos directos, victorias y estadísticas entre dos equipos.
+          </p>
+        </div>
       </div>
 
       {/* Selector de División y Equipos */}
-      <div className="bg-card border border-border/60 rounded-3xl p-6 shadow-md space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-card/60 border border-border/60 rounded-3xl p-5 sm:p-6 shadow-md backdrop-blur-md space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* División */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">División / Categoría</label>
@@ -123,7 +147,7 @@ export function H2HPage() {
               onChange={(e) => setTeamAId(e.target.value)}
               className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
             >
-              {teams.map(t => (
+              {divisionTeams.map(t => (
                 <option key={t.id} value={t.id} disabled={t.id === teamBId}>
                   {t.display_name ?? t.name}
                 </option>
@@ -139,7 +163,7 @@ export function H2HPage() {
               onChange={(e) => setTeamBId(e.target.value)}
               className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
             >
-              {teams.map(t => (
+              {divisionTeams.map(t => (
                 <option key={t.id} value={t.id} disabled={t.id === teamAId}>
                   {t.display_name ?? t.name}
                 </option>

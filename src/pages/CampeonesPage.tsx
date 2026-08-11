@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchDivisions, fetchTeams, isSupabaseActive } from '../lib/db';
 import type { Division, Team } from '../lib/types';
-import { Trophy, Star, ArrowLeft } from 'lucide-react';
+import { Trophy, Star, ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Champion {
@@ -22,7 +23,8 @@ export function CampeonesPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [champions, setChampions] = useState<Champion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [fetchingChampions, setFetchingChampions] = useState(false);
 
   // Dynamic years list from 2026 up to currentYear
   const availableYears = Array.from(
@@ -30,29 +32,59 @@ export function CampeonesPage() {
     (_, i) => currentYear - i
   );
 
+  // 1. Cargar divisiones y equipos una sola vez al montar
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
+    async function loadStaticData() {
       try {
-        const [divsRes, teamsRes, champsRes] = await Promise.all([
-          supabase.from('divisions').select('*').order('sort_order', { ascending: true }),
-          supabase.from('teams').select('*'),
-          supabase.from('champions')
-            .select('*')
-            .eq('year', selectedYear)
-            .eq('tournament', selectedTournament)
+        const [divs, tms] = await Promise.all([
+          fetchDivisions(),
+          fetchTeams()
         ]);
-
-        if (divsRes.data) setDivisions(divsRes.data);
-        if (teamsRes.data) setTeams(teamsRes.data);
-        if (champsRes.data) setChampions(champsRes.data);
+        setDivisions(divs);
+        setTeams(tms);
       } catch (err) {
-        console.error('Error cargando campeones:', err);
+        console.error('Error cargando divisiones y equipos:', err);
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
       }
     }
-    loadData();
+    loadStaticData();
+  }, []);
+
+  // 2. Consulta rápida solo de campeones al cambiar año o torneo
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadChampions() {
+      setFetchingChampions(true);
+      try {
+        if (!isSupabaseActive()) {
+          if (!isCancelled) setChampions([]);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('champions')
+          .select('*')
+          .eq('year', selectedYear)
+          .eq('tournament', selectedTournament);
+
+        if (error) throw error;
+        if (!isCancelled) {
+          setChampions(data || []);
+        }
+      } catch (err) {
+        console.error('Error cargando campeones:', err);
+        if (!isCancelled) setChampions([]);
+      } finally {
+        if (!isCancelled) setFetchingChampions(false);
+      }
+    }
+
+    loadChampions();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [selectedYear, selectedTournament]);
 
   // Encuentra al campeón de una zona y división específica
@@ -80,10 +112,13 @@ export function CampeonesPage() {
 
         {/* Filtros */}
         <div className="flex items-center gap-3">
+          {fetchingChampions && (
+            <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+          )}
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-sm"
+            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
           >
             {availableYears.map(yr => (
               <option key={yr} value={yr}>Año {yr}</option>
@@ -92,7 +127,7 @@ export function CampeonesPage() {
           <select
             value={selectedTournament}
             onChange={(e) => setSelectedTournament(e.target.value)}
-            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-sm"
+            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
           >
             <option value="Apertura">Apertura</option>
             <option value="Clausura">Clausura</option>
@@ -100,9 +135,10 @@ export function CampeonesPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-muted-foreground animate-pulse font-semibold">
-          Cargando campeones del torneo...
+      {initialLoading ? (
+        <div className="text-center py-20 text-muted-foreground animate-pulse font-semibold flex items-center justify-center gap-2">
+          <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+          <span>Cargando campeones del torneo...</span>
         </div>
       ) : champions.length === 0 ? (
         <div className="text-center py-16 px-6 border border-amber-500/20 rounded-3xl bg-gradient-to-b from-amber-500/5 via-card/40 to-card/20 backdrop-blur-md relative overflow-hidden max-w-xl mx-auto shadow-md">
@@ -185,3 +221,4 @@ export function CampeonesPage() {
     </div>
   );
 }
+

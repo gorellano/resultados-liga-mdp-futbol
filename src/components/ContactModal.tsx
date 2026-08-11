@@ -31,24 +31,40 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
     setError(null);
   };
 
+  // Función de desinfección (sanitización) contra XSS para remover etiquetas HTML y código script malicioso
+  const sanitizeInput = (str: string): string => {
+    return str
+      .replace(/<[^>]*>?/gm, '') // Elimina cualquier etiqueta HTML (<script>, <iframe>, etc.)
+      .trim();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    const cleanEmail = sanitizeInput(email);
+    const cleanTitle = sanitizeInput(title);
+    const cleanBody = sanitizeInput(body);
+
     // Validación básica
-    if (!email || !title || !body) {
+    if (!cleanEmail || !cleanTitle || !cleanBody) {
       setError('Por favor completá todos los campos.');
       return;
     }
 
-    // Validación de email más estricta (estándar RFC 5322 simplificado)
+    // Validación de email estricta (RFC 5322 simplificado)
     const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(cleanEmail)) {
       setError('Por favor ingresá un email válido.');
       return;
     }
 
-    if (body.length > 1000) {
+    if (cleanTitle.length < 3) {
+      setError('El asunto debe tener al menos 3 caracteres.');
+      return;
+    }
+
+    if (cleanBody.length > 1000) {
       setError('El mensaje no puede superar los 1000 caracteres.');
       return;
     }
@@ -56,13 +72,14 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
     setLoading(true);
 
     try {
-      // Usamos el cliente de Supabase que automáticamente protege contra Inyección SQL usando consultas preparadas.
+      // Supabase JS usa consultas SQL parametrizadas (Prepared Statements) a través del motor PostgREST REST API.
+      // Esto imposibilita técnicamente cualquier ataque de inyección SQL (SQL Injection).
       const { error: dbError } = await supabase
         .from('contact_messages')
         .insert([{ 
-          email: email.trim(), 
-          title: title.trim(), 
-          body: body.trim() 
+          email: cleanEmail, 
+          title: cleanTitle, 
+          body: cleanBody 
         }]);
 
       if (dbError) {

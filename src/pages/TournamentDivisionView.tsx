@@ -142,9 +142,9 @@ function StandingsTable({
                       toggleFavorite(row.team.id, divisionId);
                     }}
                     className="p-1.5 -ml-1 sm:ml-0 hover:scale-125 transition-transform shrink-0 touch-manipulation"
-                    title={isFavorite(row.team.id) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}
+                    title={isFavorite(row.team.id, divisionId) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}
                   >
-                    <Star className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5 transition-colors", isFavorite(row.team.id) ? "fill-amber-400 text-amber-500 drop-shadow-xs" : "text-amber-500/50 dark:text-amber-400/50 hover:text-amber-400")} />
+                    <Star className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5 transition-colors", isFavorite(row.team.id, divisionId) ? "fill-amber-400 text-amber-500 drop-shadow-xs" : "text-amber-500/50 dark:text-amber-400/50 hover:text-amber-400")} />
                   </button>
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border border-border/60 shadow-xs flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 group-hover:border-primary/40 transition-all duration-300">
                     {row.team.logo_url ? (

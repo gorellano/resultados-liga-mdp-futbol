@@ -75,18 +75,26 @@ export function useFavoriteTeam() {
 
   const toggleFavorite = useCallback((teamId: string, divisionId?: string) => {
     setFavoritesList(prev => {
-      const existsIndex = prev.findIndex(f => f.teamId === teamId);
+      // Find if an exact match or team match exists
+      const existsIndex = prev.findIndex(f => {
+        if (divisionId && f.divisionId) {
+          return f.teamId === teamId && f.divisionId === divisionId;
+        }
+        return f.teamId === teamId;
+      });
+
       let next: FavoriteSelection[];
       if (existsIndex >= 0) {
-        // If team already exists in favorites, remove it
+        // Remove existing favorite
         next = prev.filter((_, idx) => idx !== existsIndex);
       } else {
-        // If not in favorites, add it (max 2 items)
+        // Add new favorite (max 2 items)
+        const newFav: FavoriteSelection = { teamId, divisionId };
         if (prev.length >= 2) {
-          // If already 2 items, replace the oldest (first item) and append new
-          next = [prev[1], { teamId, divisionId }];
+          // Replace second or oldest item
+          next = [prev[0], newFav];
         } else {
-          next = [...prev, { teamId, divisionId }];
+          next = [...prev, newFav];
         }
       }
       saveFavorites(next);
@@ -107,8 +115,13 @@ export function useFavoriteTeam() {
     });
   }, [saveFavorites]);
 
-  const isFavorite = useCallback((teamId: string) => {
-    return favoritesList.some(f => f.teamId === teamId);
+  const isFavorite = useCallback((teamId: string, divisionId?: string) => {
+    return favoritesList.some(f => {
+      if (divisionId && f.divisionId) {
+        return f.teamId === teamId && f.divisionId === divisionId;
+      }
+      return f.teamId === teamId;
+    });
   }, [favoritesList]);
 
   // Enriched favorite items

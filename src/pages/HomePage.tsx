@@ -88,12 +88,26 @@ export function HomePage() {
       const divisionName = currentDiv ? currentDiv.name : '';
       const divisionSlug = currentDiv ? createSlug(currentDiv.name) : '';
 
-      // Standings position calculation
+      // Standings position calculation (per zone/division)
       let positionRank: number | null = null;
       let totalPoints: number | null = null;
       if (targetDivisionId) {
         const divMatches = allMatches.filter(m => m.division_id === targetDivisionId);
-        const standings = calculateStandings(divMatches, allTeams);
+        const userTeamMatches = divMatches.filter(m => m.home_team_id === fav.teamId || m.away_team_id === fav.teamId);
+        const teamZoneId = userTeamMatches[0]?.zone_id;
+
+        let relevantMatches = divMatches;
+        if (teamZoneId) {
+          const zoneMatches = divMatches.filter(m => m.zone_id === teamZoneId);
+          if (zoneMatches.length > 0) {
+            relevantMatches = zoneMatches;
+          }
+        }
+
+        const teamIds = new Set(relevantMatches.flatMap(m => [m.home_team_id, m.away_team_id]));
+        const relevantTeams = allTeams.filter(t => teamIds.has(t.id));
+
+        const standings = calculateStandings(relevantMatches, relevantTeams);
         const teamRowIdx = standings.findIndex(row => row.team.id === fav.teamId);
         if (teamRowIdx >= 0) {
           positionRank = teamRowIdx + 1;

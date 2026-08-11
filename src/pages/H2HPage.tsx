@@ -173,10 +173,12 @@ export function H2HPage() {
             <select
               value={selectedDivisionId}
               onChange={(e) => setSelectedDivisionId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {youthDivisions.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+                <option key={d.id} value={d.id} className="bg-slate-900 text-slate-100 py-1.5 font-medium">
+                  {d.name}
+                </option>
               ))}
             </select>
           </div>
@@ -187,10 +189,10 @@ export function H2HPage() {
             <select
               value={teamAId}
               onChange={(e) => setTeamAId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {sortedTeams.map(t => (
-                <option key={t.id} value={t.id} disabled={t.id === teamBId}>
+                <option key={t.id} value={t.id} disabled={t.id === teamBId} className="bg-slate-900 text-slate-100 py-1.5 font-medium disabled:opacity-40">
                   {t.display_name ?? t.name}
                 </option>
               ))}
@@ -203,10 +205,10 @@ export function H2HPage() {
             <select
               value={teamBId}
               onChange={(e) => setTeamBId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {sortedTeams.map(t => (
-                <option key={t.id} value={t.id} disabled={t.id === teamAId}>
+                <option key={t.id} value={t.id} disabled={t.id === teamAId} className="bg-slate-900 text-slate-100 py-1.5 font-medium disabled:opacity-40">
                   {t.display_name ?? t.name}
                 </option>
               ))}

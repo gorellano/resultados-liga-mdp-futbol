@@ -36,7 +36,7 @@ export interface Match {
   away_team_id: string;
   home_goals: number | null;
   away_goals: number | null;
-  status: 'scheduled' | 'finished' | 'postponed';
+  status: 'scheduled' | 'finished' | 'postponed' | 'live';
   match_date: string | null;
 }
 

@@ -101,15 +101,20 @@ export function CampeonesPage() {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-muted-foreground animate-pulse font-medium">
+        <div className="text-center py-20 text-muted-foreground animate-pulse font-semibold">
           Cargando campeones del torneo...
         </div>
       ) : champions.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-border/60 rounded-3xl bg-muted/5">
-          <Trophy className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-          <h3 className="font-bold text-lg text-foreground">Torneo {selectedYear} en curso</h3>
-          <p className="text-muted-foreground text-sm max-w-xs mx-auto mt-1">
-            Los resultados se están jugando. ¡Pronto conoceremos a los dueños de la gloria!
+        <div className="text-center py-16 px-6 border border-amber-500/20 rounded-3xl bg-gradient-to-b from-amber-500/5 via-card/40 to-card/20 backdrop-blur-md relative overflow-hidden max-w-xl mx-auto shadow-md">
+          <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-500 shadow-inner">
+            <Trophy className="w-10 h-10 fill-amber-500/20 animate-soft-pulse" />
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-extrabold border border-amber-500/25 mb-3 uppercase tracking-wider">
+            Torneo {selectedTournament} {selectedYear} en curso ⚽
+          </span>
+          <h3 className="font-extrabold text-xl text-foreground tracking-tight">¡La copa está en disputa!</h3>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2 leading-relaxed font-medium">
+            Los equipos están dando todo en la cancha. Al finalizar el campeonato, aquí se consagrarán los campeones de cada división.
           </p>
         </div>
       ) : (
@@ -118,31 +123,34 @@ export function CampeonesPage() {
             const campChamp = getChampion(division.id, 'campeonato');
             const promChamp = getChampion(division.id, 'promocion');
 
-            // Si para esta división no hay campeones cargados, no mostramos la card o mostramos estado vacío
             if (!campChamp && !promChamp) return null;
 
             return (
-              <div key={division.id} className="bg-card border border-border/50 rounded-3xl shadow-md p-5 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-                <h3 className="font-black text-lg border-b border-border/50 pb-3 mb-4 text-foreground tracking-tight">
-                  {division.name}
+              <div key={division.id} className="bg-card/70 backdrop-blur-md border border-border/60 rounded-3xl shadow-lg p-5 flex flex-col justify-between hover:border-amber-500/40 hover:shadow-amber-500/5 transition-all duration-300 relative overflow-hidden group">
+                {/* Top gold accent line */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
+
+                <h3 className="font-black text-lg border-b border-border/50 pb-3 mb-4 text-foreground tracking-tight flex items-center justify-between">
+                  <span>{division.name}</span>
+                  <Trophy className="w-5 h-5 text-amber-500/80" />
                 </h3>
                 
                 <div className="space-y-4">
                   {/* Zona Campeonato */}
                   {campChamp && (
-                    <div className="flex items-center gap-4 bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/15 rounded-2xl p-3.5 relative overflow-hidden">
-                      <div className="absolute top-2 right-2 text-amber-500/20">
+                    <div className="flex items-center gap-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 rounded-2xl p-3.5 relative overflow-hidden shadow-2xs group/champ hover:border-amber-500/50 transition-colors">
+                      <div className="absolute top-2 right-2 text-amber-500/15 pointer-events-none">
                         <Star className="w-12 h-12 fill-amber-500/10" />
                       </div>
-                      <div className="w-12 h-12 bg-background rounded-full border border-amber-500/20 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                      <div className="w-12 h-12 bg-background rounded-full border-2 border-amber-500/30 overflow-hidden flex items-center justify-center shrink-0 shadow-xs group-hover/champ:scale-105 transition-transform">
                         {campChamp.logo_url ? (
                           <img src={campChamp.logo_url} className="w-8 h-8 object-contain" alt={campChamp.name} />
                         ) : (
                           <Trophy className="w-5 h-5 text-amber-500" />
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest block">CAMPEÓN ZONA CAMPEONATO</span>
+                      <div className="min-w-0 z-10">
+                        <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest block">CAMPEÓN ZONA CAMPEONATO 🥇</span>
                         <span className="font-extrabold text-sm text-foreground truncate block mt-0.5" title={campChamp.name}>
                           {campChamp.display_name ?? campChamp.name}
                         </span>
@@ -152,16 +160,16 @@ export function CampeonesPage() {
 
                   {/* Zona Promoción */}
                   {promChamp && (
-                    <div className="flex items-center gap-4 bg-slate-500/5 dark:bg-slate-500/10 border border-slate-500/15 rounded-2xl p-3.5 relative overflow-hidden">
-                      <div className="w-12 h-12 bg-background rounded-full border border-slate-500/20 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                    <div className="flex items-center gap-4 bg-gradient-to-r from-slate-500/10 via-slate-500/5 to-transparent border border-slate-500/25 rounded-2xl p-3.5 relative overflow-hidden shadow-2xs group/prom hover:border-slate-500/50 transition-colors">
+                      <div className="w-12 h-12 bg-background rounded-full border-2 border-slate-400/30 overflow-hidden flex items-center justify-center shrink-0 shadow-xs group-hover/prom:scale-105 transition-transform">
                         {promChamp.logo_url ? (
                           <img src={promChamp.logo_url} className="w-8 h-8 object-contain" alt={promChamp.name} />
                         ) : (
-                          <Trophy className="w-5 h-5 text-slate-500" />
+                          <Trophy className="w-5 h-5 text-slate-400" />
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest block">GANADOR ZONA PROMOCIÓN</span>
+                      <div className="min-w-0 z-10">
+                        <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest block">GANADOR ZONA PROMOCIÓN 🥈</span>
                         <span className="font-extrabold text-sm text-foreground truncate block mt-0.5" title={promChamp.name}>
                           {promChamp.display_name ?? promChamp.name}
                         </span>

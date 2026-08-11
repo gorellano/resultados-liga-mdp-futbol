@@ -91,64 +91,86 @@ export function HomePage() {
 
       <SponsorBanner />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <motion.div
+        variants={{
+          hidden: { opacity: 0 },
+          visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.06 }
+          }
+        }}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5"
+      >
         {loading ? (
           Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="h-28 bg-card/50 border border-border/40 rounded-2xl p-6 flex flex-col items-center justify-center space-y-3 animate-pulse"
+              className="h-32 bg-card/60 border border-border/50 rounded-2xl p-6 flex flex-col items-center justify-center space-y-3 animate-pulse shadow-sm"
             >
-              <div className="h-5 bg-muted rounded-md w-2/3" />
+              <div className="h-4 bg-muted rounded-full w-1/2" />
+              <div className="h-6 bg-muted rounded-lg w-3/4" />
               <div className="h-3 bg-muted rounded-md w-1/3" />
             </div>
           ))
         ) : (
           divisionsList.map((div, i) => (
-            <Link
+            <motion.div
               key={i}
-              to={div.soon ? "#" : `/division/${createSlug(div.name)}`}
-              className={cn(
-                "group flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 min-h-[120px] text-center",
-                div.soon
-                  ? "bg-muted/40 border-border/30 cursor-not-allowed opacity-75"
-                  : "bg-card border-border hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1"
-              )}
+              variants={{
+                hidden: { opacity: 0, y: 15 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+              }}
             >
-              {/* Badge area */}
-              <div className="mb-3">
-                {div.soon ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-500/25 dark:text-amber-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    PRÓXIMAMENTE
-                  </span>
-                ) : div.status === 'finalizado' ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-500/25 dark:text-blue-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    FINALIZADO
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-500/25 dark:text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    EN CURSO
+              <Link
+                to={div.soon ? "#" : `/division/${createSlug(div.name)}`}
+                className={cn(
+                  "group flex flex-col items-center justify-center p-5 rounded-2xl border transition-all duration-300 min-h-[135px] text-center relative overflow-hidden",
+                  div.soon
+                    ? "bg-muted/40 border-border/30 cursor-not-allowed opacity-75"
+                    : "bg-card border-border/70 hover:border-primary/60 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1.5 active:translate-y-0"
+                )}
+              >
+                {/* Background ambient glow on hover */}
+                <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                {/* Badge area */}
+                <div className="mb-3 z-10">
+                  {div.soon ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-700 border border-amber-500/25 dark:text-amber-400 uppercase tracking-wide">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      PRÓXIMAMENTE
+                    </span>
+                  ) : div.status === 'finalizado' ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-extrabold text-blue-700 border border-blue-500/25 dark:text-blue-400 uppercase tracking-wide">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                      FINALIZADO
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-extrabold text-emerald-700 border border-emerald-500/25 dark:text-emerald-400 uppercase tracking-wide shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-soft-pulse" />
+                      EN CURSO
+                    </span>
+                  )}
+                </div>
+
+                {/* Title */}
+                <h3 className="font-extrabold text-base sm:text-lg text-foreground group-hover:text-primary transition-colors duration-300 z-10 tracking-tight">
+                  {div.name}
+                </h3>
+
+                {/* Category year */}
+                {!div.soon && getCategoryYear(div.name, currentYear) !== null && (
+                  <span className="text-xs text-muted-foreground/80 mt-1 font-semibold z-10">
+                    (Categoría {getCategoryYear(div.name, currentYear)})
                   </span>
                 )}
-              </div>
-
-              {/* Title */}
-              <h3 className="font-bold text-base sm:text-lg text-foreground group-hover:text-primary transition-colors duration-300">
-                {div.name}
-              </h3>
-
-              {/* Category year */}
-              {!div.soon && getCategoryYear(div.name, currentYear) !== null && (
-                <span className="text-xs text-muted-foreground mt-1 font-medium">
-                  (Categoría {getCategoryYear(div.name, currentYear)})
-                </span>
-              )}
-            </Link>
+              </Link>
+            </motion.div>
           ))
         )}
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

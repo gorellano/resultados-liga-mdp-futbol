@@ -210,24 +210,27 @@ export function TeamsPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3 }}
-                className="bg-card border border-border/50 rounded-3xl p-6 flex flex-col justify-between hover:shadow-lg hover:border-primary/20 transition-all duration-300 group"
+                className="bg-card/70 backdrop-blur-md border border-border/60 rounded-3xl p-6 flex flex-col justify-between hover:shadow-xl hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative"
               >
+                {/* Subtle top banner accent */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary/30 via-primary to-primary/30 opacity-80 group-hover:opacity-100 transition-opacity" />
+
                 <div>
                   {/* Card Header: logo and name */}
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-background border border-border/50 shadow-inner flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 transition-transform duration-300">
+                  <div className="flex items-center gap-4 mb-4 pt-1">
+                    <div className="w-16 h-16 rounded-2xl bg-background border border-border/60 shadow-xs flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 group-hover:border-primary/40 transition-all duration-300 p-1.5">
                       {team.logo_url ? (
-                        <img src={team.logo_url} alt={team.name} className="w-full h-full object-contain p-2" />
+                        <img src={team.logo_url} alt={team.name} className="w-full h-full object-contain" />
                       ) : (
                         <Shield className="w-8 h-8 text-muted-foreground/50" />
                       )}
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight">
+                      <h3 className="font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight tracking-tight">
                         {team.display_name ?? team.name}
                       </h3>
                       {team.display_name && (
-                        <span className="text-xs text-muted-foreground/80 font-medium">
+                        <span className="text-xs text-muted-foreground/80 font-semibold block mt-0.5">
                           {team.name}
                         </span>
                       )}
@@ -235,38 +238,41 @@ export function TeamsPage() {
                   </div>
 
                   {/* Card Body: Stadium Details */}
-                  <div className="min-h-[50px] border-t border-border/30 pt-3.5 pb-2 text-xs text-muted-foreground space-y-1">
+                  <div className="min-h-[52px] border-t border-border/40 pt-3.5 pb-2 text-xs text-muted-foreground space-y-1">
                     {villa ? (
                       <>
-                        <p className="font-bold text-foreground/80">{villa.stadiumName}</p>
-                        <p className="line-clamp-2 leading-relaxed">{villa.address}</p>
+                        <p className="font-extrabold text-foreground/90 flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                          {villa.stadiumName}
+                        </p>
+                        <p className="line-clamp-2 leading-relaxed text-muted-foreground/80 pl-4">{villa.address}</p>
                       </>
                     ) : (
-                      <p className="italic text-muted-foreground/50">Detalle de villa deportiva no disponible</p>
+                      <p className="italic text-muted-foreground/40 text-center py-1">Detalle de villa deportiva no disponible</p>
                     )}
                   </div>
                 </div>
 
-                {/* Card Footer: Three Action Buttons */}
-                <div className="flex gap-2 pt-4 border-t border-border/30 mt-2">
+                {/* Card Footer: Action Buttons */}
+                <div className="flex gap-2 pt-3.5 border-t border-border/40 mt-3 select-none">
                   {/* Website Button */}
                   {team.website_url ? (
                     <a
                       href={team.website_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-300 flex-1"
+                      className="flex items-center justify-center h-10 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 hover:scale-105 active:scale-95 transition-all duration-200 flex-1 shadow-2xs"
                       title="Sitio Web Oficial"
                     >
-                      <Globe className="w-4 h-4" />
+                      <Globe className="w-4.5 h-4.5" />
                     </a>
                   ) : (
                     <button
                       disabled
-                      className="flex items-center justify-center p-2 rounded-xl bg-muted text-muted-foreground/30 cursor-not-allowed flex-1"
+                      className="flex items-center justify-center h-10 rounded-xl bg-muted/50 text-muted-foreground/30 cursor-not-allowed flex-1"
                       title="Sitio web no disponible"
                     >
-                      <Globe className="w-4 h-4" />
+                      <Globe className="w-4.5 h-4.5" />
                     </button>
                   )}
 
@@ -276,18 +282,18 @@ export function TeamsPage() {
                       href={team.instagram_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition-all duration-300 flex-1"
+                      className="flex items-center justify-center h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 hover:scale-105 active:scale-95 transition-all duration-200 flex-1 shadow-2xs"
                       title="Instagram Oficial"
                     >
-                      <InstagramIcon className="w-4 h-4" />
+                      <InstagramIcon className="w-4.5 h-4.5" />
                     </a>
                   ) : (
                     <button
                       disabled
-                      className="flex items-center justify-center p-2 rounded-xl bg-muted text-muted-foreground/30 cursor-not-allowed flex-1"
+                      className="flex items-center justify-center h-10 rounded-xl bg-muted/50 text-muted-foreground/30 cursor-not-allowed flex-1"
                       title="Instagram no disponible"
                     >
-                      <InstagramIcon className="w-4 h-4" />
+                      <InstagramIcon className="w-4.5 h-4.5" />
                     </button>
                   )}
 
@@ -297,18 +303,18 @@ export function TeamsPage() {
                       href={villa.googleMapsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center justify-center p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all duration-300 flex-1"
-                      title={`Ubicación: ${villa.stadiumName}`}
+                      className="flex items-center justify-center h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:scale-105 active:scale-95 transition-all duration-200 flex-1 shadow-2xs"
+                      title={`Ubicación en Google Maps: ${villa.stadiumName}`}
                     >
-                      <MapPin className="w-4 h-4" />
+                      <MapPin className="w-4.5 h-4.5" />
                     </a>
                   ) : (
                     <button
                       disabled
-                      className="flex items-center justify-center p-2 rounded-xl bg-muted text-muted-foreground/30 cursor-not-allowed flex-1"
+                      className="flex items-center justify-center h-10 rounded-xl bg-muted/50 text-muted-foreground/30 cursor-not-allowed flex-1"
                       title="Ubicación no disponible"
                     >
-                      <MapPin className="w-4 h-4" />
+                      <MapPin className="w-4.5 h-4.5" />
                     </button>
                   )}
 
@@ -316,19 +322,19 @@ export function TeamsPage() {
                   <button
                     onClick={() => handleToggleSubscribe(team)}
                     disabled={isSubscribing}
-                    className={`flex items-center justify-center p-2 rounded-xl transition-all duration-300 flex-1 ${
+                    className={`flex items-center justify-center h-10 rounded-xl transition-all duration-200 flex-1 shadow-2xs ${
                       subscribedTeams.has(team.id)
-                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
-                        : 'bg-muted text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600'
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 hover:scale-105'
+                        : 'bg-muted text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600 hover:scale-105'
                     }`}
                     title={subscribedTeams.has(team.id) ? 'Configurar notificaciones' : 'Recibir notificaciones'}
                   >
                     {isSubscribing ? (
                       <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     ) : subscribedTeams.has(team.id) ? (
-                      <BellRing className="w-4 h-4" />
+                      <BellRing className="w-4.5 h-4.5" />
                     ) : (
-                      <Bell className="w-4 h-4" />
+                      <Bell className="w-4.5 h-4.5" />
                     )}
                   </button>
                 </div>

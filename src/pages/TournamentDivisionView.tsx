@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings, calculatePromedioStandings } from '../lib/standings';
-import { Shield, Share2, Copy, Calendar, MapPin, Clock, Trophy, ChevronRight } from 'lucide-react';
+import { Shield, Share2, Copy, Calendar, MapPin, Clock, Trophy, Award, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import type { Team, Match } from '../lib/types';
@@ -70,104 +70,129 @@ function StandingsTable({
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs text-muted-foreground font-bold uppercase bg-muted/30 border-b border-border/50">
+      <table className="w-full text-sm text-left border-collapse">
+        <thead className="text-xs text-muted-foreground font-bold uppercase bg-muted/40 border-b border-border/50 select-none">
           <tr>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center w-10 sm:w-16">Pos</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6">Equipo</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">Pts</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">PJ</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">G</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">E</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">P</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden md:table-cell">GF</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden md:table-cell">GC</th>
-            <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center">DIF</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center w-10 sm:w-16">Pos</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6">Equipo</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center">Pts</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center">PJ</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell">G</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell">E</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell">P</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell">GF</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell">GC</th>
+            <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center">DIF</th>
             {showPromedio && (
-              <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">PROM</th>
+              <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell">PROM</th>
             )}
             {!showPromedio && (
-              <th className="px-2 py-3 sm:px-4 sm:py-5 md:px-6 text-center hidden sm:table-cell">Forma</th>
+              <th className="px-2 py-3.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell">Forma</th>
             )}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border/50">
-          {standings.map((row, index) => (
-            <tr key={row.team.id} className="hover:bg-muted/40 transition-colors group">
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 font-semibold text-muted-foreground text-center">
-                {index === 0 ? (
-                  <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-yellow-500/20 text-yellow-600 mx-auto">1</span>
-                ) : index === 1 ? (
-                  <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-slate-400/20 text-slate-500 mx-auto">2</span>
-                ) : index === 2 ? (
-                  <span className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 text-xs sm:text-sm rounded-full bg-amber-700/20 text-amber-700 mx-auto">3</span>
-                ) : (
-                  <span className="text-xs sm:text-sm">{index + 1}</span>
+        <tbody className="divide-y divide-border/40">
+          {standings.map((row, index) => {
+            const isTop1 = index === 0;
+            const isTop2 = index === 1;
+            const isTop3 = index === 2;
+
+            return (
+              <tr
+                key={row.team.id}
+                className={cn(
+                  "transition-all duration-200 group tabular-nums",
+                  index % 2 === 0 ? "bg-card/30" : "bg-muted/20",
+                  isTop1 ? "hover:bg-amber-500/10 dark:hover:bg-amber-500/15" :
+                  isTop2 ? "hover:bg-slate-400/10 dark:hover:bg-slate-400/15" :
+                  isTop3 ? "hover:bg-amber-700/10 dark:hover:bg-amber-700/15" :
+                  "hover:bg-primary/5"
                 )}
-              </td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 font-semibold flex items-center gap-1.5 sm:gap-4">
-                <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 transition-transform duration-300">
-                  {row.team.logo_url ? (
-                    <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
+              >
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 font-semibold text-muted-foreground text-center">
+                  {isTop1 ? (
+                    <div className="inline-flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-700 dark:text-amber-300 font-extrabold text-[11px] sm:text-sm shadow-2xs mx-auto" title="1º Puesto - Líder">
+                      <Trophy className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-amber-500/30 text-amber-500 shrink-0" />
+                      <span>1</span>
+                    </div>
+                  ) : isTop2 ? (
+                    <div className="inline-flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl bg-slate-300/30 dark:bg-slate-400/20 border border-slate-400/40 text-slate-700 dark:text-slate-200 font-extrabold text-[11px] sm:text-sm shadow-2xs mx-auto" title="2º Puesto">
+                      <Award className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-500 dark:text-slate-300 shrink-0" />
+                      <span>2</span>
+                    </div>
+                  ) : isTop3 ? (
+                    <div className="inline-flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl bg-amber-700/15 border border-amber-700/40 text-amber-800 dark:text-amber-400 font-extrabold text-[11px] sm:text-sm shadow-2xs mx-auto" title="3º Puesto">
+                      <Award className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 dark:text-amber-500 shrink-0" />
+                      <span>3</span>
+                    </div>
                   ) : (
-                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                    <span className="text-xs sm:text-sm font-extrabold text-muted-foreground/70">{index + 1}</span>
                   )}
-                </div>
-                <span className="truncate max-w-[95px] xs:max-w-[130px] sm:max-w-none text-xs sm:text-base">
-                  {row.team.display_name ?? row.team.name}
-                </span>
-              </td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center">
-                <span className="inline-flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-primary/10 text-primary font-bold text-xs sm:text-base">
-                  {row.points}
-                </span>
-              </td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center text-muted-foreground font-semibold text-xs sm:text-sm">{row.played}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.won}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.drawn}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.lost}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsFor}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsAgainst}</td>
-              <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center font-bold">
-                <span className={cn(
-                  "px-1.5 py-0.5 rounded text-[10px] sm:text-xs",
-                  row.goalDifference > 0 ? "bg-green-500/10 text-green-600" :
-                  row.goalDifference < 0 ? "bg-red-500/10 text-red-600" :
-                  "bg-muted text-muted-foreground"
-                )}>
-                  {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
-                </span>
-              </td>
-              {showPromedio && (
-                <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 text-center hidden sm:table-cell font-bold text-primary text-xs sm:text-sm">
-                  {(row.promedio ?? 0).toFixed(2)}
                 </td>
-              )}
-              {!showPromedio && (
-                <td className="px-2 py-2.5 sm:px-4 sm:py-4 md:px-6 hidden sm:table-cell">
-                  <div className="flex items-center justify-center gap-1.5">
-                    {formByTeam[row.team.id]?.map((outcome, idx) => (
-                      <span
-                        key={idx}
-                        className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm select-none shrink-0 transition-transform hover:scale-110 duration-200",
-                          outcome === 'G' ? "bg-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300" :
-                          outcome === 'E' ? "bg-amber-200 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" :
-                          "bg-rose-200 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
-                        )}
-                        title={outcome === 'G' ? 'Victoria' : outcome === 'E' ? 'Empate' : 'Derrota'}
-                      >
-                        {outcome}
-                      </span>
-                    ))}
-                    {(!formByTeam[row.team.id] || formByTeam[row.team.id].length === 0) && (
-                      <span className="text-muted-foreground text-xs font-semibold">—</span>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 font-bold flex items-center gap-2 sm:gap-4">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border border-border/60 shadow-xs flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 group-hover:border-primary/40 transition-all duration-300">
+                    {row.team.logo_url ? (
+                      <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
+                    ) : (
+                      <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                     )}
                   </div>
+                  <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground")}>
+                    {row.team.display_name ?? row.team.name}
+                  </span>
                 </td>
-              )}
-            </tr>
-          ))}
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center">
+                  <span className="inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-primary/15 text-primary font-extrabold text-xs sm:text-base shadow-2xs">
+                    {row.points}
+                  </span>
+                </td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center text-foreground font-semibold text-xs sm:text-sm">{row.played}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.won}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.drawn}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden sm:table-cell text-muted-foreground font-medium">{row.lost}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsFor}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden md:table-cell text-muted-foreground font-medium">{row.goalsAgainst}</td>
+                <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center font-bold">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-extrabold inline-block min-w-[28px]",
+                    row.goalDifference > 0 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20" :
+                    row.goalDifference < 0 ? "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20" :
+                    "bg-muted text-muted-foreground border border-border/40"
+                  )}>
+                    {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                  </span>
+                </td>
+                {showPromedio && (
+                  <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 text-center hidden sm:table-cell font-extrabold text-primary text-xs sm:text-sm">
+                    {(row.promedio ?? 0).toFixed(2)}
+                  </td>
+                )}
+                {!showPromedio && (
+                  <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 hidden sm:table-cell">
+                    <div className="flex items-center justify-center gap-1.5">
+                      {formByTeam[row.team.id]?.map((outcome, idx) => (
+                        <span
+                          key={idx}
+                          className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-2xs select-none shrink-0 transition-transform hover:scale-125 duration-200 cursor-default",
+                            outcome === 'G' ? "bg-emerald-500 text-white dark:bg-emerald-600 dark:text-emerald-50" :
+                            outcome === 'E' ? "bg-amber-500 text-white dark:bg-amber-600 dark:text-amber-50" :
+                            "bg-rose-500 text-white dark:bg-rose-600 dark:text-rose-50"
+                          )}
+                          title={outcome === 'G' ? 'Ganó' : outcome === 'E' ? 'Empató' : 'Perdió'}
+                        >
+                          {outcome}
+                        </span>
+                      ))}
+                      {(!formByTeam[row.team.id] || formByTeam[row.team.id].length === 0) && (
+                        <span className="text-muted-foreground/60 text-xs font-medium">—</span>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -193,13 +218,34 @@ function MatchCard({
 
   const homeVilla = villasDeportivas[home.name];
   const mapsUrl = homeVilla?.googleMapsUrl;
+  const isFinished = match.status === 'finished';
+  const isLive = match.status === 'live';
+  const homeWon = isFinished && (match.home_goals ?? 0) > (match.away_goals ?? 0);
+  const awayWon = isFinished && (match.away_goals ?? 0) > (match.home_goals ?? 0);
 
   return (
-    <div className="flex flex-col bg-background/50 border border-border/50 rounded-2xl p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-300 relative group/match">
-      <div className="flex justify-between items-center mb-5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+    <div className="flex flex-col bg-card/60 border border-border/60 rounded-2xl p-5 hover:shadow-lg hover:border-primary/40 transition-all duration-300 relative group/match">
+      <div className="flex justify-between items-center mb-5 text-xs text-muted-foreground font-semibold uppercase tracking-wider select-none">
         <div className="flex items-center gap-2">
-          <span className={cn("px-2.5 py-1 rounded-full", match.status === 'finished' ? "bg-muted" : "bg-primary/10 text-primary")}>
-            {match.status === 'finished' ? 'Finalizado' : 'Por jugarse'}
+          <span className={cn(
+            "px-3 py-1 rounded-full text-[10px] font-extrabold flex items-center gap-1.5 border",
+            isFinished ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" :
+            isLive ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/25" :
+            "bg-muted/80 text-muted-foreground border-border/50"
+          )}>
+            {isLive ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-soft-pulse" />
+                EN JUEGO
+              </>
+            ) : isFinished ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                FINALIZADO
+              </>
+            ) : (
+              'POR JUGARSE'
+            )}
           </span>
           <button
             onClick={() => onShare(match)}
@@ -230,32 +276,36 @@ function MatchCard({
           )}
         </div>
         {match.match_date && (
-          <span>{format(new Date(match.match_date), 'HH:mm')} hs</span>
+          <span className="font-bold text-foreground/80">{format(new Date(match.match_date), 'HH:mm')} hs</span>
         )}
       </div>
       <div className="flex justify-between items-center gap-4">
-        <div className="flex flex-col items-center gap-3 flex-1">
-          <div className="w-14 h-14 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center overflow-hidden">
-            {home.logo_url ? <img src={home.logo_url} className="w-full h-full object-contain p-2" /> : <Shield className="w-6 h-6 text-muted-foreground" />}
+        <div className="flex flex-col items-center gap-2.5 flex-1">
+          <div className={cn("w-14 h-14 rounded-full bg-background border shadow-xs flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover/match:scale-105", homeWon ? "border-primary/80 ring-2 ring-primary/20" : "border-border/60")}>
+            {home.logo_url ? <img src={home.logo_url} className="w-full h-full object-contain p-2" alt={home.name} /> : <Shield className="w-6 h-6 text-muted-foreground" />}
           </div>
-          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{home.display_name ?? home.name}</span>
+          <span className={cn("text-sm text-center line-clamp-2 leading-tight transition-colors", homeWon ? "font-extrabold text-primary" : "font-semibold text-foreground/90")}>
+            {home.display_name ?? home.name}
+          </span>
         </div>
-        <div className="flex items-center justify-center gap-3 font-black text-2xl px-5 py-3 bg-muted/30 rounded-xl border border-border/50 min-w-[100px]">
-          {match.status === 'finished' ? (
+        <div className="flex items-center justify-center gap-2.5 font-black text-2xl sm:text-3xl px-4 py-2.5 bg-muted/40 rounded-2xl border border-border/50 min-w-[95px] shadow-inner select-none">
+          {isFinished ? (
             <>
-              <span className={cn(match.home_goals! > match.away_goals! ? "text-primary" : "")}>{match.home_goals}</span>
-              <span className="text-muted-foreground/30">-</span>
-              <span className={cn(match.away_goals! > match.home_goals! ? "text-primary" : "")}>{match.away_goals}</span>
+              <span className={cn(homeWon ? "text-primary font-black" : "text-foreground/70")}>{match.home_goals}</span>
+              <span className="text-muted-foreground/30 text-base">-</span>
+              <span className={cn(awayWon ? "text-primary font-black" : "text-foreground/70")}>{match.away_goals}</span>
             </>
           ) : (
-            <span className="text-muted-foreground/50 text-base font-semibold">VS</span>
+            <span className="text-muted-foreground/40 text-sm font-black tracking-widest">VS</span>
           )}
         </div>
-        <div className="flex flex-col items-center gap-3 flex-1">
-          <div className="w-14 h-14 rounded-full bg-background border border-border/50 shadow-sm flex items-center justify-center overflow-hidden">
-            {away.logo_url ? <img src={away.logo_url} className="w-full h-full object-contain p-2" /> : <Shield className="w-6 h-6 text-muted-foreground" />}
+        <div className="flex flex-col items-center gap-2.5 flex-1">
+          <div className={cn("w-14 h-14 rounded-full bg-background border shadow-xs flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover/match:scale-105", awayWon ? "border-primary/80 ring-2 ring-primary/20" : "border-border/60")}>
+            {away.logo_url ? <img src={away.logo_url} className="w-full h-full object-contain p-2" alt={away.name} /> : <Shield className="w-6 h-6 text-muted-foreground" />}
           </div>
-          <span className="text-sm font-bold text-center line-clamp-2 leading-tight">{away.display_name ?? away.name}</span>
+          <span className={cn("text-sm text-center line-clamp-2 leading-tight transition-colors", awayWon ? "font-extrabold text-primary" : "font-semibold text-foreground/90")}>
+            {away.display_name ?? away.name}
+          </span>
         </div>
       </div>
     </div>

@@ -38,7 +38,7 @@ describe('db.ts - Hibrido de Base de Datos y Mocks', () => {
     const data = await fetchTournaments();
     expect(data).toBeDefined();
     expect(data.length).toBeGreaterThan(0);
-    expect(data[0].name).toBe('Anual');
+    expect(data[0].name).toBe('Clausura Joaquín "Cacho" Méndez');
   });
 
   it('debe obtener divisiones de fallback con sort_order correcto', async () => {
@@ -52,7 +52,7 @@ describe('db.ts - Hibrido de Base de Datos y Mocks', () => {
   it('debe obtener zonas de fallback', async () => {
     const data = await fetchZones();
     expect(data).toBeDefined();
-    expect(data.length).toBe(2);
+    expect(data.length).toBe(11);
     expect(data[0].name).toBe('Campeonato');
     expect(data[1].name).toBe('Promoción');
   });

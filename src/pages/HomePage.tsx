@@ -75,16 +75,30 @@ async function fetchFavoriteStatsForTeam(
       divMatches = matchArrays.flat();
     }
   } else {
-    const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
-    const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
+    // Liga format (7ma to 16ta): fetch matches for all available zones
+    const zones = await fetchZones();
+    const matchArrays = await Promise.all(
+      zones.map(z => fetchMatches(currentDiv.id, z.id, tournamentId))
+    );
 
-    if (msCamp.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
-      divMatches = msCamp;
-    } else if (msProm.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
-      divMatches = msProm;
-    } else {
+    for (const mArray of matchArrays) {
+      if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+        divMatches = mArray;
+        break;
+      }
+    }
+
+    if (divMatches.length === 0) {
+      const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
+      const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
       divMatches = [...msCamp, ...msProm];
     }
+  }
+
+  // Final fallback to ensure divMatches is never empty if tournament matches exist
+  if (divMatches.length === 0) {
+    const allM = await fetchAllTournamentMatches(tournamentId);
+    divMatches = allM.filter(m => m.division_id === currentDiv.id);
   }
 
   const teamMatches = divMatches.filter(m => m.home_team_id === teamId || m.away_team_id === teamId);

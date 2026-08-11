@@ -153,7 +153,7 @@ function StandingsTable({
                       <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                     )}
                   </div>
-                  <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground", isFavorite(row.team.id) && "font-black text-amber-600 dark:text-amber-400")}>
+                  <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground", isFavorite(row.team.id, divisionId) && "font-black text-amber-600 dark:text-amber-400")}>
                     {row.team.display_name ?? row.team.name}
                   </span>
                 </td>

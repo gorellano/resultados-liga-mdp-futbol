@@ -1,23 +1,178 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
 import { Star, Shield, ChevronRight, Trophy, Calendar, RefreshCw, Plus } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
-import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams } from '../lib/db';
+import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import { calculateStandings } from '../lib/standings';
 import type { Division, Match, Team } from '../lib/types';
 import { SponsorBanner } from '../components/SponsorBanner';
 import { createSlug, formatSlugToTitle } from '../lib/slug';
+import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
+
+interface FavoriteStat {
+  team: Team;
+  teamId: string;
+  divisionName: string;
+  divisionSlug: string;
+  currentDivisionId: string;
+  positionRank: number | null;
+  totalPoints: number | null;
+  latestResult: {
+    outcome: 'G' | 'E' | 'P';
+    homeName: string;
+    awayName: string;
+    homeGoals: number;
+    awayGoals: number;
+    rivalName: string;
+    isHome: boolean;
+    round?: number;
+  } | null;
+  nextMatchInfo: {
+    rivalName: string;
+    round?: number;
+    isHome: boolean;
+  } | null;
+}
+
+async function fetchFavoriteStatsForTeam(
+  teamId: string,
+  divisionId: string,
+  tournamentId: string,
+  allTeams: Team[],
+  activeDivs: Division[]
+): Promise<FavoriteStat | null> {
+  const currentDiv = activeDivs.find(d => d.id === divisionId || createSlug(d.name) === divisionId);
+  if (!currentDiv) return null;
+
+  const team = allTeams.find(t => t.id === teamId);
+  if (!team) return null;
+
+  const divSlug = createSlug(currentDiv.name);
+  const isTournament = isTournamentDivision(divSlug);
+
+  let divMatches: Match[] = [];
+
+  if (isTournament) {
+    const zones = await fetchZones();
+    const config = getTournamentConfig(divSlug);
+    const zoneNames = config?.zoneNames ?? ['Zona 1', 'Zona 2', 'Zona 3'];
+    const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
+
+    const matchArrays = await Promise.all(
+      foundZones.map(z => z ? fetchMatches(currentDiv.id, z.id, tournamentId) : Promise.resolve([]))
+    );
+
+    for (const mArray of matchArrays) {
+      if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+        divMatches = mArray;
+        break;
+      }
+    }
+    if (divMatches.length === 0) {
+      divMatches = matchArrays.flat();
+    }
+  } else {
+    const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
+    const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
+
+    if (msCamp.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+      divMatches = msCamp;
+    } else if (msProm.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+      divMatches = msProm;
+    } else {
+      divMatches = [...msCamp, ...msProm];
+    }
+  }
+
+  const teamMatches = divMatches.filter(m => m.home_team_id === teamId || m.away_team_id === teamId);
+  const teamIdsInMatches = new Set(divMatches.flatMap(m => [m.home_team_id, m.away_team_id]));
+  const zoneTeams = allTeams.filter(t => teamIdsInMatches.has(t.id));
+  const standings = calculateStandings(divMatches, zoneTeams);
+  const teamRowIdx = standings.findIndex(row => row.team.id === teamId);
+
+  let positionRank: number | null = null;
+  let totalPoints: number | null = null;
+  if (teamRowIdx >= 0) {
+    positionRank = teamRowIdx + 1;
+    totalPoints = standings[teamRowIdx].points;
+  }
+
+  const finishedMatches = teamMatches
+    .filter(m => m.status === 'finished')
+    .sort((a, b) => (b.round_number ?? 0) - (a.round_number ?? 0));
+
+  const latestMatch = finishedMatches[0] || null;
+
+  let latestResult = null;
+  if (latestMatch) {
+    const isHome = latestMatch.home_team_id === teamId;
+    const rivalId = isHome ? latestMatch.away_team_id : latestMatch.home_team_id;
+    const rival = allTeams.find(t => t.id === rivalId);
+    const rivalName = rival ? (rival.display_name ?? rival.name) : 'Rival';
+    const homeTeam = allTeams.find(t => t.id === latestMatch.home_team_id);
+    const awayTeam = allTeams.find(t => t.id === latestMatch.away_team_id);
+    const homeName = homeTeam ? (homeTeam.display_name ?? homeTeam.name) : 'Local';
+    const awayName = awayTeam ? (awayTeam.display_name ?? awayTeam.name) : 'Visitante';
+    const homeGoals = latestMatch.home_goals ?? 0;
+    const awayGoals = latestMatch.away_goals ?? 0;
+
+    const favGoals = isHome ? homeGoals : awayGoals;
+    const rivalGoals = isHome ? awayGoals : homeGoals;
+    const outcome: 'G' | 'E' | 'P' = favGoals > rivalGoals ? 'G' : favGoals < rivalGoals ? 'P' : 'E';
+
+    latestResult = {
+      outcome,
+      homeName,
+      awayName,
+      homeGoals,
+      awayGoals,
+      rivalName,
+      isHome,
+      round: latestMatch.round_number,
+    };
+  }
+
+  const scheduledMatches = teamMatches
+    .filter(m => m.status === 'scheduled')
+    .sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0));
+
+  let nextMatchInfo = null;
+  if (scheduledMatches.length > 0) {
+    const nextM = scheduledMatches[0];
+    const isHome = nextM.home_team_id === teamId;
+    const rivalId = isHome ? nextM.away_team_id : nextM.home_team_id;
+    const rival = allTeams.find(t => t.id === rivalId);
+    nextMatchInfo = {
+      rivalName: rival ? (rival.display_name ?? rival.name) : 'Rival',
+      round: nextM.round_number,
+      isHome,
+    };
+  }
+
+  return {
+    team,
+    teamId,
+    divisionName: currentDiv.name,
+    divisionSlug: divSlug,
+    currentDivisionId: currentDiv.id,
+    positionRank,
+    totalPoints,
+    latestResult,
+    nextMatchInfo,
+  };
+}
 
 export function HomePage() {
   const { favorites, toggleFavorite, setFavoriteDivisionId } = useFavoriteTeam();
   const currentYear = new Date().getFullYear();
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [allMatches, setAllMatches] = useState<Match[]>([]);
+  const [currentTournamentId, setCurrentTournamentId] = useState<string | null>(null);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
+  const [favoritesStats, setFavoritesStats] = useState<FavoriteStat[]>([]);
 
   useEffect(() => {
     async function loadData() {
@@ -32,8 +187,8 @@ export function HomePage() {
 
         if (tourns.length > 0) {
           const latestTournament = tourns[0];
+          setCurrentTournamentId(latestTournament.id);
           const matches = await fetchAllTournamentMatches(latestTournament.id);
-          setAllMatches(matches);
           
           const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
           divs.forEach(div => {
@@ -61,134 +216,35 @@ export function HomePage() {
     loadData();
   }, []);
 
-  const favoritesStats = useMemo(() => {
-    if (favorites.length === 0 || allMatches.length === 0) return [];
+  useEffect(() => {
+    if (favorites.length === 0 || activeDivs.length === 0 || allTeams.length === 0 || !currentTournamentId) {
+      setFavoritesStats([]);
+      return;
+    }
 
-    return favorites.map(fav => {
-      if (!fav.team) return null;
+    let isMounted = true;
 
-      let teamMatches = allMatches.filter(
-        m => m.home_team_id === fav.teamId || m.away_team_id === fav.teamId
-      );
-
-      if (teamMatches.length === 0) return null;
-
-      let targetDivisionId = fav.divisionId;
-      if (targetDivisionId) {
-        const filtered = teamMatches.filter(m => m.division_id === targetDivisionId);
-        if (filtered.length > 0) {
-          teamMatches = filtered;
+    async function loadFavStats() {
+      const statsPromises = favorites.map(async (fav) => {
+        let targetDivId = fav.divisionId;
+        if (!targetDivId) {
+          const defaultDiv = activeDivs.find(d => createSlug(d.name) === 'decimoquinta-division') || activeDivs[0];
+          targetDivId = defaultDiv?.id;
         }
-      } else {
-        const lastFinished = teamMatches.find(m => m.status === 'finished') || teamMatches[0];
-        targetDivisionId = lastFinished?.division_id;
+        if (!targetDivId) return null;
+        return fetchFavoriteStatsForTeam(fav.teamId, targetDivId, currentTournamentId!, allTeams, activeDivs);
+      });
+
+      const results = await Promise.all(statsPromises);
+      if (isMounted) {
+        setFavoritesStats(results.filter((x): x is FavoriteStat => Boolean(x)));
       }
+    }
 
-      const currentDiv = activeDivs.find(d => d.id === targetDivisionId) || activeDivs.find(d => d.id === teamMatches[0]?.division_id);
-      const divisionName = currentDiv ? currentDiv.name : '';
-      const divisionSlug = currentDiv ? createSlug(currentDiv.name) : '';
+    loadFavStats();
 
-      // Standings position calculation (per zone/division)
-      let positionRank: number | null = null;
-      let totalPoints: number | null = null;
-      if (targetDivisionId) {
-        const divMatches = allMatches.filter(m => m.division_id === targetDivisionId);
-        const userTeamMatches = divMatches.filter(m => m.home_team_id === fav.teamId || m.away_team_id === fav.teamId);
-        const teamZoneId = userTeamMatches[0]?.zone_id;
-
-        let relevantMatches = divMatches;
-        if (teamZoneId) {
-          const zoneMatches = divMatches.filter(m => m.zone_id === teamZoneId);
-          if (zoneMatches.length > 0) {
-            relevantMatches = zoneMatches;
-          }
-        }
-
-        const teamIds = new Set(relevantMatches.flatMap(m => [m.home_team_id, m.away_team_id]));
-        const relevantTeams = allTeams.filter(t => teamIds.has(t.id));
-
-        const standings = calculateStandings(relevantMatches, relevantTeams);
-        const teamRowIdx = standings.findIndex(row => row.team.id === fav.teamId);
-        if (teamRowIdx >= 0) {
-          positionRank = teamRowIdx + 1;
-          totalPoints = standings[teamRowIdx].points;
-        }
-      }
-
-      const finishedMatches = teamMatches
-        .filter(m => m.status === 'finished')
-        .sort((a, b) => (b.round_number ?? 0) - (a.round_number ?? 0));
-
-      const latestMatch = finishedMatches[0] || null;
-
-      let latestResult = null;
-      if (latestMatch) {
-        const isHome = latestMatch.home_team_id === fav.teamId;
-        const rivalId = isHome ? latestMatch.away_team_id : latestMatch.home_team_id;
-        const rival = allTeams.find(t => t.id === rivalId);
-        const rivalName = rival ? (rival.display_name ?? rival.name) : 'Rival';
-        const homeTeam = allTeams.find(t => t.id === latestMatch.home_team_id);
-        const awayTeam = allTeams.find(t => t.id === latestMatch.away_team_id);
-        const homeName = homeTeam ? (homeTeam.display_name ?? homeTeam.name) : 'Local';
-        const awayName = awayTeam ? (awayTeam.display_name ?? awayTeam.name) : 'Visitante';
-        const homeGoals = latestMatch.home_goals ?? 0;
-        const awayGoals = latestMatch.away_goals ?? 0;
-
-        const favGoals = isHome ? homeGoals : awayGoals;
-        const rivalGoals = isHome ? awayGoals : homeGoals;
-
-        const outcome = favGoals > rivalGoals ? 'G' : favGoals < rivalGoals ? 'P' : 'E';
-
-        latestResult = {
-          outcome,
-          homeName,
-          awayName,
-          homeGoals,
-          awayGoals,
-          rivalName,
-          isHome,
-          round: latestMatch.round_number,
-        };
-      }
-
-      const scheduledMatches = teamMatches
-        .filter(m => m.status === 'scheduled')
-        .sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0));
-
-      let nextMatchInfo = null;
-      if (scheduledMatches.length > 0) {
-        const nextM = scheduledMatches[0];
-        const isHome = nextM.home_team_id === fav.teamId;
-        const rivalId = isHome ? nextM.away_team_id : nextM.home_team_id;
-        const rival = allTeams.find(t => t.id === rivalId);
-        nextMatchInfo = {
-          rivalName: rival ? (rival.display_name ?? rival.name) : 'Rival',
-          round: nextM.round_number,
-          isHome,
-        };
-      }
-
-      const teamDivIds = Array.from(new Set(
-        allMatches
-          .filter(m => m.home_team_id === fav.teamId || m.away_team_id === fav.teamId)
-          .map(m => m.division_id)
-      ));
-      const teamDivisions = activeDivs.filter(d => teamDivIds.includes(d.id));
-
-      return {
-        team: fav.team,
-        teamId: fav.teamId,
-        divisionName,
-        divisionSlug,
-        currentDivisionId: targetDivisionId,
-        teamDivisions,
-        positionRank,
-        totalPoints,
-        latestResult,
-        nextMatchInfo,
-      };
-    }).filter((x): x is NonNullable<typeof x> => Boolean(x));
-  }, [favorites, allMatches, allTeams, activeDivs]);
+    return () => { isMounted = false; };
+  }, [favorites, activeDivs, allTeams, currentTournamentId]);
 
   const divisionsList = activeDivs
     .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))

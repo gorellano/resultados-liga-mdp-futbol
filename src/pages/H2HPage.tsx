@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Swords, Shield, Trophy, Calendar, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { fetchDivisions, fetchTeams, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
+import { fetchDivisions, fetchTeams, fetchTournaments, fetchAllTournamentMatches, fetchZones, fetchMatches } from '../lib/db';
 import type { Division, Team, Match } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { calculateStandings } from '../lib/standings';
+import { createSlug } from '../lib/slug';
+import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
 
 export function H2HPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
@@ -50,17 +52,52 @@ export function H2HPage() {
       if (!selectedDivisionId) return;
       try {
         const tourns = await fetchTournaments();
-        if (tourns.length > 0) {
-          const allM = await fetchAllTournamentMatches(tourns[0].id);
-          const divM = allM.filter(m => m.division_id === selectedDivisionId);
-          setMatches(divM);
+        if (tourns.length === 0) return;
+        const tournamentId = tourns[0].id;
+
+        const currentDiv = divisions.find(d => d.id === selectedDivisionId);
+        if (!currentDiv) return;
+
+        const divSlug = createSlug(currentDiv.name);
+        const isTournament = isTournamentDivision(divSlug);
+        const zones = await fetchZones();
+
+        let divMatches: Match[] = [];
+
+        if (isTournament) {
+          const config = getTournamentConfig(divSlug);
+          const zoneNames = config?.zoneNames ?? ['Zona 1', 'Zona 2', 'Zona 3'];
+          const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
+
+          const matchArrays = await Promise.all(
+            foundZones.map(z => z ? fetchMatches(currentDiv.id, z.id, tournamentId) : Promise.resolve([]))
+          );
+          divMatches = matchArrays.flat();
+        } else {
+          const matchArrays = await Promise.all(
+            zones.map(z => fetchMatches(currentDiv.id, z.id, tournamentId))
+          );
+          divMatches = matchArrays.flat();
+
+          if (divMatches.length === 0) {
+            const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
+            const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
+            divMatches = [...msCamp, ...msProm];
+          }
         }
+
+        if (divMatches.length === 0) {
+          const allM = await fetchAllTournamentMatches(tournamentId);
+          divMatches = allM.filter(m => m.division_id === selectedDivisionId);
+        }
+
+        setMatches(divMatches);
       } catch (err) {
-        console.error('Error cargando partidos de división:', err);
+        console.error('Error cargando partidos de división para H2H:', err);
       }
     }
     loadMatches();
-  }, [selectedDivisionId]);
+  }, [selectedDivisionId, divisions]);
 
   const youthDivisions = useMemo(() => {
     return divisions.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));

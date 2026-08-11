@@ -246,24 +246,18 @@ export function HomePage() {
                         <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Favorito {favoritesStats.length > 1 ? `#${index + 1}` : ''}
                       </span>
 
-                      {favStat.teamDivisions.length > 1 ? (
+                      {divisionsList.length > 0 && (
                         <select
                           value={favStat.currentDivisionId || ''}
                           onChange={(e) => setFavoriteDivisionId(favStat.teamId, e.target.value)}
                           className="text-[10px] font-bold text-foreground bg-muted/80 border border-border/60 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                         >
-                          {favStat.teamDivisions.map(d => (
+                          {divisionsList.map(d => (
                             <option key={d.id} value={d.id}>
                               {formatSlugToTitle(createSlug(d.name))}
                             </option>
                           ))}
                         </select>
-                      ) : (
-                        favStat.divisionName && (
-                          <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
-                            {formatSlugToTitle(createSlug(favStat.divisionName))}
-                          </span>
-                        )
                       )}
                     </div>
                     <h3 className="font-black text-base sm:text-lg text-foreground tracking-tight truncate">
@@ -277,7 +271,7 @@ export function HomePage() {
                   {favStat.positionRank && (
                     <div className="bg-amber-500/20 border border-amber-500/40 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-xl flex items-center gap-1 text-xs font-black shadow-2xs">
                       <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                      <span>Pos. #{favStat.positionRank}</span>
+                      <span>P {favStat.positionRank}</span>
                       {favStat.totalPoints !== null && (
                         <span className="text-[10px] opacity-80 font-bold hidden xs:inline">({favStat.totalPoints} pts)</span>
                       )}

@@ -89,11 +89,17 @@ describe('MOCK_MATCHES_CAMPEONATO fixture structure', () => {
     });
   });
 
-  it('all matches start as scheduled with no goals', () => {
+  it('rounds 1..5 have initial finished results and rounds 6+ are scheduled', () => {
     MOCK_MATCHES_CAMPEONATO.forEach(m => {
-      expect(m.status).toBe('scheduled');
-      expect(m.home_goals).toBeNull();
-      expect(m.away_goals).toBeNull();
+      if (m.round_number <= 5) {
+        expect(m.status).toBe('finished');
+        expect(m.home_goals).not.toBeNull();
+        expect(m.away_goals).not.toBeNull();
+      } else {
+        expect(m.status).toBe('scheduled');
+        expect(m.home_goals).toBeNull();
+        expect(m.away_goals).toBeNull();
+      }
     });
   });
 

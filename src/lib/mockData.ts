@@ -283,6 +283,34 @@ export const MOCK_MATCHES_CAMPEONATO: Match[] = [];
 
 MOCK_TOURNAMENTS.forEach(tournament => {
   FIXTURE_CAMPEONATO.forEach(({ round, home, away }) => {
+    let homeGoals: number | null = null;
+    let awayGoals: number | null = null;
+    let status: 'scheduled' | 'finished' = 'scheduled';
+
+    if (round <= 5) {
+      status = 'finished';
+      if (round === 5 && home === "ONCE UNIDOS" && away === "ARG. DEL SUD") {
+        homeGoals = 4;
+        awayGoals = 2;
+      } else if (round === 4 && home === "ARG. DEL SUD" && away === "DVO NORTE") {
+        homeGoals = 0;
+        awayGoals = 2;
+      } else if (round === 3 && home === "KIMBERLEY" && away === "ARG. DEL SUD") {
+        homeGoals = 3;
+        awayGoals = 0;
+      } else if (round === 2 && home === "ARG. DEL SUD" && away === "ALDOSIVI") {
+        homeGoals = 1;
+        awayGoals = 1;
+      } else if (round === 1 && home === "MAR DEL PLATA" && away === "ARG. DEL SUD") {
+        homeGoals = 0;
+        awayGoals = 2;
+      } else {
+        const hash = (round * 7 + home.length * 3 + away.length * 5) % 5;
+        homeGoals = (hash + 1) % 4;
+        awayGoals = hash % 3;
+      }
+    }
+
     MOCK_MATCHES_CAMPEONATO.push({
       id: `match-camp-${matchIdCounter++}`,
       tournament_id: tournament.id,
@@ -291,9 +319,9 @@ MOCK_TOURNAMENTS.forEach(tournament => {
       round_number: round,
       home_team_id: campId(home),
       away_team_id: campId(away),
-      home_goals: null,
-      away_goals: null,
-      status: 'scheduled',
+      home_goals: homeGoals,
+      away_goals: awayGoals,
+      status,
       match_date: null,
     });
   });

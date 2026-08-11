@@ -62,6 +62,10 @@ export function H2HPage() {
     loadMatches();
   }, [selectedDivisionId]);
 
+  const youthDivisions = useMemo(() => {
+    return divisions.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
+  }, [divisions]);
+
   const sortedTeams = useMemo(() => {
     return [...teams].sort((a, b) => {
       const nameA = a.display_name ?? a.name;
@@ -134,7 +138,7 @@ export function H2HPage() {
               onChange={(e) => setSelectedDivisionId(e.target.value)}
               className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
             >
-              {divisions.map(d => (
+              {youthDivisions.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>

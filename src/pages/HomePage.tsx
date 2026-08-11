@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
+import { Star, Shield } from 'lucide-react';
+import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Division } from '../lib/types';
@@ -9,6 +11,7 @@ import { SponsorBanner } from '../components/SponsorBanner';
 import { createSlug } from '../lib/slug';
 
 export function HomePage() {
+  const { favoriteTeam } = useFavoriteTeam();
   const currentYear = new Date().getFullYear();
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
@@ -88,6 +91,35 @@ export function HomePage() {
           </p>
         </div>
       </section>
+
+      {favoriteTeam && (
+        <section className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-card border border-amber-500/30 p-4 sm:p-5 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-md relative overflow-hidden flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-background border border-amber-500/40 flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+              {favoriteTeam.logo_url ? (
+                <img src={favoriteTeam.logo_url} alt={favoriteTeam.name} className="w-full h-full object-contain" />
+              ) : (
+                <Shield className="w-6 h-6 text-amber-500" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Mi Equipo Favorito</span>
+              </div>
+              <h3 className="font-black text-base sm:text-lg text-foreground tracking-tight">
+                {favoriteTeam.display_name ?? favoriteTeam.name}
+              </h3>
+            </div>
+          </div>
+          <Link
+            to="/equipos"
+            className="px-4 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-extrabold text-xs transition-colors shrink-0"
+          >
+            Ver Equipos
+          </Link>
+        </section>
+      )}
 
       <SponsorBanner />
 

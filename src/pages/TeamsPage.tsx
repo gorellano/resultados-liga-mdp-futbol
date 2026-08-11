@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Globe, MapPin, Shield, Bell, BellRing } from 'lucide-react';
+import { cn } from '../App';
+import { Search, Globe, MapPin, Shield, Bell, BellRing, Star } from 'lucide-react';
 import { fetchTeams } from '../lib/db';
 import { villasDeportivas } from '../lib/villasDeportivas';
 import { subscribeToTeamAndDivisions, unsubscribeFromTeam, getSubscribedTeamsAndDivisions } from '../lib/push';
 import type { Team } from '../lib/types';
 import { SubscribeModal } from '../components/SubscribeModal';
+import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -50,6 +52,7 @@ function TeamCardSkeleton() {
 }
 
 export function TeamsPage() {
+  const { toggleFavorite, isFavorite } = useFavoriteTeam();
   const [teams, setTeams] = useState<Team[]>([]);
   const [subscribedTeams, setSubscribedTeams] = useState<Map<string, string[] | null>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -217,24 +220,34 @@ export function TeamsPage() {
 
                 <div>
                   {/* Card Header: logo and name */}
-                  <div className="flex items-center gap-4 mb-4 pt-1">
-                    <div className="w-16 h-16 rounded-2xl bg-background border border-border/60 shadow-xs flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 group-hover:border-primary/40 transition-all duration-300 p-1.5">
-                      {team.logo_url ? (
-                        <img src={team.logo_url} alt={team.name} className="w-full h-full object-contain" />
-                      ) : (
-                        <Shield className="w-8 h-8 text-muted-foreground/50" />
-                      )}
+                  <div className="flex items-center justify-between mb-4 pt-1">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-16 h-16 rounded-2xl bg-background border border-border/60 shadow-xs flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-105 group-hover:border-primary/40 transition-all duration-300 p-1.5">
+                        {team.logo_url ? (
+                          <img src={team.logo_url} alt={team.name} className="w-full h-full object-contain" />
+                        ) : (
+                          <Shield className="w-8 h-8 text-muted-foreground/50" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight tracking-tight truncate" title={team.display_name ?? team.name}>
+                          {team.display_name ?? team.name}
+                        </h3>
+                        {team.display_name && (
+                          <span className="text-xs text-muted-foreground/80 font-semibold block mt-0.5 truncate">
+                            {team.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight tracking-tight">
-                        {team.display_name ?? team.name}
-                      </h3>
-                      {team.display_name && (
-                        <span className="text-xs text-muted-foreground/80 font-semibold block mt-0.5">
-                          {team.name}
-                        </span>
-                      )}
-                    </div>
+
+                    <button
+                      onClick={() => toggleFavorite(team.id)}
+                      className="p-2 rounded-xl bg-muted/40 hover:bg-muted text-amber-500 hover:scale-110 active:scale-95 transition-all shrink-0 ml-2"
+                      title={isFavorite(team.id) ? "Quitar de mi equipo favorito" : "Marcar como mi equipo favorito ⭐️"}
+                    >
+                      <Star className={cn("w-5 h-5", isFavorite(team.id) ? "fill-amber-400 text-amber-500" : "text-muted-foreground/30 hover:text-amber-500/70")} />
+                    </button>
                   </div>
 
                   {/* Card Body: Stadium Details */}

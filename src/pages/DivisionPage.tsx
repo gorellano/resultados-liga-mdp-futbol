@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings } from '../lib/standings';
-import { Shield, Share2, Copy, Calendar, MapPin, Trophy, Award } from 'lucide-react';
+import { Shield, Share2, Copy, Calendar, MapPin, Trophy, Award, Swords, Star } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
@@ -14,6 +14,8 @@ import { createSlug, formatSlugToTitle } from '../lib/slug';
 import { MOCK_TEAMS_CAMPEONATO, MOCK_TEAMS_PROMOCION } from '../lib/mockData';
 import { isTournamentDivision } from '../lib/divisionConfig';
 import { TournamentDivisionView } from './TournamentDivisionView';
+import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
+import { H2HModal } from '../components/H2HModal';
 
 function StandingsSkeleton() {
   return (
@@ -101,6 +103,9 @@ export function DivisionPage() {
   if (name && isTournamentDivision(name)) {
     return <TournamentDivisionView slug={name} />;
   }
+
+  const { toggleFavorite, isFavorite } = useFavoriteTeam();
+  const [h2hModalData, setH2HModalData] = useState<{ teamA: Team; teamB: Team } | null>(null);
 
   const [zone, setZone] = useState<'campeonato' | 'promocion'>('campeonato');
   const [tab, setTab] = useState<'posiciones' | 'fixture'>('posiciones');
@@ -476,6 +481,16 @@ export function DivisionPage() {
                         )}
                       </td>
                       <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 font-bold flex items-center gap-2 sm:gap-4">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(row.team.id);
+                          }}
+                          className="p-1 hover:scale-125 transition-transform shrink-0"
+                          title={isFavorite(row.team.id) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}
+                        >
+                          <Star className={cn("w-4 h-4", isFavorite(row.team.id) ? "fill-amber-400 text-amber-500" : "text-muted-foreground/30 hover:text-amber-500/70")} />
+                        </button>
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border border-border/60 shadow-xs flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 group-hover:border-primary/40 transition-all duration-300">
                           {row.team.logo_url ? (
                             <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
@@ -483,7 +498,7 @@ export function DivisionPage() {
                             <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                           )}
                         </div>
-                        <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground")}>
+                        <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground", isFavorite(row.team.id) && "font-black text-amber-600 dark:text-amber-400")}>
                           {row.team.display_name ?? row.team.name}
                         </span>
                       </td>
@@ -674,6 +689,14 @@ export function DivisionPage() {
                             )}
                           </span>
                           <button
+                            onClick={() => setH2HModalData({ teamA: home, teamB: away })}
+                            className="px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-extrabold text-[11px] flex items-center gap-1 border border-primary/20 transition-all active:scale-95"
+                            title="Ver estadísticas y duelo cara a cara (H2H)"
+                          >
+                            <Swords className="w-3 h-3" />
+                            <span>VS</span>
+                          </button>
+                          <button
                             onClick={() => handleShareMatch(match)}
                             className={cn(
                               "p-1.5 rounded-lg transition-all duration-200 cursor-pointer",
@@ -742,6 +765,16 @@ export function DivisionPage() {
           </div>
         )}
       </div>
+
+      <H2HModal
+        isOpen={!!h2hModalData}
+        onClose={() => setH2HModalData(null)}
+        teamA={h2hModalData?.teamA ?? null}
+        teamB={h2hModalData?.teamB ?? null}
+        divisionName={formattedDivisionTitle}
+        allMatches={matches}
+        standings={standings}
+      />
     </motion.div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings, calculatePromedioStandings } from '../lib/standings';
-import { Shield, Share2, Copy, Calendar, MapPin, Clock, Trophy, Award, ChevronRight } from 'lucide-react';
+import { Shield, Share2, Copy, Calendar, MapPin, Clock, Trophy, Award, ChevronRight, Star, Swords } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import type { Team, Match } from '../lib/types';
@@ -11,6 +11,8 @@ import { SponsorBanner } from '../components/SponsorBanner';
 import { getTournamentConfig, ZONE_LABELS } from '../lib/divisionConfig';
 import type { ZoneIndex } from '../lib/divisionConfig';
 import { createSlug } from '../lib/slug';
+import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
+import { H2HModal } from '../components/H2HModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +62,8 @@ function StandingsTable({
   showPromedio?: boolean;
   formByTeam?: Record<string, ('G' | 'E' | 'P')[]>;
 }) {
+  const { toggleFavorite, isFavorite } = useFavoriteTeam();
+
   if (standings.length === 0) {
     return (
       <div className="py-16 text-center text-muted-foreground">
@@ -130,6 +134,16 @@ function StandingsTable({
                   )}
                 </td>
                 <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 font-bold flex items-center gap-2 sm:gap-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(row.team.id);
+                    }}
+                    className="p-1 hover:scale-125 transition-transform shrink-0"
+                    title={isFavorite(row.team.id) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}
+                  >
+                    <Star className={cn("w-4 h-4", isFavorite(row.team.id) ? "fill-amber-400 text-amber-500" : "text-muted-foreground/30 hover:text-amber-500/70")} />
+                  </button>
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border border-border/60 shadow-xs flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 group-hover:border-primary/40 transition-all duration-300">
                     {row.team.logo_url ? (
                       <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
@@ -137,7 +151,7 @@ function StandingsTable({
                       <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                     )}
                   </div>
-                  <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground")}>
+                  <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground", isFavorite(row.team.id) && "font-black text-amber-600 dark:text-amber-400")}>
                     {row.team.display_name ?? row.team.name}
                   </span>
                 </td>
@@ -206,11 +220,13 @@ function MatchCard({
   teams,
   copiedMatchId,
   onShare,
+  onOpenH2H,
 }: {
   match: Match;
   teams: Team[];
   copiedMatchId: string | null;
   onShare: (match: Match) => void;
+  onOpenH2H?: (teamA: Team, teamB: Team) => void;
 }) {
   const home = teams.find(t => t.id === match.home_team_id);
   const away = teams.find(t => t.id === match.away_team_id);
@@ -247,6 +263,16 @@ function MatchCard({
               'POR JUGARSE'
             )}
           </span>
+          {onOpenH2H && (
+            <button
+              onClick={() => onOpenH2H(home, away)}
+              className="px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary font-extrabold text-[11px] flex items-center gap-1 border border-primary/20 transition-all active:scale-95"
+              title="Ver estadísticas y duelo cara a cara (H2H)"
+            >
+              <Swords className="w-3 h-3" />
+              <span>VS</span>
+            </button>
+          )}
           <button
             onClick={() => onShare(match)}
             className={cn(
@@ -317,9 +343,11 @@ function MatchCard({
 function ZoneFixtureView({
   matches,
   allTeams,
+  onOpenH2H,
 }: {
   matches: Match[];
   allTeams: Team[];
+  onOpenH2H?: (teamA: Team, teamB: Team) => void;
 }) {
   const [selectedRound, setSelectedRound] = useState(1);
   const [copiedMatchId, setCopiedMatchId] = useState<string | null>(null);
@@ -449,6 +477,7 @@ function ZoneFixtureView({
               teams={teams}
               copiedMatchId={copiedMatchId}
               onShare={handleShareMatch}
+              onOpenH2H={onOpenH2H}
             />
           ))}
         </div>
@@ -525,6 +554,7 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
   const config = getTournamentConfig(slug);
 
   // ── State ──────────────────────────────────────────────────────────────────
+  const [h2hModalData, setH2HModalData] = useState<{ teamA: Team; teamB: Team } | null>(null);
   const [phase, setPhase] = useState<Phase>('grupos');
   const [zoneTab, setZoneTab] = useState<ZoneTab>(0);
   const [contentTab, setContentTab] = useState<ContentTab>('posiciones');
@@ -842,6 +872,7 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
                   <ZoneFixtureView
                     matches={activeZoneData.matches}
                     allTeams={allTeams}
+                    onOpenH2H={(teamA, teamB) => setH2HModalData({ teamA, teamB })}
                   />
                 )}
               </>
@@ -849,6 +880,16 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
           </>
         )}
       </div>
+
+      <H2HModal
+        isOpen={!!h2hModalData}
+        onClose={() => setH2HModalData(null)}
+        teamA={h2hModalData?.teamA ?? null}
+        teamB={h2hModalData?.teamB ?? null}
+        divisionName={config?.displayName ?? slug}
+        allMatches={zonesData.flatMap(z => z?.matches ?? [])}
+        standings={zoneTab < 3 ? zoneStandings[zoneTab as ZoneIndex] : promedioStandings}
+      />
     </motion.div>
   );
 }

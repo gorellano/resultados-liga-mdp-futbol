@@ -11,7 +11,7 @@ import { SponsorBanner } from '../components/SponsorBanner';
 import { createSlug, formatSlugToTitle } from '../lib/slug';
 
 export function HomePage() {
-  const { favoriteTeam } = useFavoriteTeam();
+  const { favoriteTeam, favoriteDivisionId, setFavoriteDivisionId } = useFavoriteTeam();
   const currentYear = new Date().getFullYear();
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
@@ -66,11 +66,19 @@ export function HomePage() {
   const favoriteTeamStats = useMemo(() => {
     if (!favoriteTeam || allMatches.length === 0) return null;
 
-    const teamMatches = allMatches.filter(
+    let teamMatches = allMatches.filter(
       m => m.home_team_id === favoriteTeam.id || m.away_team_id === favoriteTeam.id
     );
 
     if (teamMatches.length === 0) return null;
+
+    // Filter by specific division if selected by user
+    if (favoriteDivisionId) {
+      const filtered = teamMatches.filter(m => m.division_id === favoriteDivisionId);
+      if (filtered.length > 0) {
+        teamMatches = filtered;
+      }
+    }
 
     const finishedMatches = teamMatches
       .filter(m => m.status === 'finished')
@@ -95,14 +103,24 @@ export function HomePage() {
       const rivalId = isHome ? latestMatch.away_team_id : latestMatch.home_team_id;
       const rival = allTeams.find(t => t.id === rivalId);
       const rivalName = rival ? (rival.display_name ?? rival.name) : 'Rival';
-      const favGoals = (isHome ? latestMatch.home_goals : latestMatch.away_goals) ?? 0;
-      const rivalGoals = (isHome ? latestMatch.away_goals : latestMatch.home_goals) ?? 0;
+      const homeTeam = allTeams.find(t => t.id === latestMatch.home_team_id);
+      const awayTeam = allTeams.find(t => t.id === latestMatch.away_team_id);
+      const homeName = homeTeam ? (homeTeam.display_name ?? homeTeam.name) : 'Local';
+      const awayName = awayTeam ? (awayTeam.display_name ?? awayTeam.name) : 'Visitante';
+      const homeGoals = latestMatch.home_goals ?? 0;
+      const awayGoals = latestMatch.away_goals ?? 0;
+
+      const favGoals = isHome ? homeGoals : awayGoals;
+      const rivalGoals = isHome ? awayGoals : homeGoals;
 
       const outcome = favGoals > rivalGoals ? 'G' : favGoals < rivalGoals ? 'P' : 'E';
 
       latestResult = {
         outcome,
-        scoreText: isHome ? `${favGoals} - ${rivalGoals}` : `${rivalGoals} - ${favGoals}`,
+        homeName,
+        awayName,
+        homeGoals,
+        awayGoals,
         rivalName,
         isHome,
         round: latestMatch.round_number,
@@ -126,13 +144,23 @@ export function HomePage() {
       };
     }
 
+    // List of divisions where favoriteTeam has matches
+    const teamDivIds = Array.from(new Set(
+      allMatches
+        .filter(m => m.home_team_id === favoriteTeam.id || m.away_team_id === favoriteTeam.id)
+        .map(m => m.division_id)
+    ));
+    const teamDivisions = activeDivs.filter(d => teamDivIds.includes(d.id));
+
     return {
       divisionName,
       divisionSlug,
+      currentDivisionId: matchForDiv?.division_id,
+      teamDivisions,
       latestResult,
       nextMatchInfo,
     };
-  }, [favoriteTeam, allMatches, allTeams, activeDivs]);
+  }, [favoriteTeam, favoriteDivisionId, allMatches, allTeams, activeDivs]);
 
   const divisionsList = activeDivs
     .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
@@ -178,15 +206,29 @@ export function HomePage() {
                   <Shield className="w-7 h-7 text-amber-500" />
                 )}
               </div>
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
                     <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Mi Equipo Favorito
                   </span>
-                  {favoriteTeamStats?.divisionName && (
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
-                      {formatSlugToTitle(createSlug(favoriteTeamStats.divisionName))}
-                    </span>
+                  {favoriteTeamStats?.teamDivisions && favoriteTeamStats.teamDivisions.length > 1 ? (
+                    <select
+                      value={favoriteTeamStats.currentDivisionId || ''}
+                      onChange={(e) => setFavoriteDivisionId(e.target.value)}
+                      className="text-[10px] font-bold text-foreground bg-muted/80 border border-border/60 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                    >
+                      {favoriteTeamStats.teamDivisions.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {formatSlugToTitle(createSlug(d.name))}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    favoriteTeamStats?.divisionName && (
+                      <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
+                        {formatSlugToTitle(createSlug(favoriteTeamStats.divisionName))}
+                      </span>
+                    )
                   )}
                 </div>
                 <h3 className="font-black text-lg sm:text-xl text-foreground tracking-tight">
@@ -241,10 +283,7 @@ export function HomePage() {
                     {favoriteTeamStats.latestResult.outcome === 'G' ? 'Victoria' : favoriteTeamStats.latestResult.outcome === 'E' ? 'Empate' : 'Derrota'}
                   </span>
                   <span>
-                    {favoriteTeamStats.latestResult.isHome
-                      ? `${favoriteTeam.display_name ?? favoriteTeam.name} ${favoriteTeamStats.latestResult.scoreText} ${favoriteTeamStats.latestResult.rivalName}`
-                      : `${favoriteTeamStats.latestResult.rivalName} ${favoriteTeamStats.latestResult.scoreText} ${favoriteTeam.display_name ?? favoriteTeam.name}`
-                    }
+                    {favoriteTeamStats.latestResult.homeName} {favoriteTeamStats.latestResult.homeGoals} - {favoriteTeamStats.latestResult.awayGoals} {favoriteTeamStats.latestResult.awayName}
                   </span>
                   <span className="text-muted-foreground/70 font-semibold text-[11px]">
                     (Fecha {favoriteTeamStats.latestResult.round})

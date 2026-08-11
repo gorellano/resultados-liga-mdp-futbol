@@ -3,11 +3,20 @@ import type { Team } from '../lib/types';
 import { fetchTeams } from '../lib/db';
 
 const FAVORITE_KEY = 'costaygol_favorite_team_id';
+const FAVORITE_DIVISION_KEY = 'costaygol_favorite_division_id';
 
 export function useFavoriteTeam() {
   const [favoriteTeamId, setFavoriteTeamId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(FAVORITE_KEY);
+    } catch {
+      return null;
+    }
+  });
+
+  const [favoriteDivisionId, setFavoriteDivisionIdState] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(FAVORITE_DIVISION_KEY);
     } catch {
       return null;
     }
@@ -35,6 +44,19 @@ export function useFavoriteTeam() {
     };
   }, [favoriteTeamId]);
 
+  const setFavoriteDivisionId = useCallback((divisionId: string | null) => {
+    setFavoriteDivisionIdState(divisionId);
+    try {
+      if (divisionId) {
+        localStorage.setItem(FAVORITE_DIVISION_KEY, divisionId);
+      } else {
+        localStorage.removeItem(FAVORITE_DIVISION_KEY);
+      }
+    } catch (err) {
+      console.error('Error guardando división favorita:', err);
+    }
+  }, []);
+
   const toggleFavorite = useCallback((teamId: string) => {
     setFavoriteTeamId(prev => {
       const next = prev === teamId ? null : teamId;
@@ -43,6 +65,7 @@ export function useFavoriteTeam() {
           localStorage.setItem(FAVORITE_KEY, next);
         } else {
           localStorage.removeItem(FAVORITE_KEY);
+          localStorage.removeItem(FAVORITE_DIVISION_KEY);
         }
       } catch (err) {
         console.error('Error guardando favorito:', err);
@@ -58,6 +81,8 @@ export function useFavoriteTeam() {
   return {
     favoriteTeamId,
     favoriteTeam,
+    favoriteDivisionId,
+    setFavoriteDivisionId,
     toggleFavorite,
     isFavorite
   };

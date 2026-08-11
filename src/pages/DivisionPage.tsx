@@ -523,13 +523,13 @@ export function DivisionPage() {
                           {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                         </span>
                       </td>
-                      <td className="px-2 py-3 sm:px-4 sm:py-3.5 md:px-6 hidden sm:table-cell">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="px-1.5 py-3 sm:px-3 sm:py-3.5 hidden sm:table-cell">
+                        <div className="flex items-center justify-center gap-1">
                           {formByTeam[row.team.id]?.map((outcome, idx) => (
                             <span
                               key={idx}
                               className={cn(
-                                "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-2xs select-none shrink-0 transition-transform hover:scale-125 duration-200 cursor-default",
+                                "w-4.5 h-4.5 sm:w-5 sm:h-5 rounded-full flex items-center justify-center text-[9px] sm:text-[10px] font-black shadow-2xs select-none shrink-0 transition-transform hover:scale-125 duration-200 cursor-default",
                                 outcome === 'G' ? "bg-emerald-500 text-white dark:bg-emerald-600 dark:text-emerald-50" :
                                 outcome === 'E' ? "bg-amber-500 text-white dark:bg-amber-600 dark:text-amber-50" :
                                 "bg-rose-500 text-white dark:bg-rose-600 dark:text-rose-50"

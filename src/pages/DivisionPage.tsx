@@ -173,6 +173,7 @@ export function DivisionPage() {
   
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
+  const [currentDivId, setCurrentDivId] = useState<string | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -220,6 +221,7 @@ export function DivisionPage() {
       try {
         // Encontrar UUID de división correspondiente al nombre o slug de la URL
         const currentDiv = divisions.find(d => d.name === name || createSlug(d.name) === name) || divisions[0];
+        if (currentDiv) setCurrentDivId(currentDiv.id);
         const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         const currentZone = zones.find(z => normalize(z.name) === normalize(zone)) || zones[0];
 
@@ -484,7 +486,7 @@ export function DivisionPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleFavorite(row.team.id);
+                            toggleFavorite(row.team.id, currentDivId || undefined);
                           }}
                           className="p-1.5 -ml-1 sm:ml-0 hover:scale-125 transition-transform shrink-0 touch-manipulation"
                           title={isFavorite(row.team.id) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}

@@ -57,10 +57,12 @@ function StandingsTable({
   standings,
   showPromedio = false,
   formByTeam = {},
+  divisionId,
 }: {
   standings: StandingRow[];
   showPromedio?: boolean;
   formByTeam?: Record<string, ('G' | 'E' | 'P')[]>;
+  divisionId?: string;
 }) {
   const { toggleFavorite, isFavorite } = useFavoriteTeam();
 
@@ -137,7 +139,7 @@ function StandingsTable({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleFavorite(row.team.id);
+                      toggleFavorite(row.team.id, divisionId);
                     }}
                     className="p-1.5 -ml-1 sm:ml-0 hover:scale-125 transition-transform shrink-0 touch-manipulation"
                     title={isFavorite(row.team.id) ? "Quitar de favoritos" : "Marcar como mi equipo favorito ⭐️"}
@@ -559,6 +561,7 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
   const [zoneTab, setZoneTab] = useState<ZoneTab>(0);
   const [contentTab, setContentTab] = useState<ContentTab>('posiciones');
 
+  const [currentDivId, setCurrentDivId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [zonesData, setZonesData] = useState<(ZoneData | null)[]>([null, null, null]);
@@ -601,10 +604,10 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
     async function loadMatches() {
       setLoading(true);
       try {
-        // Get division id
         const divs = await fetchDivisions();
         const div = divs.find(d => createSlug(d.name) === slug);
         if (!div) return;
+        setCurrentDivId(div.id);
 
         const results = await Promise.all(
           zonesData.map(z =>
@@ -847,6 +850,7 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
                     <StandingsTable
                       standings={promedioStandings}
                       showPromedio
+                      divisionId={currentDivId || undefined}
                     />
                     <div className="mt-6 mb-4">
                       <SponsorBanner />
@@ -860,6 +864,7 @@ export function TournamentDivisionView({ slug }: { slug: string }) {
                     <StandingsTable
                       standings={zoneStandings[zoneTab as ZoneIndex]}
                       formByTeam={formByTeamPerZone[zoneTab as ZoneIndex]}
+                      divisionId={currentDivId || undefined}
                     />
                     <div className="mt-6 mb-4">
                       <SponsorBanner />

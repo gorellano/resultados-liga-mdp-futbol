@@ -243,10 +243,15 @@ export function TeamsPage() {
 
                     <button
                       onClick={() => toggleFavorite(team.id)}
-                      className="p-2 rounded-xl bg-muted/40 hover:bg-muted text-amber-500 hover:scale-110 active:scale-95 transition-all shrink-0 ml-2"
+                      className={cn(
+                        "p-2.5 rounded-2xl transition-all shrink-0 ml-2 touch-manipulation border",
+                        isFavorite(team.id)
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-xs"
+                          : "bg-muted/40 hover:bg-muted border-border/40 text-amber-500/50 hover:text-amber-500"
+                      )}
                       title={isFavorite(team.id) ? "Quitar de mi equipo favorito" : "Marcar como mi equipo favorito ⭐️"}
                     >
-                      <Star className={cn("w-5 h-5", isFavorite(team.id) ? "fill-amber-400 text-amber-500" : "text-muted-foreground/30 hover:text-amber-500/70")} />
+                      <Star className={cn("w-5 h-5", isFavorite(team.id) ? "fill-amber-400 text-amber-500" : "text-amber-500/50")} />
                     </button>
                   </div>
 

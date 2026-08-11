@@ -263,6 +263,26 @@ export function HomePage() {
         </section>
       )}
 
+      {!favoriteTeam && (
+        <section className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-card border border-amber-500/25 p-4 sm:p-5 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+              <Star className="w-5 h-5 fill-amber-400 text-amber-500" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-foreground">¿Seguís a algún equipo de la LMF?</h4>
+              <p className="text-xs text-muted-foreground">Elegí tu equipo favorito para ver sus resultados y fixture directamente en el inicio.</p>
+            </div>
+          </div>
+          <Link
+            to="/equipos"
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs transition-colors shrink-0 shadow-xs"
+          >
+            ⭐️ Elegir mi equipo
+          </Link>
+        </section>
+      )}
+
       <SponsorBanner />
 
       <motion.div

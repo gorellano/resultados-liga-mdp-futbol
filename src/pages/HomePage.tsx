@@ -1,34 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { Star, Shield } from 'lucide-react';
+import { Star, Shield, ChevronRight, Trophy, Calendar, RefreshCw } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
-import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches } from '../lib/db';
+import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
-import type { Division } from '../lib/types';
+import type { Division, Match, Team } from '../lib/types';
 import { SponsorBanner } from '../components/SponsorBanner';
-import { createSlug } from '../lib/slug';
+import { createSlug, formatSlugToTitle } from '../lib/slug';
 
 export function HomePage() {
   const { favoriteTeam } = useFavoriteTeam();
   const currentYear = new Date().getFullYear();
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [allMatches, setAllMatches] = useState<Match[]>([]);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [tourns, divs] = await Promise.all([
+        const [tourns, divs, tms] = await Promise.all([
           fetchTournaments(),
-          fetchDivisions()
+          fetchDivisions(),
+          fetchTeams()
         ]);
         setActiveDivs(divs);
+        setAllTeams(tms);
 
         if (tourns.length > 0) {
           const latestTournament = tourns[0];
           const matches = await fetchAllTournamentMatches(latestTournament.id);
+          setAllMatches(matches);
           
           const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
           divs.forEach(div => {
@@ -36,7 +41,6 @@ export function HomePage() {
             if (divMatches.length === 0) {
               statuses[div.id] = 'en_curso';
             } else {
-              // Validar si están el 90% de los partidos de la fecha 13 cargados
               const round13Matches = divMatches.filter(m => m.round_number === 13);
               const round13Finished = round13Matches.filter(m => m.status === 'finished').length;
               const round13Total = round13Matches.length;
@@ -59,10 +63,80 @@ export function HomePage() {
     loadData();
   }, []);
 
+  const favoriteTeamStats = useMemo(() => {
+    if (!favoriteTeam || allMatches.length === 0) return null;
+
+    const teamMatches = allMatches.filter(
+      m => m.home_team_id === favoriteTeam.id || m.away_team_id === favoriteTeam.id
+    );
+
+    if (teamMatches.length === 0) return null;
+
+    const finishedMatches = teamMatches
+      .filter(m => m.status === 'finished')
+      .sort((a, b) => (b.round_number ?? 0) - (a.round_number ?? 0));
+
+    const latestMatch = finishedMatches[0] || null;
+
+    let divisionName = '';
+    let divisionSlug = '';
+    const matchForDiv = latestMatch || teamMatches[0];
+    if (matchForDiv) {
+      const div = activeDivs.find(d => d.id === matchForDiv.division_id);
+      if (div) {
+        divisionName = div.name;
+        divisionSlug = createSlug(div.name);
+      }
+    }
+
+    let latestResult = null;
+    if (latestMatch) {
+      const isHome = latestMatch.home_team_id === favoriteTeam.id;
+      const rivalId = isHome ? latestMatch.away_team_id : latestMatch.home_team_id;
+      const rival = allTeams.find(t => t.id === rivalId);
+      const rivalName = rival ? (rival.display_name ?? rival.name) : 'Rival';
+      const favGoals = (isHome ? latestMatch.home_goals : latestMatch.away_goals) ?? 0;
+      const rivalGoals = (isHome ? latestMatch.away_goals : latestMatch.home_goals) ?? 0;
+
+      const outcome = favGoals > rivalGoals ? 'G' : favGoals < rivalGoals ? 'P' : 'E';
+
+      latestResult = {
+        outcome,
+        scoreText: isHome ? `${favGoals} - ${rivalGoals}` : `${rivalGoals} - ${favGoals}`,
+        rivalName,
+        isHome,
+        round: latestMatch.round_number,
+      };
+    }
+
+    const scheduledMatches = teamMatches
+      .filter(m => m.status === 'scheduled')
+      .sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0));
+
+    let nextMatchInfo = null;
+    if (scheduledMatches.length > 0) {
+      const nextM = scheduledMatches[0];
+      const isHome = nextM.home_team_id === favoriteTeam.id;
+      const rivalId = isHome ? nextM.away_team_id : nextM.home_team_id;
+      const rival = allTeams.find(t => t.id === rivalId);
+      nextMatchInfo = {
+        rivalName: rival ? (rival.display_name ?? rival.name) : 'Rival',
+        round: nextM.round_number,
+        isHome,
+      };
+    }
+
+    return {
+      divisionName,
+      divisionSlug,
+      latestResult,
+      nextMatchInfo,
+    };
+  }, [favoriteTeam, allMatches, allTeams, activeDivs]);
+
   const divisionsList = activeDivs
     .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
     .map(d => {
-      // Las divisiones juveniles de 7ma a 16ta tienen su propia página completa
       return {
         id: d.id,
         name: d.name,
@@ -93,31 +167,99 @@ export function HomePage() {
       </section>
 
       {favoriteTeam && (
-        <section className="bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-card border border-amber-500/30 p-4 sm:p-5 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-md relative overflow-hidden flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-background border border-amber-500/40 flex items-center justify-center p-1.5 shrink-0 shadow-xs">
-              {favoriteTeam.logo_url ? (
-                <img src={favoriteTeam.logo_url} alt={favoriteTeam.name} className="w-full h-full object-contain" />
-              ) : (
-                <Shield className="w-6 h-6 text-amber-500" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
-                <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Mi Equipo Favorito</span>
+        <section className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-card border border-amber-500/35 p-5 sm:p-6 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-lg relative overflow-hidden space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Team Info */}
+            <div className="flex items-center gap-3.5 sm:gap-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-background border border-amber-500/40 flex items-center justify-center p-2 shrink-0 shadow-md">
+                {favoriteTeam.logo_url ? (
+                  <img src={favoriteTeam.logo_url} alt={favoriteTeam.name} className="w-full h-full object-contain" />
+                ) : (
+                  <Shield className="w-7 h-7 text-amber-500" />
+                )}
               </div>
-              <h3 className="font-black text-base sm:text-lg text-foreground tracking-tight">
-                {favoriteTeam.display_name ?? favoriteTeam.name}
-              </h3>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Mi Equipo Favorito
+                  </span>
+                  {favoriteTeamStats?.divisionName && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-md">
+                      {formatSlugToTitle(createSlug(favoriteTeamStats.divisionName))}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-black text-lg sm:text-xl text-foreground tracking-tight">
+                  {favoriteTeam.display_name ?? favoriteTeam.name}
+                </h3>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2 select-none self-end sm:self-center">
+              {favoriteTeamStats?.divisionSlug ? (
+                <Link
+                  to={`/division/${favoriteTeamStats.divisionSlug}`}
+                  className="px-4 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Ver en Tabla de Posiciones</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link
+                  to="/equipos"
+                  className="px-4 py-2.5 rounded-2xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 font-extrabold text-xs flex items-center gap-1.5 transition-all"
+                >
+                  <Trophy className="w-4 h-4" />
+                  <span>Ver Equipos</span>
+                </Link>
+              )}
+
+              <Link
+                to="/equipos"
+                className="p-2.5 rounded-2xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
+                title="Cambiar mi equipo favorito"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </Link>
             </div>
           </div>
-          <Link
-            to="/equipos"
-            className="px-4 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 font-extrabold text-xs transition-colors shrink-0"
-          >
-            Ver Equipos
-          </Link>
+
+          {/* Quick Stats bar / Latest Result */}
+          {favoriteTeamStats?.latestResult && (
+            <div className="pt-3 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-muted-foreground uppercase text-[10px] tracking-wider">Último Resultado:</span>
+                <span className="font-extrabold text-foreground flex items-center gap-1.5">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-md text-[11px] font-black border",
+                    favoriteTeamStats.latestResult.outcome === 'G' ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30" :
+                    favoriteTeamStats.latestResult.outcome === 'E' ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30" :
+                    "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                  )}>
+                    {favoriteTeamStats.latestResult.outcome === 'G' ? 'Victoria' : favoriteTeamStats.latestResult.outcome === 'E' ? 'Empate' : 'Derrota'}
+                  </span>
+                  <span>
+                    {favoriteTeamStats.latestResult.isHome
+                      ? `${favoriteTeam.display_name ?? favoriteTeam.name} ${favoriteTeamStats.latestResult.scoreText} ${favoriteTeamStats.latestResult.rivalName}`
+                      : `${favoriteTeamStats.latestResult.rivalName} ${favoriteTeamStats.latestResult.scoreText} ${favoriteTeam.display_name ?? favoriteTeam.name}`
+                    }
+                  </span>
+                  <span className="text-muted-foreground/70 font-semibold text-[11px]">
+                    (Fecha {favoriteTeamStats.latestResult.round})
+                  </span>
+                </span>
+              </div>
+
+              {favoriteTeamStats.nextMatchInfo && (
+                <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  <span>Próximo: vs <strong>{favoriteTeamStats.nextMatchInfo.rivalName}</strong> (Fecha {favoriteTeamStats.nextMatchInfo.round})</span>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 

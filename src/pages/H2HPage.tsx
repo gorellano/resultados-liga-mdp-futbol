@@ -156,7 +156,7 @@ export function H2HPage() {
           </Link>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-2.5">
             <Swords className="w-7 h-7 text-primary shrink-0" />
-            Comparador Head-to-Head (H2H)
+            Modo versus
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Analizá el historial de duelos directos, victorias y estadísticas entre dos equipos.

@@ -66,8 +66,8 @@ function Layout({ children }: { children: React.ReactNode }) {
             <Link
               to="/h2h"
               className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
-              aria-label="Comparador Cara a Cara"
-              title="Comparador H2H (VS)"
+              aria-label="Modo Versus"
+              title="Modo Versus"
             >
               <Swords className="w-5 h-5" />
             </Link>

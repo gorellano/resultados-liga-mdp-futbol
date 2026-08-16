@@ -53,3 +53,11 @@ supabase_seed.sql
 # Unlighthouse reports
 .unlighthouse/
 .vercel
+
+# Capacitor / Native build artifacts
+android/app/build/
+android/.gradle/
+android/captures/
+android/local.properties
+android/.idea
+

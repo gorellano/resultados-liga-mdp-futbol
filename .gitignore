@@ -61,3 +61,8 @@ android/captures/
 android/local.properties
 android/.idea
 
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/build/
+
+

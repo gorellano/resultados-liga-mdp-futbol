@@ -98,3 +98,9 @@ BEGIN
     RETURN current_val;
 END;
 $$;
+
+-- 5. Otorgar permisos de ejecución a los usuarios anónimos (públicos)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON TABLE public.poll_votes TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.app_settings TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.vote_in_poll(text) TO anon, authenticated, service_role, public;

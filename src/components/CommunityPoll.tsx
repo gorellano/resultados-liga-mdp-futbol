@@ -5,6 +5,7 @@ import {
   CheckCircle2, 
   Clock, 
   HelpCircle, 
+  RotateCcw,
   Sparkles, 
   ThumbsUp, 
   ThumbsDown,
@@ -15,6 +16,7 @@ import {
   fetchActivePoll, 
   submitPollVote, 
   getUserVote, 
+  clearUserVote,
   calculatePollPercentages, 
   isPollExpired,
   subscribeToPollChanges
@@ -77,7 +79,7 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
   );
 
   const handleVote = async (choice: PollVoteOption) => {
-    if (voting || showResults) return;
+    if (voting || (hasVoted && !justVoted) || expired) return;
     setVoting(true);
     try {
       const updated = await submitPollVote(poll.id, choice);
@@ -88,6 +90,14 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
       console.error('Error al registrar el voto:', err);
     } finally {
       setVoting(false);
+    }
+  };
+
+  const handleResetUserVote = () => {
+    if (poll) {
+      clearUserVote(poll.id);
+      setUserVote(null);
+      setJustVoted(false);
     }
   };
 
@@ -293,6 +303,23 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
                 </div>
               </div>
 
+              {/* Botón interactivo para cambiar o volver a votar */}
+              {!expired && (
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2.5 p-3 rounded-2xl bg-muted/30 border border-border/50 text-xs">
+                  <span className="text-muted-foreground font-medium text-center sm:text-left">
+                    ¿Deseás modificar o cambiar tu voto?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleResetUserVote}
+                    className="px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Cambiar mi voto</span>
+                  </button>
+                </div>
+              )}
+
               {/* Footer Stats & Meta */}
               <div className="pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2 font-bold text-foreground">
@@ -308,6 +335,16 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
                       : 'Resultados actualizados en vivo'}
                   </span>
                 </div>
+              </div>
+
+              {/* Guía informativa para Mobile y Computadora */}
+              <div className="p-3 rounded-2xl bg-primary/5 border border-primary/15 text-[11px] text-muted-foreground space-y-1 text-left">
+                <p className="font-bold text-foreground flex items-center gap-1.5">
+                  <span>💡 ¿Cómo votar o volver a votar?</span>
+                </p>
+                <p>
+                  • <strong>En Celular y PC</strong>: Podés tocar en <em>"Cambiar mi voto"</em> en cualquier momento o abrir una pestaña de <strong>Incógnito / Privada</strong> para emitir un nuevo voto.
+                </p>
               </div>
             </motion.div>
           )}

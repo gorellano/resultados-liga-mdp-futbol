@@ -91,22 +91,39 @@ export function isPollExpired(poll: Poll, referenceDate: Date = new Date()): boo
  * Obtiene la configuración y estado actual de la encuesta
  */
 export async function fetchActivePoll(): Promise<Poll> {
+  let basePoll = { ...DEFAULT_POLL };
+
   if (isSupabaseActive()) {
     try {
-      const { data, error } = await supabase
+      // 1. Obtener la configuración de app_settings
+      const { data } = await supabase
         .from('app_settings')
         .select('value')
         .eq('key', 'active_poll')
         .maybeSingle();
 
-      if (!error && data?.value) {
+      if (data?.value) {
         const raw = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-        const merged: Poll = { ...DEFAULT_POLL, ...raw };
-        try {
-          localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(merged));
-        } catch {}
-        return merged;
+        basePoll = { ...DEFAULT_POLL, ...raw };
       }
+
+      // 2. Contar votos reales directamente de la tabla poll_votes
+      const [yesRes, noRes] = await Promise.all([
+        supabase.from('poll_votes').select('*', { count: 'exact', head: true }).eq('poll_id', basePoll.id).eq('choice', 'yes'),
+        supabase.from('poll_votes').select('*', { count: 'exact', head: true }).eq('poll_id', basePoll.id).eq('choice', 'no')
+      ]);
+
+      const dbYes = typeof yesRes.count === 'number' ? yesRes.count : (basePoll.yes_votes || 0);
+      const dbNo = typeof noRes.count === 'number' ? noRes.count : (basePoll.no_votes || 0);
+
+      // Usar el mayor entre app_settings y poll_votes para asegurar que nunca baje
+      basePoll.yes_votes = Math.max(dbYes, basePoll.yes_votes || 0);
+      basePoll.no_votes = Math.max(dbNo, basePoll.no_votes || 0);
+
+      try {
+        localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(basePoll));
+      } catch {}
+      return basePoll;
     } catch (err) {
       console.warn('Supabase fetchActivePoll failed, falling back to local:', err);
     }
@@ -120,7 +137,7 @@ export async function fetchActivePoll(): Promise<Poll> {
     }
   } catch {}
 
-  return { ...DEFAULT_POLL };
+  return basePoll;
 }
 
 /**
@@ -130,61 +147,25 @@ export async function submitPollVote(pollId: string, choice: PollVoteOption): Pr
   // Guardar localmente para evitar votos dobles en este navegador
   recordUserVote(pollId, choice);
 
-  let updatedPoll: Poll | null = null;
-
   if (isSupabaseActive()) {
     try {
-      // 1. Intentar registrar vía función RPC atómica
-      const { data, error } = await supabase.rpc('vote_in_poll', { poll_choice: choice });
-      if (!error && data) {
-        const raw = typeof data === 'string' ? JSON.parse(data) : data;
-        updatedPoll = { ...DEFAULT_POLL, ...raw };
-      }
-    } catch (rpcErr) {
-      console.warn('RPC vote_in_poll falló, intentando actualización directa:', rpcErr);
+      // 1. Insert directo en la tabla poll_votes (con RLS pública)
+      await supabase.from('poll_votes').insert({
+        poll_id: pollId,
+        choice: choice
+      });
+    } catch (insertErr) {
+      console.warn('Error insertando en poll_votes:', insertErr);
     }
 
-    // 2. Si RPC no está disponible, intentar actualización directa en app_settings
-    if (!updatedPoll) {
-      try {
-        const currentPoll = await fetchActivePoll();
-        const fallbackPoll: Poll = {
-          ...currentPoll,
-          yes_votes: choice === 'yes' ? (currentPoll.yes_votes || 0) + 1 : (currentPoll.yes_votes || 0),
-          no_votes: choice === 'no' ? (currentPoll.no_votes || 0) + 1 : (currentPoll.no_votes || 0),
-          updated_at: new Date().toISOString(),
-        };
-
-        await supabase
-          .from('app_settings')
-          .upsert({
-            key: 'active_poll',
-            value: fallbackPoll,
-          });
-
-        updatedPoll = fallbackPoll;
-      } catch (err) {
-        console.error('Error guardando voto en Supabase:', err);
-      }
-    }
+    try {
+      // 2. Intentar llamar a función RPC si existe
+      await supabase.rpc('vote_in_poll', { poll_choice: choice });
+    } catch {}
   }
 
-  // 3. Fallback a estado local
-  if (!updatedPoll) {
-    const currentPoll = await fetchActivePoll();
-    updatedPoll = {
-      ...currentPoll,
-      yes_votes: choice === 'yes' ? (currentPoll.yes_votes || 0) + 1 : (currentPoll.yes_votes || 0),
-      no_votes: choice === 'no' ? (currentPoll.no_votes || 0) + 1 : (currentPoll.no_votes || 0),
-      updated_at: new Date().toISOString(),
-    };
-  }
-
-  try {
-    localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(updatedPoll));
-  } catch {}
-
-  return updatedPoll;
+  // 3. Obtener el estado actualizado con los conteos reales de la BD
+  return await fetchActivePoll();
 }
 
 /**

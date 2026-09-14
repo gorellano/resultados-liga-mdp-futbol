@@ -16,7 +16,8 @@ import {
   submitPollVote, 
   getUserVote, 
   calculatePollPercentages, 
-  isPollExpired 
+  isPollExpired,
+  subscribeToPollChanges
 } from '../lib/poll';
 
 interface CommunityPollProps {
@@ -48,7 +49,18 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
       }
     }
     load();
-    return () => { isMounted = false; };
+
+    // Suscripción a cambios en tiempo real
+    const unsubscribe = subscribeToPollChanges((updated) => {
+      if (isMounted) {
+        setPoll(updated);
+      }
+    });
+
+    return () => { 
+      isMounted = false; 
+      unsubscribe();
+    };
   }, []);
 
   if (loading || !poll || !poll.is_active) {

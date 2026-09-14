@@ -1,4 +1,4 @@
--- Schema, tabla y funciones para la Encuesta Comunitaria en Supabase
+-- Schema, tabla y funciones para la Encuesta Comunitaria en Supabase (Idempotente)
 
 -- 1. Registro inicial en la tabla app_settings
 INSERT INTO public.app_settings (key, value)
@@ -29,13 +29,26 @@ CREATE TABLE IF NOT EXISTS public.poll_votes (
 -- Habilitar RLS en poll_votes
 ALTER TABLE public.poll_votes ENABLE ROW LEVEL SECURITY;
 
+-- Limpiar políticas previas para evitar error 42710 si ya existen
+DROP POLICY IF EXISTS "Public can insert poll_votes" ON public.poll_votes;
+DROP POLICY IF EXISTS "Public can read poll_votes" ON public.poll_votes;
+
 CREATE POLICY "Public can insert poll_votes" ON public.poll_votes
     FOR INSERT TO public WITH CHECK (true);
 
 CREATE POLICY "Public can read poll_votes" ON public.poll_votes
     FOR SELECT TO public USING (true);
 
--- 3. Función RPC para votar de forma atómica y segura desde el frontend
+-- 3. Habilitar publicación Realtime en Supabase
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.app_settings;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN others THEN NULL;
+END $$;
+
+-- 4. Función atómica para registrar votos de forma segura y en tiempo real
 CREATE OR REPLACE FUNCTION public.vote_in_poll(poll_choice text)
 RETURNS jsonb
 LANGUAGE plpgsql

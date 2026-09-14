@@ -15,7 +15,8 @@ import {
   savePollConfig, 
   resetPollVotes, 
   calculatePollPercentages, 
-  isPollExpired 
+  isPollExpired,
+  subscribeToPollChanges
 } from '../lib/poll';
 
 export function AdminPollSettings() {
@@ -63,6 +64,15 @@ export function AdminPollSettings() {
 
   useEffect(() => {
     loadPollData();
+
+    // Actualización en tiempo real de los votos en el panel admin
+    const unsubscribe = subscribeToPollChanges((updated) => {
+      setPoll(updated);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const handleSave = async (e?: React.FormEvent) => {

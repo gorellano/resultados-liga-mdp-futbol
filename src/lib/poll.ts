@@ -232,3 +232,47 @@ export async function resetPollVotes(poll: Poll): Promise<Poll> {
   await savePollConfig(resetPoll);
   return resetPoll;
 }
+
+/**
+ * Se suscribe a cambios en tiempo real en la encuesta vía Supabase Realtime
+ */
+export function subscribeToPollChanges(callback: (poll: Poll) => void): () => void {
+  if (!isSupabaseActive()) {
+    return () => {};
+  }
+
+  try {
+    const channel = supabase
+      .channel('realtime_active_poll_channel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'app_settings',
+          filter: 'key=eq.active_poll',
+        },
+        (payload) => {
+          if (payload.new && (payload.new as any).value) {
+            const raw = typeof (payload.new as any).value === 'string'
+              ? JSON.parse((payload.new as any).value)
+              : (payload.new as any).value;
+            const merged: Poll = { ...DEFAULT_POLL, ...raw };
+            try {
+              localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(merged));
+            } catch {}
+            callback(merged);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn('Error al suscribir a Supabase Realtime para la encuesta:', err);
+    return () => {};
+  }
+}
+

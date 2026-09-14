@@ -144,16 +144,31 @@ export async function fetchActivePoll(): Promise<Poll> {
  * Registra un voto para la encuesta activa
  */
 export async function submitPollVote(pollId: string, choice: PollVoteOption): Promise<Poll> {
-  // Guardar localmente para evitar votos dobles en este navegador
+  // Guardar localmente
   recordUserVote(pollId, choice);
+
+  const localCurrent = await fetchActivePoll();
+  const optimisticPoll: Poll = {
+    ...localCurrent,
+    yes_votes: choice === 'yes' ? (localCurrent.yes_votes || 0) + 1 : (localCurrent.yes_votes || 0),
+    no_votes: choice === 'no' ? (localCurrent.no_votes || 0) + 1 : (localCurrent.no_votes || 0),
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(optimisticPoll));
+  } catch {}
 
   if (isSupabaseActive()) {
     try {
       // 1. Insert directo en la tabla poll_votes (con RLS pública)
-      await supabase.from('poll_votes').insert({
+      const { error: insErr } = await supabase.from('poll_votes').insert({
         poll_id: pollId,
         choice: choice
       });
+      if (insErr) {
+        console.warn('Fallo al insertar en poll_votes:', insErr);
+      }
     } catch (insertErr) {
       console.warn('Error insertando en poll_votes:', insertErr);
     }
@@ -162,10 +177,28 @@ export async function submitPollVote(pollId: string, choice: PollVoteOption): Pr
       // 2. Intentar llamar a función RPC si existe
       await supabase.rpc('vote_in_poll', { poll_choice: choice });
     } catch {}
+
+    // 3. Consultar conteos actualizados de la base de datos
+    try {
+      const [yesRes, noRes] = await Promise.all([
+        supabase.from('poll_votes').select('*', { count: 'exact', head: true }).eq('poll_id', pollId).eq('choice', 'yes'),
+        supabase.from('poll_votes').select('*', { count: 'exact', head: true }).eq('poll_id', pollId).eq('choice', 'no')
+      ]);
+
+      const dbYes = typeof yesRes.count === 'number' ? yesRes.count : 0;
+      const dbNo = typeof noRes.count === 'number' ? noRes.count : 0;
+
+      if (dbYes > 0 || dbNo > 0) {
+        optimisticPoll.yes_votes = Math.max(dbYes, optimisticPoll.yes_votes);
+        optimisticPoll.no_votes = Math.max(dbNo, optimisticPoll.no_votes);
+        try {
+          localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(optimisticPoll));
+        } catch {}
+      }
+    } catch {}
   }
 
-  // 3. Obtener el estado actualizado con los conteos reales de la BD
-  return await fetchActivePoll();
+  return optimisticPoll;
 }
 
 /**

@@ -79,13 +79,14 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
   );
 
   const handleVote = async (choice: PollVoteOption) => {
-    if (voting || (hasVoted && !justVoted) || expired) return;
+    if (voting || expired) return;
     setVoting(true);
+    // Actualización inmediata del estado del usuario
+    setUserVote(choice);
+    setJustVoted(true);
     try {
       const updated = await submitPollVote(poll.id, choice);
       setPoll(updated);
-      setUserVote(choice);
-      setJustVoted(true);
     } catch (err) {
       console.error('Error al registrar el voto:', err);
     } finally {

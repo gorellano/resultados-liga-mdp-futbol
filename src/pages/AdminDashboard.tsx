@@ -36,6 +36,7 @@ import {
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { SocialMediaGenerator } from '../components/SocialMediaGenerator';
+import { PdfImporterModal } from '../components/PdfImporterModal';
 
 const DEFAULT_KICKOFF_TIMES: Record<string, string> = {
   'Séptima División': '15:30',
@@ -136,7 +137,9 @@ export function AdminDashboard() {
   const [savingStatus, setSavingStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   // Modales state
+  const [isPdfImporterOpen, setIsPdfImporterOpen] = useState(false);
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false);
+
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamDisplayName, setNewTeamDisplayName] = useState('');
   const [newTeamLogoUrl, setNewTeamLogoUrl] = useState('');
@@ -1197,8 +1200,18 @@ export function AdminDashboard() {
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsPdfImporterOpen(true)}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer"
+              title="Importar resultados desde boletín PDF"
+            >
+              <FileText className="w-4 h-4" />
+              <span>Cargar Boletín (PDF)</span>
+            </button>
+
             {/* User avatar */}
             <div className="flex items-center gap-3">
+
               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground font-bold text-sm shadow-md">
                 {avatarInitial}
               </div>
@@ -2799,6 +2812,21 @@ export function AdminDashboard() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Importación de Resultados desde PDF */}
+      <PdfImporterModal
+        isOpen={isPdfImporterOpen}
+        onClose={() => setIsPdfImporterOpen(false)}
+        tournaments={tournaments}
+        selectedTournamentId={selectedTournamentId || (tournaments[0]?.id ?? '')}
+        onSuccess={() => {
+          // Recargar partidos al guardar
+          if (selectedTournamentId && selectedDivisionId) {
+            fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId).then(setAllMatches);
+          }
+        }}
+      />
     </div>
   );
 }
+

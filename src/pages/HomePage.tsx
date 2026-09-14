@@ -9,6 +9,7 @@ import { getCategoryYear } from '../lib/auth';
 import { calculateStandings } from '../lib/standings';
 import type { Division, Match, Team } from '../lib/types';
 import { SponsorBanner } from '../components/SponsorBanner';
+import { CommunityPoll } from '../components/CommunityPoll';
 import { createSlug, formatSlugToTitle } from '../lib/slug';
 import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
 
@@ -453,6 +454,8 @@ export function HomePage() {
           </Link>
         </section>
       )}
+
+      <CommunityPoll />
 
       <SponsorBanner />
 

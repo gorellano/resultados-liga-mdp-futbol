@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { Sponsor } from '../lib/types';
 import { Trash2, Plus, Edit2, Check, X, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AdminPollSettings } from '../components/AdminPollSettings';
 
 export function SponsorsSettings() {
   const [showSponsors, setShowSponsors] = useState(true);
@@ -20,11 +21,7 @@ export function SponsorsSettings() {
   const [editForm, setEditForm] = useState<Partial<Sponsor>>({});
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const loadData = async () => {
     setLoading(true);
     try {
       const [{ data: allSettings }, { data: sp }] = await Promise.all([
@@ -48,7 +45,11 @@ export function SponsorsSettings() {
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   async function toggleShowSponsors(val: boolean) {
     setShowSponsors(val);
@@ -103,21 +104,23 @@ export function SponsorsSettings() {
       const { data } = supabase.storage.from('sponsors').getPublicUrl(filePath);
       return data.publicUrl;
     } catch (e) {
-      console.error('Error uploading image:', e);
-      alert('Error al subir imagen.');
+      console.error(e);
+      alert('Error subiendo imagen.');
       return null;
     } finally {
       setUploading(false);
     }
   }
 
-  async function createSponsor() {
-    if (!newSponsor.name || !newSponsor.image_url) {
-      alert('Nombre e Imagen son obligatorios.');
-      return;
-    }
+  async function createSponsor(e: React.FormEvent) {
+    e.preventDefault();
     try {
-      const { data, error } = await supabase.from('sponsors').insert([newSponsor]).select().single();
+      const { data, error } = await supabase
+        .from('sponsors')
+        .insert([newSponsor])
+        .select()
+        .single();
+
       if (error) throw error;
       setSponsors([...sponsors, data]);
       setIsCreating(false);
@@ -130,9 +133,13 @@ export function SponsorsSettings() {
 
   async function updateSponsor(id: string) {
     try {
-      const { data, error } = await supabase.from('sponsors').update(editForm).eq('id', id).select().single();
+      const { error } = await supabase
+        .from('sponsors')
+        .update(editForm)
+        .eq('id', id);
+
       if (error) throw error;
-      setSponsors(sponsors.map(s => (s.id === id ? data : s)));
+      setSponsors(sponsors.map(s => s.id === id ? { ...s, ...editForm } : s));
       setEditingId(null);
     } catch (e) {
       console.error(e);
@@ -158,6 +165,9 @@ export function SponsorsSettings() {
 
   return (
     <div className="space-y-8">
+      {/* ── GESTIÓN DE ENCUESTA COMUNITARIA ── */}
+      <AdminPollSettings />
+
       {/* Configuración Global */}
       <div className="bg-card/60 rounded-3xl border border-border/50 p-6 md:p-8 shadow-sm">
         <h3 className="text-xl font-bold mb-4">Configuración General</h3>

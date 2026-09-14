@@ -317,7 +317,7 @@ export async function saveMatchResult(
   matchId: string, 
   homeGoals: number | null, 
   awayGoals: number | null,
-  status: 'scheduled' | 'finished',
+  status: 'scheduled' | 'finished' | 'postponed',
   matchDate?: string | null
 ): Promise<boolean> {
   if (!isSupabaseActive()) {
@@ -782,3 +782,122 @@ export async function deleteContactMessage(id: string): Promise<void> {
 
   if (error) throw error;
 }
+
+/**
+ * Guarda masivamente los resultados parseados de un boletín PDF.
+ */
+export async function saveBatchParsedMatchResults(
+  tournamentId: string,
+  roundNumber: number,
+  parsedResults: Array<{
+    divisionNumber: number;
+    zone: 'CAMPEONATO' | 'PROMOCION';
+    homeTeamCanonical: string;
+    awayTeamCanonical: string;
+    homeGoals: number | null;
+    awayGoals: number | null;
+    status: 'finished' | 'postponed';
+    isPostponed: boolean;
+  }>
+): Promise<{ updatedCount: number; errors: string[] }> {
+  const errors: string[] = [];
+  let updatedCount = 0;
+
+  try {
+    const [divisions, zones, teams] = await Promise.all([
+      fetchDivisions(),
+      fetchZones(),
+      fetchTeams(),
+    ]);
+
+    const allMatches = await fetchAllTournamentMatches(tournamentId);
+
+    // Mapeo auxiliar de equipo por nombre
+    const findTeamId = (canonicalName: string): string | null => {
+      const found = teams.find(t => 
+        t.name.toLowerCase() === canonicalName.toLowerCase() ||
+        (t.display_name && t.display_name.toLowerCase() === canonicalName.toLowerCase())
+      );
+      return found ? found.id : null;
+    };
+
+    // Mapeo auxiliar de división por número
+    const findDivisionId = (divNum: number): string | null => {
+      const found = divisions.find(d => 
+        d.sort_order === (divNum - 6) || 
+        d.name.includes(`${divNum}`)
+      );
+      return found ? found.id : null;
+    };
+
+    // Mapeo auxiliar de zona
+    const findZoneId = (zoneType: 'CAMPEONATO' | 'PROMOCION'): string | null => {
+      const found = zones.find(z => 
+        zoneType === 'PROMOCION' 
+          ? z.name.toLowerCase().includes('prom')
+          : z.name.toLowerCase().includes('camp')
+      );
+      return found ? found.id : zones[0]?.id || null;
+    };
+
+    for (const item of parsedResults) {
+      if (item.isPostponed) {
+        // Los pospuestos se omiten o no alteran goles
+        continue;
+      }
+
+      const homeId = findTeamId(item.homeTeamCanonical);
+      const awayId = findTeamId(item.awayTeamCanonical);
+      const divId = findDivisionId(item.divisionNumber);
+      const zoneId = findZoneId(item.zone);
+
+      if (!homeId || !awayId) {
+        errors.push(`No se encontraron IDs para ${item.homeTeamCanonical} o ${item.awayTeamCanonical}`);
+        continue;
+      }
+
+      // Buscar el partido correspondiente en la fecha
+      const targetMatch = allMatches.find(m => 
+        m.round_number === roundNumber &&
+        (divId ? m.division_id === divId : true) &&
+        (zoneId ? m.zone_id === zoneId : true) &&
+        m.home_team_id === homeId &&
+        m.away_team_id === awayId
+      );
+
+      if (targetMatch) {
+        const success = await saveMatchResult(
+          targetMatch.id,
+          item.homeGoals,
+          item.awayGoals,
+          item.status
+        );
+        if (success) updatedCount++;
+      } else {
+        // Si no se encuentra exactamente por división/zona, buscar solo por fecha y equipos
+        const fallbackMatch = allMatches.find(m => 
+          m.round_number === roundNumber &&
+          m.home_team_id === homeId &&
+          m.away_team_id === awayId
+        );
+        if (fallbackMatch) {
+          const success = await saveMatchResult(
+            fallbackMatch.id,
+            item.homeGoals,
+            item.awayGoals,
+            item.status
+          );
+          if (success) updatedCount++;
+        } else {
+          errors.push(`Partido no encontrado en el fixture: ${item.homeTeamCanonical} vs ${item.awayTeamCanonical} (Fecha ${roundNumber})`);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('Error en saveBatchParsedMatchResults:', err);
+    errors.push(`Error general: ${err.message || String(err)}`);
+  }
+
+  return { updatedCount, errors };
+}
+

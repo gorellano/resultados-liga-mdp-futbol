@@ -90,3 +90,20 @@ export interface PushSubscription {
   team_id: string;
   created_at?: string;
 }
+
+export type PollVoteOption = 'yes' | 'no';
+
+export interface Poll {
+  id: string;
+  title: string;
+  description: string;
+  option_yes_label: string;
+  option_no_label: string;
+  yes_votes: number;
+  no_votes: number;
+  expires_at: string; // ISO string e.g. 2026-09-20T23:59:59.000Z
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+

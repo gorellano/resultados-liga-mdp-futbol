@@ -127,32 +127,57 @@ export async function fetchActivePoll(): Promise<Poll> {
  * Registra un voto para la encuesta activa
  */
 export async function submitPollVote(pollId: string, choice: PollVoteOption): Promise<Poll> {
-  // Guardar localmente para evitar votos dobles
+  // Guardar localmente para evitar votos dobles en este navegador
   recordUserVote(pollId, choice);
 
-  let currentPoll = await fetchActivePoll();
-  if (currentPoll.id !== pollId) {
-    currentPoll = { ...currentPoll, id: pollId };
-  }
-
-  const updatedPoll: Poll = {
-    ...currentPoll,
-    yes_votes: choice === 'yes' ? (currentPoll.yes_votes || 0) + 1 : (currentPoll.yes_votes || 0),
-    no_votes: choice === 'no' ? (currentPoll.no_votes || 0) + 1 : (currentPoll.no_votes || 0),
-    updated_at: new Date().toISOString(),
-  };
+  let updatedPoll: Poll | null = null;
 
   if (isSupabaseActive()) {
     try {
-      await supabase
-        .from('app_settings')
-        .upsert({
-          key: 'active_poll',
-          value: updatedPoll,
-        });
-    } catch (err) {
-      console.error('Error guardando voto en Supabase:', err);
+      // 1. Intentar registrar vía función RPC atómica
+      const { data, error } = await supabase.rpc('vote_in_poll', { poll_choice: choice });
+      if (!error && data) {
+        const raw = typeof data === 'string' ? JSON.parse(data) : data;
+        updatedPoll = { ...DEFAULT_POLL, ...raw };
+      }
+    } catch (rpcErr) {
+      console.warn('RPC vote_in_poll falló, intentando actualización directa:', rpcErr);
     }
+
+    // 2. Si RPC no está disponible, intentar actualización directa en app_settings
+    if (!updatedPoll) {
+      try {
+        const currentPoll = await fetchActivePoll();
+        const fallbackPoll: Poll = {
+          ...currentPoll,
+          yes_votes: choice === 'yes' ? (currentPoll.yes_votes || 0) + 1 : (currentPoll.yes_votes || 0),
+          no_votes: choice === 'no' ? (currentPoll.no_votes || 0) + 1 : (currentPoll.no_votes || 0),
+          updated_at: new Date().toISOString(),
+        };
+
+        await supabase
+          .from('app_settings')
+          .upsert({
+            key: 'active_poll',
+            value: fallbackPoll,
+          });
+
+        updatedPoll = fallbackPoll;
+      } catch (err) {
+        console.error('Error guardando voto en Supabase:', err);
+      }
+    }
+  }
+
+  // 3. Fallback a estado local
+  if (!updatedPoll) {
+    const currentPoll = await fetchActivePoll();
+    updatedPoll = {
+      ...currentPoll,
+      yes_votes: choice === 'yes' ? (currentPoll.yes_votes || 0) + 1 : (currentPoll.yes_votes || 0),
+      no_votes: choice === 'no' ? (currentPoll.no_votes || 0) + 1 : (currentPoll.no_votes || 0),
+      updated_at: new Date().toISOString(),
+    };
   }
 
   try {

@@ -46,7 +46,13 @@ export function TablaAnualPage() {
           fetchTeams(),
         ]);
 
-        setTournaments(tourns);
+        // Filtrar torneos de liga juvenil (excluir torneos especiales de Primera/Quinta/Sexta como Cacho Méndez)
+        const leagueTourns = tourns.filter(t => 
+          !t.name.toLowerCase().includes('cacho') && 
+          !t.name.toLowerCase().includes('reyes')
+        );
+        setTournaments(leagueTourns);
+
         // Filtrar divisiones juveniles formativas (7ma a 16ta)
         const youthDivs = divs
           .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
@@ -54,8 +60,12 @@ export function TablaAnualPage() {
         setDivisions(youthDivs);
         setTeams(tms);
 
-        // Determinar torneo activo (priorizar torneo con is_current o el primero)
-        const activeTourn = tourns.find(t => t.is_current) || tourns[0];
+        // Determinar torneo activo (priorizar torneo juvenil con is_current o el primero)
+        const activeTourn = leagueTourns.find(t => t.name.toLowerCase().includes('clausura') && t.is_current) ||
+                            leagueTourns.find(t => t.is_current) ||
+                            leagueTourns.find(t => t.name.toLowerCase().includes('clausura')) ||
+                            leagueTourns[0] || tourns[0];
+
         if (activeTourn) {
           const defaultYear = activeTourn.year || new Date().getFullYear();
           setSelectedYear(defaultYear);

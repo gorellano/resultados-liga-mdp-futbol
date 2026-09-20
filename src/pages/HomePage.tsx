@@ -201,7 +201,14 @@ export function HomePage() {
         setAllTeams(tms);
 
         if (tourns.length > 0) {
-          const activeTourn = tourns.find(t => t.is_current) || tourns[0];
+          const leagueTourns = tourns.filter(t => 
+            !t.name.toLowerCase().includes('cacho') && 
+            !t.name.toLowerCase().includes('reyes')
+          );
+          const activeTourn = leagueTourns.find(t => t.name.toLowerCase().includes('clausura') && t.is_current) ||
+                              leagueTourns.find(t => t.is_current) || 
+                              leagueTourns[0] || tourns[0];
+
           setCurrentTournamentId(activeTourn.id);
           if (activeTourn.year) {
             setSeasonYear(activeTourn.year);

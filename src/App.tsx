@@ -65,10 +65,10 @@ function Layout({ children }: { children: React.ReactNode }) {
           </Link>
           <div className="flex items-center space-x-4">
             <Link
-              to="/tabla-anual"
+              to="/tabla-general"
               className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
-              aria-label="Tabla Anual de Clubes"
-              title="Tabla Anual"
+              aria-label="Tabla General de Clubes"
+              title="Tabla General"
             >
               <Award className="w-5 h-5" />
             </Link>

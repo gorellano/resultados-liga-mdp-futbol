@@ -460,7 +460,7 @@ export function HomePage() {
 
       <CommunityPoll />
 
-      {/* Tabla General Anual de Clubes Promo Card */}
+      {/* Tabla General de Clubes Promo Card */}
       <section className="bg-gradient-to-r from-primary/15 via-primary/10 to-card border border-primary/30 p-4 sm:p-6 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-sm relative overflow-hidden group">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -470,7 +470,7 @@ export function HomePage() {
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/20 text-primary border border-primary/30">
-                  Acumulada Anual
+                  Tabla General
                 </span>
                 <span className="text-[11px] font-bold text-muted-foreground">
                   Temporada {seasonYear}
@@ -486,7 +486,7 @@ export function HomePage() {
           </div>
 
           <Link
-            to="/tabla-anual"
+            to="/tabla-general"
             className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-xs flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm hover:shadow-md"
           >
             <span>Ver Tabla General</span>

@@ -17,7 +17,6 @@ import {
   fetchTournaments, 
   fetchDivisions, 
   fetchTeams, 
-  fetchMatchesForYear, 
   fetchAllTournamentMatches 
 } from '../lib/db';
 import { calculateAnnualClubStandings } from '../lib/standings';
@@ -33,7 +32,7 @@ export function TablaAnualPage() {
 
   // Filtros
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('all');
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showExtendedStats, setShowExtendedStats] = useState(false);
 
@@ -55,12 +54,15 @@ export function TablaAnualPage() {
         setDivisions(youthDivs);
         setTeams(tms);
 
-        // Determinar año activo (priorizar torneo con is_current o el primero)
+        // Determinar torneo activo (priorizar torneo con is_current o el primero)
         const activeTourn = tourns.find(t => t.is_current) || tourns[0];
-        const defaultYear = activeTourn?.year || new Date().getFullYear();
-        setSelectedYear(defaultYear);
+        if (activeTourn) {
+          const defaultYear = activeTourn.year || new Date().getFullYear();
+          setSelectedYear(defaultYear);
+          setSelectedTournamentId(activeTourn.id);
+        }
       } catch (err) {
-        console.error('Error cargando datos iniciales de tabla anual:', err);
+        console.error('Error cargando datos iniciales de tabla general:', err);
       } finally {
         setLoading(false);
       }
@@ -69,22 +71,20 @@ export function TablaAnualPage() {
     init();
   }, []);
 
-  // Cargar partidos cuando cambia el año o torneo seleccionado
+  // Cargar partidos cuando cambia el torneo seleccionado
   useEffect(() => {
     let isMounted = true;
     async function loadMatches() {
-      if (!selectedYear) return;
+      if (!selectedTournamentId) {
+        setMatches([]);
+        return;
+      }
       setLoading(true);
       try {
-        if (selectedTournamentId === 'all') {
-          const yearMatches = await fetchMatchesForYear(selectedYear);
-          if (isMounted) setMatches(yearMatches);
-        } else {
-          const tournMatches = await fetchAllTournamentMatches(selectedTournamentId);
-          if (isMounted) setMatches(tournMatches);
-        }
+        const tournMatches = await fetchAllTournamentMatches(selectedTournamentId);
+        if (isMounted) setMatches(tournMatches);
       } catch (err) {
-        console.error('Error cargando partidos del año:', err);
+        console.error('Error cargando partidos del torneo:', err);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -92,15 +92,15 @@ export function TablaAnualPage() {
 
     loadMatches();
     return () => { isMounted = false; };
-  }, [selectedYear, selectedTournamentId]);
+  }, [selectedTournamentId]);
 
   // Lista de años disponibles basados en torneos registrados
   const availableYears = useMemo(() => {
     const yearsSet = new Set<number>();
-    yearsSet.add(new Date().getFullYear());
     tournaments.forEach(t => {
       if (t.year) yearsSet.add(t.year);
     });
+    if (yearsSet.size === 0) yearsSet.add(new Date().getFullYear());
     return Array.from(yearsSet).sort((a, b) => b - a);
   }, [tournaments]);
 
@@ -108,6 +108,11 @@ export function TablaAnualPage() {
   const tournamentsInYear = useMemo(() => {
     return tournaments.filter(t => t.year === selectedYear);
   }, [tournaments, selectedYear]);
+
+  // Torneo actualmente seleccionado
+  const selectedTournament = useMemo(() => {
+    return tournaments.find(t => t.id === selectedTournamentId) || null;
+  }, [tournaments, selectedTournamentId]);
 
   // Cálculo de la Tabla Anual de Clubes
   const standings = useMemo(() => {
@@ -189,7 +194,7 @@ export function TablaAnualPage() {
 
         <span className="text-xs font-bold text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50 flex items-center gap-1.5">
           <Calendar className="w-3.5 h-3.5 text-primary" />
-          Temporada {selectedYear}
+          {selectedTournament ? selectedTournament.name : `Temporada ${selectedYear}`}
         </span>
       </div>
 
@@ -201,13 +206,13 @@ export function TablaAnualPage() {
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/35">
               <Award className="w-3.5 h-3.5 text-amber-500" />
-              Tabla General Acumulada
+              Tabla General de Clubes
             </div>
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-foreground tracking-tight">
-              Tabla Anual de Clubes LMF
+              Tabla General LMF
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Consolidado de puntos de cada institución a lo largo de todas sus divisiones formativas (7ª a 16ª) en la temporada <strong className="text-foreground">{selectedYear}</strong>.
+              Sumatoria de puntos de cada institución en todas sus divisiones formativas (7ª a 16ª) en el <strong className="text-foreground">{selectedTournament ? selectedTournament.name : `Torneo ${selectedYear}`}</strong>.
             </p>
           </div>
 
@@ -223,7 +228,7 @@ export function TablaAnualPage() {
               </div>
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
-                  👑 Líder Anual
+                  👑 Líder General
                 </span>
                 <span className="text-sm sm:text-base font-black text-foreground block truncate max-w-[170px]">
                   {leaderClub.team.display_name || leaderClub.team.name}
@@ -254,7 +259,7 @@ export function TablaAnualPage() {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-muted-foreground block">Partidos Jugados (Anual)</span>
+            <span className="text-xs font-semibold text-muted-foreground block">Partidos Jugados</span>
             <span className="text-lg font-black text-foreground">{Math.round(totalMatchesPlayed)} encuentros</span>
           </div>
         </div>
@@ -264,7 +269,7 @@ export function TablaAnualPage() {
             <Goal className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-muted-foreground block">Goles Totales Convertidos</span>
+            <span className="text-xs font-semibold text-muted-foreground block">Goles Totales</span>
             <span className="text-lg font-black text-foreground">{Math.round(totalGoals)} goles</span>
           </div>
         </div>
@@ -273,7 +278,7 @@ export function TablaAnualPage() {
       {/* ── Filters & Search Toolbar ── */}
       <div className="bg-card/70 border border-border/60 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Left: Year & Scope Selectors */}
+          {/* Left: Year & Tournament Selectors */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Year Selector */}
             <div className="flex items-center gap-1.5 bg-muted/60 border border-border/60 rounded-xl px-3 py-1.5">
@@ -282,8 +287,15 @@ export function TablaAnualPage() {
               <select
                 value={selectedYear}
                 onChange={(e) => {
-                  setSelectedYear(Number(e.target.value));
-                  setSelectedTournamentId('all');
+                  const newYear = Number(e.target.value);
+                  setSelectedYear(newYear);
+                  const inYear = tournaments.filter(t => t.year === newYear);
+                  const currentInYear = inYear.find(t => t.is_current) || inYear[0];
+                  if (currentInYear) {
+                    setSelectedTournamentId(currentInYear.id);
+                  } else {
+                    setSelectedTournamentId('');
+                  }
                 }}
                 className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer"
               >
@@ -295,19 +307,16 @@ export function TablaAnualPage() {
               </select>
             </div>
 
-            {/* Tournament Scope Selector (if multiple tournaments in year) */}
-            {tournamentsInYear.length > 1 && (
+            {/* Tournament Selector */}
+            {tournamentsInYear.length > 0 && (
               <div className="flex items-center gap-1.5 bg-muted/60 border border-border/60 rounded-xl px-3 py-1.5">
                 <Filter className="w-4 h-4 text-primary shrink-0" />
                 <span className="text-xs font-bold text-muted-foreground">Torneo:</span>
                 <select
                   value={selectedTournamentId}
                   onChange={(e) => setSelectedTournamentId(e.target.value)}
-                  className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer"
+                  className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer max-w-[180px] sm:max-w-[240px] truncate"
                 >
-                  <option value="all" className="bg-card text-foreground">
-                    Todos (Acumulada Anual)
-                  </option>
                   {tournamentsInYear.map(t => (
                     <option key={t.id} value={t.id} className="bg-card text-foreground">
                       {t.name}
@@ -346,7 +355,7 @@ export function TablaAnualPage() {
         {loading ? (
           <div className="p-12 text-center text-muted-foreground text-sm font-semibold flex items-center justify-center gap-2">
             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-            <span>Calculando posiciones anuales...</span>
+            <span>Calculando posiciones de la tabla general...</span>
           </div>
         ) : filteredStandings.length === 0 ? (
           <div className="p-12 text-center space-y-2">
@@ -355,7 +364,7 @@ export function TablaAnualPage() {
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
               {searchQuery
                 ? `No hay clubes que coincidan con "${searchQuery}".`
-                : `Aún no hay partidos finalizados cargados para la temporada ${selectedYear}.`}
+                : `Aún no hay partidos finalizados cargados para el torneo seleccionado.`}
             </p>
           </div>
         ) : (

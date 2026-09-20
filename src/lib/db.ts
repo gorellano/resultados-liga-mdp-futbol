@@ -60,7 +60,7 @@ export async function fetchTournaments(): Promise<Tournament[]> {
 }
 
 /**
- * Obtiene todos los partidos de todos los torneos de un año específico
+ * Obtiene todos los partidos de todos los torneos de un año específico (con paginación completa)
  */
 export async function fetchMatchesForYear(year: number): Promise<Match[]> {
   if (!isSupabaseActive()) {
@@ -77,13 +77,36 @@ export async function fetchMatchesForYear(year: number): Promise<Match[]> {
     }
 
     const tournIds = tourns.map(t => t.id);
-    const { data: matches, error: matchErr } = await supabase
-      .from('matches')
-      .select('*')
-      .in('tournament_id', tournIds);
+    let allMatches: Match[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (matchErr) throw matchErr;
-    return matches || [];
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error } = await supabase
+        .from('matches')
+        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+        .in('tournament_id', tournIds)
+        .range(from, to);
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        allMatches = allMatches.concat(data.map(m => ({
+          ...m,
+          status: m.status as 'scheduled' | 'finished' | 'postponed'
+        })));
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+    return allMatches;
   } catch (err) {
     console.warn('fetchMatchesForYear failed:', err);
     return [];
@@ -274,16 +297,36 @@ export async function fetchAllTournamentMatches(tournamentId: string): Promise<M
     return allMatches;
   }
   try {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-      .eq('tournament_id', tournamentId);
+    let allMatches: Match[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) throw error;
-    return (data || []).map(m => ({
-      ...m,
-      status: m.status as 'scheduled' | 'finished' | 'postponed'
-    }));
+    while (hasMore) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      const { data, error } = await supabase
+        .from('matches')
+        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+        .eq('tournament_id', tournamentId)
+        .range(from, to);
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        allMatches = allMatches.concat(data.map(m => ({
+          ...m,
+          status: m.status as 'scheduled' | 'finished' | 'postponed'
+        })));
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+    return allMatches;
   } catch (err) {
     console.warn('Supabase fetchAllTournamentMatches failed, falling back to mocks:', err);
     // Same dynamic expansion fallback

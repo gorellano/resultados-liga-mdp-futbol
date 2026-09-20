@@ -134,11 +134,40 @@ export function TablaAnualPage() {
     return standings.reduce((acc, s) => acc + s.played, 0) / 2;
   }, [standings]);
 
-  // Abreviación de nombres de división para cabeceras compactas
+  // Diccionario de abreviaciones de divisiones
+  const DIVISION_SHORT_LABELS: Record<string, string> = {
+    'séptima': '7ª',
+    'octava': '8ª',
+    'novena': '9ª',
+    'décima': '10ª',
+    'decima': '10ª',
+    'undécima': '11ª',
+    'undecima': '11ª',
+    'duodécima': '12ª',
+    'duodecima': '12ª',
+    'decimotercera': '13ª',
+    'decimocuarta': '14ª',
+    'decimoquinta': '15ª',
+    'decimosexta': '16ª',
+    '7ma': '7ª',
+    '8va': '8ª',
+    '9na': '9ª',
+    '10ma': '10ª',
+    '11ma': '11ª',
+    '12ma': '12ª',
+    '13ra': '13ª',
+    '14ta': '14ª',
+    '15ta': '15ª',
+    '16ta': '16ª',
+  };
+
+  // Abreviación de nombres de división para cabeceras compactas y legibles
   const getDivShortName = (name: string) => {
+    const clean = name.toLowerCase().replace(' división', '').replace(' division', '').trim();
+    if (DIVISION_SHORT_LABELS[clean]) return DIVISION_SHORT_LABELS[clean];
     const match = name.match(/(\d+)/);
     if (match) return `${match[1]}ª`;
-    return name.replace(' División', '');
+    return name.replace(/ División/i, '');
   };
 
   return (
@@ -333,17 +362,21 @@ export function TablaAnualPage() {
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-muted/60 border-b border-border/70 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                  <th className="py-3.5 px-3 sm:px-4 text-center w-12 sticky left-0 bg-muted/90 backdrop-blur-md z-10 border-r border-border/40">
+                <tr className="bg-muted/80 border-b border-border/70 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
+                  <th className="py-3.5 px-3 text-center w-12 sticky left-0 bg-card z-20 border-r border-border/40 shadow-xs">
                     Pos
                   </th>
-                  <th className="py-3.5 px-3 sm:px-4 sticky left-12 bg-muted/90 backdrop-blur-md z-10 min-w-[160px] sm:min-w-[200px] border-r border-border/40">
+                  <th className="py-3.5 px-3 sm:px-4 sticky left-12 bg-card z-20 min-w-[140px] sm:min-w-[180px] border-r border-border/40 shadow-xs">
                     Club
                   </th>
 
                   {/* Columnas por división */}
                   {divisions.map(div => (
-                    <th key={div.id} className="py-3.5 px-2.5 text-center min-w-[44px]">
+                    <th 
+                      key={div.id} 
+                      title={div.name}
+                      className="py-3.5 px-2.5 text-center min-w-[42px] max-w-[50px] cursor-help hover:text-primary transition-colors select-none"
+                    >
                       {getDivShortName(div.name)}
                     </th>
                   ))}
@@ -360,7 +393,7 @@ export function TablaAnualPage() {
                   )}
 
                   {/* Columna TOTAL */}
-                  <th className="py-3.5 px-3 sm:px-5 text-center bg-primary/15 text-primary font-black text-xs sm:text-sm min-w-[80px] sticky right-0 z-10 border-l border-primary/20">
+                  <th className="py-3.5 px-3 sm:px-5 text-center bg-card text-primary font-black text-xs sm:text-sm min-w-[76px] sticky right-0 z-20 border-l border-primary/25 shadow-[-3px_0_8px_rgba(0,0,0,0.12)]">
                     TOTAL
                   </th>
                 </tr>
@@ -377,7 +410,7 @@ export function TablaAnualPage() {
                       className="hover:bg-muted/30 transition-colors group"
                     >
                       {/* Posición */}
-                      <td className="py-3 px-3 sm:px-4 text-center font-black sticky left-0 bg-card group-hover:bg-muted/40 transition-colors border-r border-border/40 z-10">
+                      <td className="py-3 px-3 text-center font-black sticky left-0 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
                         {isTop1 ? (
                           <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-xs shadow-2xs">
                             1°
@@ -396,7 +429,7 @@ export function TablaAnualPage() {
                       </td>
 
                       {/* Club (Escudo + Nombre) */}
-                      <td className="py-3 px-3 sm:px-4 sticky left-12 bg-card group-hover:bg-muted/40 transition-colors border-r border-border/40 z-10">
+                      <td className="py-3 px-3 sm:px-4 sticky left-12 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-background border border-border/60 flex items-center justify-center p-1 shrink-0 shadow-2xs">
                             {standing.team.logo_url ? (
@@ -417,8 +450,8 @@ export function TablaAnualPage() {
                         return (
                           <td
                             key={div.id}
-                            className={`py-3 px-2.5 text-center font-bold text-xs ${
-                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/50'
+                            className={`py-3 px-2 text-center font-bold text-xs ${
+                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/40'
                             }`}
                           >
                             {pts}
@@ -440,7 +473,7 @@ export function TablaAnualPage() {
                       )}
 
                       {/* TOTAL Puntos */}
-                      <td className="py-3 px-3 sm:px-5 text-center bg-primary/10 group-hover:bg-primary/15 transition-colors sticky right-0 z-10 border-l border-primary/20">
+                      <td className="py-3 px-3 sm:px-5 text-center bg-card group-hover:bg-muted/60 transition-colors sticky right-0 z-10 border-l border-primary/25 shadow-[-3px_0_8px_rgba(0,0,0,0.12)]">
                         <span className="inline-block px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-sm shadow-xs min-w-[2.75rem]">
                           {standing.totalPoints}
                         </span>

@@ -52,6 +52,19 @@ export interface Standing {
   points: number;
 }
 
+export interface ClubAnnualStanding {
+  team: Team;
+  divisionPoints: Record<string, number>; // Mapeo division_id -> puntos
+  totalPoints: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  goalsFor: number;
+  goalsAgainst: number;
+  goalDifference: number;
+}
+
 export interface User {
   id: string;
   username: string;

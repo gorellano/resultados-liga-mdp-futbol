@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { Star, Shield, ChevronRight, Trophy, Calendar, RefreshCw, Plus } from 'lucide-react';
+import { Star, Shield, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
@@ -182,7 +182,7 @@ async function fetchFavoriteStatsForTeam(
 
 export function HomePage() {
   const { favorites, toggleFavorite, setFavoriteDivisionId } = useFavoriteTeam();
-  const currentYear = new Date().getFullYear();
+  const [seasonYear, setSeasonYear] = useState<number>(new Date().getFullYear());
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [currentTournamentId, setCurrentTournamentId] = useState<string | null>(null);
@@ -201,9 +201,12 @@ export function HomePage() {
         setAllTeams(tms);
 
         if (tourns.length > 0) {
-          const latestTournament = tourns[0];
-          setCurrentTournamentId(latestTournament.id);
-          const matches = await fetchAllTournamentMatches(latestTournament.id);
+          const activeTourn = tourns.find(t => t.is_current) || tourns[0];
+          setCurrentTournamentId(activeTourn.id);
+          if (activeTourn.year) {
+            setSeasonYear(activeTourn.year);
+          }
+          const matches = await fetchAllTournamentMatches(activeTourn.id);
           
           const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
           divs.forEach(div => {
@@ -457,6 +460,41 @@ export function HomePage() {
 
       <CommunityPoll />
 
+      {/* Tabla General Anual de Clubes Promo Card */}
+      <section className="bg-gradient-to-r from-primary/15 via-primary/10 to-card border border-primary/30 p-4 sm:p-6 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-sm relative overflow-hidden group">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+              <Award className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-primary/20 text-primary border border-primary/30">
+                  Acumulada Anual
+                </span>
+                <span className="text-[11px] font-bold text-muted-foreground">
+                  Temporada {seasonYear}
+                </span>
+              </div>
+              <h3 className="font-black text-base sm:text-lg text-foreground tracking-tight">
+                Tabla General de Clubes
+              </h3>
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                Sumatoria de puntos de todas las divisiones juveniles (7ª a 16ª).
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/tabla-anual"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-xs flex items-center justify-center gap-2 transition-all shrink-0 shadow-sm hover:shadow-md"
+          >
+            <span>Ver Tabla General</span>
+            <ChevronRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </section>
+
       <SponsorBanner />
 
       <motion.div
@@ -469,7 +507,7 @@ export function HomePage() {
           <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
             <span>Divisiones LMF</span>
             <span className="text-xs font-extrabold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
-              Temporada {currentYear}
+              Temporada {seasonYear}
             </span>
           </h2>
         </div>
@@ -502,7 +540,7 @@ export function HomePage() {
                     {div.name}
                   </h3>
                   <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                    (Categoría {getCategoryYear(div.name, currentYear)})
+                    (Categoría {getCategoryYear(div.name, seasonYear)})
                   </p>
                 </Link>
               </div>

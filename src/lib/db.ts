@@ -44,10 +44,49 @@ export async function fetchTournaments(): Promise<Tournament[]> {
       .order('year', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    
+    // Priorizar siempre el torneo marcado como actual (is_current), luego año descendente
+    const sorted = [...(data || [])].sort((a, b) => {
+      if (a.is_current && !b.is_current) return -1;
+      if (!a.is_current && b.is_current) return 1;
+      return (b.year ?? 0) - (a.year ?? 0);
+    });
+
+    return sorted;
   } catch (err) {
     console.warn('Supabase fetchTournaments failed, falling back to mocks:', err);
     return MOCK_TOURNAMENTS;
+  }
+}
+
+/**
+ * Obtiene todos los partidos de todos los torneos de un año específico
+ */
+export async function fetchMatchesForYear(year: number): Promise<Match[]> {
+  if (!isSupabaseActive()) {
+    return [...memoryMatchesCamp, ...memoryMatchesProm];
+  }
+  try {
+    const { data: tourns, error: tournErr } = await supabase
+      .from('tournaments')
+      .select('id')
+      .eq('year', year);
+
+    if (tournErr || !tourns || tourns.length === 0) {
+      return [];
+    }
+
+    const tournIds = tourns.map(t => t.id);
+    const { data: matches, error: matchErr } = await supabase
+      .from('matches')
+      .select('*')
+      .in('tournament_id', tournIds);
+
+    if (matchErr) throw matchErr;
+    return matches || [];
+  } catch (err) {
+    console.warn('fetchMatchesForYear failed:', err);
+    return [];
   }
 }
 

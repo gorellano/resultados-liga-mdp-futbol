@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { Lock, Mail, CheckCircle2, Shirt, Trophy, Swords } from 'lucide-react';
+import { Lock, Mail, CheckCircle2, Shirt, Trophy, Swords, Award } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from "clsx";
@@ -12,6 +12,7 @@ import { AdminPage } from './pages/AdminPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { CampeonesPage } from './pages/CampeonesPage';
 import { H2HPage } from './pages/H2HPage';
+import { TablaAnualPage } from './pages/TablaAnualPage';
 import { ContactModal } from './components/ContactModal';
 
 export function cn(...inputs: ClassValue[]) {
@@ -63,6 +64,14 @@ function Layout({ children }: { children: React.ReactNode }) {
             <span className="hidden sm:block font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">Costa y Gol</span>
           </Link>
           <div className="flex items-center space-x-4">
+            <Link
+              to="/tabla-anual"
+              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
+              aria-label="Tabla Anual de Clubes"
+              title="Tabla Anual"
+            >
+              <Award className="w-5 h-5" />
+            </Link>
             <Link
               to="/h2h"
               className="p-2.5 rounded-full bg-muted/50 hover:bg-muted transition-all duration-300 hover:scale-105 text-muted-foreground hover:text-primary flex items-center justify-center"
@@ -186,6 +195,8 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/tabla-anual" element={<TablaAnualPage />} />
+          <Route path="/tabla-general" element={<TablaAnualPage />} />
           <Route path="/division/:name" element={<DivisionPage />} />
           <Route path="/equipos" element={<TeamsPage />} />
           <Route path="/campeones" element={<CampeonesPage />} />

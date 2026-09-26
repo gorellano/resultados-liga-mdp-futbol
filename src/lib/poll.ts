@@ -222,41 +222,54 @@ export async function savePollConfig(poll: Poll): Promise<boolean> {
     updated_at: new Date().toISOString(),
   };
 
-  if (isSupabaseActive()) {
-    try {
-      // Intentar primero guardando como JSON stringificado (por si la columna es TEXT)
-      const stringified = JSON.stringify(updatedPoll);
-      const { error } = await supabase
-        .from('app_settings')
-        .upsert({
-          key: 'active_poll',
-          value: stringified,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        // Si falló por tipo JSONB, intentar enviando el objeto directamente
-        const retry = await supabase
-          .from('app_settings')
-          .upsert({
-            key: 'active_poll',
-            value: updatedPoll as any,
-            updated_at: new Date().toISOString()
-          });
-        if (retry.error) throw retry.error;
-      }
-    } catch (err) {
-      console.error('Error guardando configuración de encuesta en Supabase:', err);
-      try {
-        localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(updatedPoll));
-      } catch {}
-      return false;
-    }
-  }
-
+  // Guardar en localStorage inmediatamente
   try {
     localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(updatedPoll));
   } catch {}
+
+  if (isSupabaseActive()) {
+    let saved = false;
+
+    // Intento 1: Objeto directo { key, value: object } (para columna value JSONB)
+    try {
+      const res1 = await supabase
+        .from('app_settings')
+        .upsert({
+          key: 'active_poll',
+          value: updatedPoll as any,
+        });
+
+      if (!res1.error) {
+        saved = true;
+      }
+    } catch (e1) {
+      console.warn('Upsert de objeto JSONB en app_settings falló:', e1);
+    }
+
+    // Intento 2: JSON stringificado { key, value: string } (para columna value TEXT)
+    if (!saved) {
+      try {
+        const res2 = await supabase
+          .from('app_settings')
+          .upsert({
+            key: 'active_poll',
+            value: JSON.stringify(updatedPoll),
+          });
+
+        if (!res2.error) {
+          saved = true;
+        } else {
+          console.error('Error de Supabase al guardar app_settings:', res2.error);
+        }
+      } catch (e2) {
+        console.error('Upsert de string en app_settings falló:', e2);
+      }
+    }
+
+    if (!saved) {
+      return false;
+    }
+  }
 
   return true;
 }

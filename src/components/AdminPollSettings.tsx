@@ -40,7 +40,8 @@ export function AdminPollSettings() {
     try {
       const data = await fetchActivePoll();
       setPoll(data);
-      setIsActive(data.is_active ?? true);
+      const activeVal = data.is_active !== false && (data.is_active as any) !== 'false';
+      setIsActive(activeVal);
       setTitle(data.title || '');
       setDescription(data.description || '');
       setOptionYesLabel(data.option_yes_label || 'SÍ');
@@ -68,12 +69,53 @@ export function AdminPollSettings() {
     // Actualización en tiempo real de los votos en el panel admin
     const unsubscribe = subscribeToPollChanges((updated) => {
       setPoll(updated);
+      if (typeof updated.is_active !== 'undefined') {
+        setIsActive(updated.is_active !== false && (updated.is_active as any) !== 'false');
+      }
     });
 
     return () => {
       unsubscribe();
     };
   }, []);
+
+  const handleToggleActive = async (newVal: boolean) => {
+    setIsActive(newVal);
+    if (!poll) return;
+
+    setSaving(true);
+    try {
+      let isoExpiresAt = poll.expires_at;
+      if (expiresAtLocal) {
+        isoExpiresAt = new Date(expiresAtLocal).toISOString();
+      }
+
+      const updatedPoll: Poll = {
+        ...poll,
+        is_active: newVal,
+        title: title || poll.title,
+        description: description ?? poll.description,
+        option_yes_label: optionYesLabel || poll.option_yes_label,
+        option_no_label: optionNoLabel || poll.option_no_label,
+        expires_at: isoExpiresAt,
+      };
+
+      const success = await savePollConfig(updatedPoll);
+      if (success) {
+        setPoll(updatedPoll);
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3000);
+      } else {
+        alert('Hubo un error al guardar el estado de la encuesta.');
+        setIsActive(!newVal);
+      }
+    } catch (err) {
+      console.error('Error al cambiar visibilidad de encuesta:', err);
+      setIsActive(!newVal);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -179,15 +221,16 @@ export function AdminPollSettings() {
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer bg-muted/50 px-3.5 py-1.5 rounded-2xl border border-border">
+            <label className={`flex items-center gap-2 cursor-pointer bg-muted/50 px-3.5 py-1.5 rounded-2xl border border-border transition-opacity ${saving ? 'opacity-60 cursor-wait' : ''}`}>
               <input
                 type="checkbox"
                 checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
+                disabled={saving}
+                onChange={(e) => handleToggleActive(e.target.checked)}
                 className="w-4 h-4 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
               />
               <span className="text-xs font-bold text-foreground">
-                {isActive ? '🟢 Encuesta Habilitada' : '⚪ Encuesta Deshabilitada'}
+                {saving ? 'Guardando...' : isActive ? '🟢 Encuesta Habilitada' : '⚪ Encuesta Deshabilitada'}
               </span>
             </label>
           </div>

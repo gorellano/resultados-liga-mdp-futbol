@@ -104,6 +104,13 @@ export async function fetchActivePoll(): Promise<Poll> {
 
       if (data?.value) {
         const raw = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
+        if (raw) {
+          if (raw.is_active === 'false' || raw.is_active === false) {
+            raw.is_active = false;
+          } else if (raw.is_active === 'true' || raw.is_active === true) {
+            raw.is_active = true;
+          }
+        }
         basePoll = { ...DEFAULT_POLL, ...raw };
       }
 
@@ -133,7 +140,11 @@ export async function fetchActivePoll(): Promise<Poll> {
   try {
     const local = localStorage.getItem(LOCAL_POLL_KEY);
     if (local) {
-      return { ...DEFAULT_POLL, ...JSON.parse(local) };
+      const parsed = JSON.parse(local);
+      if (parsed.is_active === 'false' || parsed.is_active === false) {
+        parsed.is_active = false;
+      }
+      return { ...DEFAULT_POLL, ...parsed };
     }
   } catch {}
 
@@ -207,20 +218,38 @@ export async function submitPollVote(pollId: string, choice: PollVoteOption): Pr
 export async function savePollConfig(poll: Poll): Promise<boolean> {
   const updatedPoll: Poll = {
     ...poll,
+    is_active: Boolean(poll.is_active),
     updated_at: new Date().toISOString(),
   };
 
   if (isSupabaseActive()) {
     try {
+      // Intentar primero guardando como JSON stringificado (por si la columna es TEXT)
+      const stringified = JSON.stringify(updatedPoll);
       const { error } = await supabase
         .from('app_settings')
         .upsert({
           key: 'active_poll',
-          value: updatedPoll,
+          value: stringified,
+          updated_at: new Date().toISOString()
         });
-      if (error) throw error;
+
+      if (error) {
+        // Si falló por tipo JSONB, intentar enviando el objeto directamente
+        const retry = await supabase
+          .from('app_settings')
+          .upsert({
+            key: 'active_poll',
+            value: updatedPoll as any,
+            updated_at: new Date().toISOString()
+          });
+        if (retry.error) throw retry.error;
+      }
     } catch (err) {
       console.error('Error guardando configuración de encuesta en Supabase:', err);
+      try {
+        localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(updatedPoll));
+      } catch {}
       return false;
     }
   }
@@ -271,6 +300,13 @@ export function subscribeToPollChanges(callback: (poll: Poll) => void): () => vo
             const raw = typeof (payload.new as any).value === 'string'
               ? JSON.parse((payload.new as any).value)
               : (payload.new as any).value;
+            if (raw) {
+              if (raw.is_active === 'false' || raw.is_active === false) {
+                raw.is_active = false;
+              } else if (raw.is_active === 'true' || raw.is_active === true) {
+                raw.is_active = true;
+              }
+            }
             const merged: Poll = { ...DEFAULT_POLL, ...raw };
             try {
               localStorage.setItem(LOCAL_POLL_KEY, JSON.stringify(merged));

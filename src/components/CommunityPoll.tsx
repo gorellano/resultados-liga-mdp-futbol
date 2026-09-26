@@ -65,7 +65,9 @@ export function CommunityPoll({ className = '' }: CommunityPollProps) {
     };
   }, []);
 
-  if (loading || !poll || !poll.is_active) {
+  const isPollActive = Boolean(poll && poll.is_active !== false && (poll.is_active as any) !== 'false' && (poll.is_active as any) !== 0);
+
+  if (loading || !poll || !isPollActive) {
     return null;
   }
 

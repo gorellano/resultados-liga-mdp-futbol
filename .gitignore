@@ -58,6 +58,10 @@ supabase_seed.sql
 android/app/build/
 android/.gradle/
 android/captures/
+
+# Documentos locales de auditoria y planes (solo locales)
+AUDITORIA_*.md
+docs/plans/
 android/local.properties
 android/.idea
 

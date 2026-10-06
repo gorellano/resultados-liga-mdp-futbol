@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchDivisions, fetchTeams, isSupabaseActive } from '../lib/db';
+import { fetchDivisions, fetchTeams, fetchTournaments, isSupabaseActive } from '../lib/db';
 import type { Division, Team } from '../lib/types';
 import { Trophy, Star, ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -18,7 +18,7 @@ export function CampeonesPage() {
   const currentYear = new Date().getFullYear();
   const startYear = 2026;
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedTournament, setSelectedTournament] = useState<string>('Apertura');
+  const [selectedTournament, setSelectedTournament] = useState<string>('Clausura');
   
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -26,24 +26,45 @@ export function CampeonesPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [fetchingChampions, setFetchingChampions] = useState(false);
 
-  // Dynamic years list from 2026 up to currentYear
+  // Dynamic years list from 2026 up to max(currentYear, selectedYear)
+  const maxYear = Math.max(currentYear, selectedYear);
   const availableYears = Array.from(
-    { length: Math.max(1, currentYear - startYear + 1) },
-    (_, i) => currentYear - i
+    { length: Math.max(1, maxYear - startYear + 1) },
+    (_, i) => maxYear - i
   );
 
-  // 1. Cargar divisiones y equipos una sola vez al montar
+  // 1. Cargar divisiones, equipos y determinar el torneo activo al montar
   useEffect(() => {
     async function loadStaticData() {
       try {
-        const [divs, tms] = await Promise.all([
+        const [divs, tms, tourns] = await Promise.all([
           fetchDivisions(),
-          fetchTeams()
+          fetchTeams(),
+          fetchTournaments()
         ]);
         setDivisions(divs);
         setTeams(tms);
+
+        if (tourns && tourns.length > 0) {
+          // Filtrar torneos de liga juvenil / regular
+          const leagueTourns = tourns.filter(t => 
+            !t.name.toLowerCase().includes('cacho') && 
+            !t.name.toLowerCase().includes('reyes')
+          );
+
+          // Obtener el torneo activo actual o el más reciente
+          const activeTourn = leagueTourns.find(t => t.is_current) || leagueTourns[0] || tourns[0];
+          
+          if (activeTourn) {
+            if (activeTourn.year) {
+              setSelectedYear(activeTourn.year);
+            }
+            const isApertura = activeTourn.name.toLowerCase().includes('apertura');
+            setSelectedTournament(isApertura ? 'Apertura' : 'Clausura');
+          }
+        }
       } catch (err) {
-        console.error('Error cargando divisiones y equipos:', err);
+        console.error('Error cargando divisiones, equipos y torneos:', err);
       } finally {
         setInitialLoading(false);
       }
@@ -53,6 +74,8 @@ export function CampeonesPage() {
 
   // 2. Consulta rápida solo de campeones al cambiar año o torneo
   useEffect(() => {
+    if (initialLoading) return;
+
     let isCancelled = false;
 
     async function loadChampions() {
@@ -85,7 +108,7 @@ export function CampeonesPage() {
     return () => {
       isCancelled = true;
     };
-  }, [selectedYear, selectedTournament]);
+  }, [selectedYear, selectedTournament, initialLoading]);
 
   // Encuentra al campeón de una zona y división específica
   const getChampion = (divisionId: string, zone: 'campeonato' | 'promocion') => {

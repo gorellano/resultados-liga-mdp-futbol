@@ -27,7 +27,16 @@ const appleSpring = {
   mass: 0.8,
 };
 
-export const Navbar: React.FC<NavbarProps> = ({
+// Definición estática de destinos principales fuera del componente
+const NAV_ITEMS = [
+  { to: '/', label: 'Inicio', icon: Home, exact: true },
+  { to: '/tabla-general', label: 'Tabla', icon: Award },
+  { to: '/h2h', label: 'Versus', icon: Swords },
+  { to: '/campeones', label: 'Campeones', icon: Trophy },
+  { to: '/equipos', label: 'Equipos', icon: Shirt },
+];
+
+export const Navbar: React.FC<NavbarProps> = React.memo(({
   darkMode,
   onToggleTheme,
   onOpenContact,
@@ -36,21 +45,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const isScrolled = window.scrollY > 10;
+          setScrolled(prev => (prev !== isScrolled ? isScrolled : prev));
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  // Definición de destinos principales con sus iconos
-  const navItems = [
-    { to: '/', label: 'Inicio', icon: Home, exact: true },
-    { to: '/tabla-general', label: 'Tabla', icon: Award },
-    { to: '/h2h', label: 'Versus', icon: Swords },
-    { to: '/campeones', label: 'Campeones', icon: Trophy },
-    { to: '/equipos', label: 'Equipos', icon: Shirt },
-  ];
 
   const isCurrentActive = (path: string, exact = false) => {
     if (path === '/tabla-general') {
@@ -85,11 +93,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-3 group focus:outline-none transition-transform active:scale-95"
           >
             <div className="w-10 h-10 rounded-xl overflow-hidden border border-border/50 bg-primary/5 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-200">
-              <img
-                src="/logo_costa_y_gol.png"
-                alt="Costa y Gol"
-                className="w-full h-full object-cover"
-              />
+              <picture>
+                <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
+                <img
+                  src="/logo_costa_y_gol.png"
+                  alt="Costa y Gol"
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                  decoding="async"
+                />
+              </picture>
             </div>
             <div className="flex flex-col">
               <span className="font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80 leading-none">
@@ -103,7 +116,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* 2. Desktop Segmented Navigation Control */}
           <nav className="hidden md:flex items-center p-1 bg-muted/60 dark:bg-muted/40 rounded-full border border-border/60 shadow-inner">
-            {navItems.map((item) => {
+            {NAV_ITEMS.map((item) => {
               const active = isCurrentActive(item.to, item.exact);
               const Icon = item.icon;
               return (
@@ -183,7 +196,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         }}
       >
         <div className="grid grid-cols-5 gap-1">
-          {navItems.map((item) => {
+          {NAV_ITEMS.map((item) => {
             const active = isCurrentActive(item.to, item.exact);
             const Icon = item.icon;
             return (
@@ -213,4 +226,4 @@ export const Navbar: React.FC<NavbarProps> = ({
       </nav>
     </>
   );
-};
+});

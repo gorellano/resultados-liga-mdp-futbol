@@ -38,19 +38,20 @@ lerna-debug.log*
 *.sw?
 
 # Python scripts and virtual environments (temporary scraping scripts)
+*.py
 *.pyc
 __pycache__/
 *.pyo
 venv/
 env/
-download_*.py
-wiki_*.py
-fix_logos*.py
-scrape_*.py
 
+# Databases & local data
+*.sqlite
+*.sqlite3
+*.db
 supabase_seed.sql
 
-# Unlighthouse reports
+# Unlighthouse reports & Vercel
 .unlighthouse/
 .vercel
 
@@ -58,15 +59,25 @@ supabase_seed.sql
 android/app/build/
 android/.gradle/
 android/captures/
-
-# Documentos locales de auditoria y planes (solo locales)
-AUDITORIA_*.md
-docs/plans/
 android/local.properties
 android/.idea
-
 ios/App/Pods/
 ios/App/DerivedData/
 ios/App/build/
+
+# Documentos locales de auditoría, planes y notas (solo locales)
+AUDITORIA_*.md
+auditoria_*.md
+audit_*.md
+*AUDITORIA*.md
+docs/plans/
+PLAN_*.md
+
+# Tooling & Editor caches
+*.tsbuildinfo
+.eslintcache
+.claude/
+.cursor/
+Thumbs.db
 
 

@@ -16,6 +16,22 @@ export interface EnrichedFavorite {
 const FAVORITES_LIST_KEY = 'costaygol_favorite_selections_v2';
 const OLD_FAVORITE_KEY = 'costaygol_favorite_team_id';
 const OLD_DIVISION_KEY = 'costaygol_favorite_division_id';
+const FAVORITES_EVENT = 'costaygol_favorites_changed';
+
+let globalTeamsMap: Record<string, Team> | null = null;
+let globalTeamsPromise: Promise<Record<string, Team>> | null = null;
+
+function getGlobalTeamsMap(): Promise<Record<string, Team>> {
+  if (globalTeamsMap) return Promise.resolve(globalTeamsMap);
+  if (globalTeamsPromise) return globalTeamsPromise;
+  globalTeamsPromise = fetchTeams().then(teams => {
+    const map: Record<string, Team> = {};
+    teams.forEach(t => { map[t.id] = t; });
+    globalTeamsMap = map;
+    return map;
+  });
+  return globalTeamsPromise;
+}
 
 export function useFavoriteTeam() {
   const [favoritesList, setFavoritesList] = useState<FavoriteSelection[]>(() => {
@@ -39,18 +55,28 @@ export function useFavoriteTeam() {
     return [];
   });
 
-  const [teamsMap, setTeamsMap] = useState<Record<string, Team>>({});
+  const [teamsMap, setTeamsMap] = useState<Record<string, Team>>(() => globalTeamsMap || {});
 
   useEffect(() => {
     let isMounted = true;
-    fetchTeams().then(teams => {
+    getGlobalTeamsMap().then(map => {
       if (isMounted) {
-        const map: Record<string, Team> = {};
-        teams.forEach(t => { map[t.id] = t; });
         setTeamsMap(map);
       }
     });
-    return () => { isMounted = false; };
+
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<FavoriteSelection[]>;
+      if (custom.detail) {
+        setFavoritesList(custom.detail);
+      }
+    };
+    window.addEventListener(FAVORITES_EVENT, handler);
+
+    return () => { 
+      isMounted = false; 
+      window.removeEventListener(FAVORITES_EVENT, handler);
+    };
   }, []);
 
   const saveFavorites = useCallback((nextList: FavoriteSelection[]) => {
@@ -67,6 +93,9 @@ export function useFavoriteTeam() {
       } else {
         localStorage.removeItem(OLD_FAVORITE_KEY);
         localStorage.removeItem(OLD_DIVISION_KEY);
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(FAVORITES_EVENT, { detail: nextList }));
       }
     } catch (err) {
       console.error('Error saving favorites:', err);

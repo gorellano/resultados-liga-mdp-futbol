@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings, calculatePromedioStandings } from '../lib/standings';
-import { Shield, Share2, Copy, Calendar, MapPin, Clock, Trophy, Award, ChevronRight, Star, Swords } from 'lucide-react';
+import { Share2, Copy, Calendar, MapPin, Clock, Trophy, Award, ChevronRight, Star, Swords } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
 import type { Team, Match } from '../lib/types';
@@ -13,6 +13,7 @@ import type { ZoneIndex } from '../lib/divisionConfig';
 import { createSlug } from '../lib/slug';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { H2HModal } from '../components/H2HModal';
+import { ClubLogo } from '../components/ClubLogo';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -147,11 +148,7 @@ function StandingsTable({
                     <Star className={cn("w-4 h-4 sm:w-4.5 sm:h-4.5 transition-colors", isFavorite(row.team.id, divisionId) ? "fill-amber-400 text-amber-500 drop-shadow-xs" : "text-amber-500/50 dark:text-amber-400/50 hover:text-amber-400")} />
                   </button>
                   <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border border-border/60 shadow-xs flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-110 group-hover:border-primary/40 transition-all duration-300">
-                    {row.team.logo_url ? (
-                      <img src={row.team.logo_url} alt={row.team.name} className="w-full h-full object-contain p-1" />
-                    ) : (
-                      <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
-                    )}
+                    <ClubLogo url={row.team.logo_url} name={row.team.name} className="w-full h-full object-contain p-1" />
                   </div>
                   <span className={cn("truncate max-w-[100px] xs:max-w-[140px] sm:max-w-none text-xs sm:text-base tracking-tight", isTop1 ? "text-primary font-extrabold" : "text-foreground", isFavorite(row.team.id, divisionId) && "font-black text-amber-600 dark:text-amber-400")}>
                     {row.team.display_name ?? row.team.name}
@@ -217,7 +214,7 @@ function StandingsTable({
 
 // ─── Match Card ───────────────────────────────────────────────────────────────
 
-function MatchCard({
+const MatchCard = memo(function MatchCard({
   match,
   teams,
   copiedMatchId,
@@ -310,7 +307,7 @@ function MatchCard({
       <div className="flex justify-between items-center gap-4">
         <div className="flex flex-col items-center gap-2.5 flex-1">
           <div className={cn("w-14 h-14 rounded-full bg-background border shadow-xs flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover/match:scale-105", homeWon ? "border-primary/80 ring-2 ring-primary/20" : "border-border/60")}>
-            {home.logo_url ? <img src={home.logo_url} className="w-full h-full object-contain p-2" alt={home.name} /> : <Shield className="w-6 h-6 text-muted-foreground" />}
+            <ClubLogo url={home.logo_url} name={home.name} className="w-full h-full object-contain p-2" />
           </div>
           <span className={cn("text-sm text-center line-clamp-2 leading-tight transition-colors", homeWon ? "font-extrabold text-primary" : "font-semibold text-foreground/90")}>
             {home.display_name ?? home.name}
@@ -329,7 +326,7 @@ function MatchCard({
         </div>
         <div className="flex flex-col items-center gap-2.5 flex-1">
           <div className={cn("w-14 h-14 rounded-full bg-background border shadow-xs flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover/match:scale-105", awayWon ? "border-primary/80 ring-2 ring-primary/20" : "border-border/60")}>
-            {away.logo_url ? <img src={away.logo_url} className="w-full h-full object-contain p-2" alt={away.name} /> : <Shield className="w-6 h-6 text-muted-foreground" />}
+            <ClubLogo url={away.logo_url} name={away.name} className="w-full h-full object-contain p-2" />
           </div>
           <span className={cn("text-sm text-center line-clamp-2 leading-tight transition-colors", awayWon ? "font-extrabold text-primary" : "font-semibold text-foreground/90")}>
             {away.display_name ?? away.name}
@@ -338,7 +335,7 @@ function MatchCard({
       </div>
     </div>
   );
-}
+});
 
 // ─── Fixture View (per zone) ──────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,7 +8,6 @@ import {
   Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard
 } from 'lucide-react';
 import { cn } from '../App';
-import { SponsorsSettings } from './SponsorsSettings';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
 import { 
   fetchTournaments, 
@@ -35,8 +34,16 @@ import {
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
-import { SocialMediaGenerator } from '../components/SocialMediaGenerator';
-import { PdfImporterModal } from '../components/PdfImporterModal';
+
+const SponsorsSettings = lazy(() =>
+  import('./SponsorsSettings').then(m => ({ default: m.SponsorsSettings }))
+);
+const SocialMediaGenerator = lazy(() =>
+  import('../components/SocialMediaGenerator').then(m => ({ default: m.SocialMediaGenerator }))
+);
+const PdfImporterModal = lazy(() =>
+  import('../components/PdfImporterModal').then(m => ({ default: m.PdfImporterModal }))
+);
 
 const DEFAULT_KICKOFF_TIMES: Record<string, string> = {
   'Séptima División': '15:30',
@@ -2479,14 +2486,26 @@ export function AdminDashboard() {
               {/* ── SOCIAL PLATES GENERATOR TAB ── */}
               {activeTab === 'social_generator' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <SocialMediaGenerator />
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center p-12">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  }>
+                    <SocialMediaGenerator />
+                  </Suspense>
                 </div>
               )}
 
               {/* ── SETTINGS TAB ── */}
               {activeTab === 'settings' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <SponsorsSettings />
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center p-12">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  }>
+                    <SponsorsSettings />
+                  </Suspense>
                 </div>
               )}
             </motion.div>
@@ -2814,18 +2833,22 @@ export function AdminDashboard() {
       </AnimatePresence>
 
       {/* Modal de Importación de Resultados desde PDF */}
-      <PdfImporterModal
-        isOpen={isPdfImporterOpen}
-        onClose={() => setIsPdfImporterOpen(false)}
-        tournaments={tournaments}
-        selectedTournamentId={selectedTournamentId || (tournaments[0]?.id ?? '')}
-        onSuccess={() => {
-          // Recargar partidos al guardar
-          if (selectedTournamentId && selectedDivisionId) {
-            fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId).then(setAllMatches);
-          }
-        }}
-      />
+      {isPdfImporterOpen && (
+        <Suspense fallback={null}>
+          <PdfImporterModal
+            isOpen={isPdfImporterOpen}
+            onClose={() => setIsPdfImporterOpen(false)}
+            tournaments={tournaments}
+            selectedTournamentId={selectedTournamentId || (tournaments[0]?.id ?? '')}
+            onSuccess={() => {
+              // Recargar partidos al guardar
+              if (selectedTournamentId && selectedDivisionId) {
+                fetchTournamentDivisionMatches(selectedTournamentId, selectedDivisionId).then(setAllMatches);
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

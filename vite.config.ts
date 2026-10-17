@@ -17,7 +17,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: undefined
       },
-      includeAssets: ['favicon.svg', 'logo_costa_y_gol.png'],
+      includeAssets: ['favicon.svg', 'logo_costa_y_gol.png', 'logo_costa_y_gol.avif'],
       manifest: {
         name: 'Costa y Gol',
         short_name: 'Costa y Gol',
@@ -38,6 +38,33 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/framer-motion')) {
+            return 'vendor-motion';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-lucide';
+          }
+          if (id.includes('node_modules/pdfjs-dist')) {
+            return 'vendor-pdfjs';
+          }
+          if (id.includes('node_modules/html-to-image')) {
+            return 'vendor-html-to-image';
+          }
+          if (id.includes('node_modules/@supabase')) {
+            return 'vendor-supabase';
+          }
+        }
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',

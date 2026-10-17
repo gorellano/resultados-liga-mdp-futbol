@@ -1,23 +1,35 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { HomePage } from './pages/HomePage';
-import { DivisionPage } from './pages/DivisionPage';
-import { AdminLogin } from './pages/AdminLogin';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { AdminPage } from './pages/AdminPage';
-import { TeamsPage } from './pages/TeamsPage';
-import { CampeonesPage } from './pages/CampeonesPage';
-import { H2HPage } from './pages/H2HPage';
-import { TablaAnualPage } from './pages/TablaAnualPage';
-import { ContactModal } from './components/ContactModal';
+
+const HomePage = lazy(() => import('./pages/HomePage').then(m => ({ default: m.HomePage })));
+const DivisionPage = lazy(() => import('./pages/DivisionPage').then(m => ({ default: m.DivisionPage })));
+const TablaAnualPage = lazy(() => import('./pages/TablaAnualPage').then(m => ({ default: m.TablaAnualPage })));
+const TeamsPage = lazy(() => import('./pages/TeamsPage').then(m => ({ default: m.TeamsPage })));
+const CampeonesPage = lazy(() => import('./pages/CampeonesPage').then(m => ({ default: m.CampeonesPage })));
+const H2HPage = lazy(() => import('./pages/H2HPage').then(m => ({ default: m.H2HPage })));
+const AdminLogin = lazy(() => import('./pages/AdminLogin').then(m => ({ default: m.AdminLogin })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const ContactModal = lazy(() => import('./components/ContactModal').then(m => ({ default: m.ContactModal })));
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+function PageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[40vh] space-y-4 py-16 animate-pulse">
+      <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Cargando...</p>
+    </div>
+  );
 }
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -43,30 +55,42 @@ function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [darkMode]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setDarkMode(prev => !prev);
-  };
+  }, []);
 
-  const handleContactSuccess = () => {
+  const handleOpenContact = useCallback(() => {
+    setIsContactModalOpen(true);
+  }, []);
+
+  const handleCloseContact = useCallback(() => {
+    setIsContactModalOpen(false);
+  }, []);
+
+  const handleContactSuccess = useCallback(() => {
     setShowToast(true);
     setTimeout(() => {
       setShowToast(false);
     }, 4000);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/20 text-foreground transition-colors duration-500">
       <Navbar
         darkMode={darkMode}
         onToggleTheme={toggleTheme}
-        onOpenContact={() => setIsContactModalOpen(true)}
+        onOpenContact={handleOpenContact}
       />
       
-      <ContactModal 
-        isOpen={isContactModalOpen} 
-        onClose={() => setIsContactModalOpen(false)} 
-        onSuccess={handleContactSuccess} 
-      />
+      {isContactModalOpen && (
+        <Suspense fallback={null}>
+          <ContactModal 
+            isOpen={isContactModalOpen} 
+            onClose={handleCloseContact} 
+            onSuccess={handleContactSuccess} 
+          />
+        </Suspense>
+      )}
 
       {/* Push notification (Toast) */}
       <AnimatePresence>
@@ -133,18 +157,20 @@ function App() {
   return (
     <BrowserRouter>
       <Layout>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/tabla-anual" element={<TablaAnualPage />} />
-          <Route path="/tabla-general" element={<TablaAnualPage />} />
-          <Route path="/division/:name" element={<DivisionPage />} />
-          <Route path="/equipos" element={<TeamsPage />} />
-          <Route path="/campeones" element={<CampeonesPage />} />
-          <Route path="/h2h" element={<H2HPage />} />
-          <Route path="/admin" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/*" element={<AdminPage />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/tabla-anual" element={<TablaAnualPage />} />
+            <Route path="/tabla-general" element={<TablaAnualPage />} />
+            <Route path="/division/:name" element={<DivisionPage />} />
+            <Route path="/equipos" element={<TeamsPage />} />
+            <Route path="/campeones" element={<CampeonesPage />} />
+            <Route path="/h2h" element={<H2HPage />} />
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/*" element={<AdminPage />} />
+          </Routes>
+        </Suspense>
       </Layout>
     </BrowserRouter>
   );

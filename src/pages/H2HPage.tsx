@@ -1,13 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Swords, Shield, Trophy, Calendar, ArrowLeft } from 'lucide-react';
+import { Swords, Trophy, Calendar, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { fetchDivisions, fetchTeams, fetchTournaments, fetchAllTournamentMatches, fetchZones, fetchMatches } from '../lib/db';
+import { fetchDivisions, fetchTeams, fetchTournaments, fetchTournamentDivisionMatches, fetchAllTournamentMatches } from '../lib/db';
 import type { Division, Team, Match } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { calculateStandings } from '../lib/standings';
-import { createSlug } from '../lib/slug';
-import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
+import { ClubLogo } from '../components/ClubLogo';
 
 export function H2HPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
@@ -46,7 +45,7 @@ export function H2HPage() {
     loadData();
   }, []);
 
-  // Cargar partidos de la división seleccionada
+  // Cargar partidos de la división seleccionada (optimizado a una sola query)
   useEffect(() => {
     async function loadMatches() {
       if (!selectedDivisionId) return;
@@ -55,36 +54,7 @@ export function H2HPage() {
         if (tourns.length === 0) return;
         const tournamentId = tourns[0].id;
 
-        const currentDiv = divisions.find(d => d.id === selectedDivisionId);
-        if (!currentDiv) return;
-
-        const divSlug = createSlug(currentDiv.name);
-        const isTournament = isTournamentDivision(divSlug);
-        const zones = await fetchZones();
-
-        let divMatches: Match[] = [];
-
-        if (isTournament) {
-          const config = getTournamentConfig(divSlug);
-          const zoneNames = config?.zoneNames ?? ['Zona 1', 'Zona 2', 'Zona 3'];
-          const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
-
-          const matchArrays = await Promise.all(
-            foundZones.map(z => z ? fetchMatches(currentDiv.id, z.id, tournamentId) : Promise.resolve([]))
-          );
-          divMatches = matchArrays.flat();
-        } else {
-          const matchArrays = await Promise.all(
-            zones.map(z => fetchMatches(currentDiv.id, z.id, tournamentId))
-          );
-          divMatches = matchArrays.flat();
-
-          if (divMatches.length === 0) {
-            const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
-            const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
-            divMatches = [...msCamp, ...msProm];
-          }
-        }
+        let divMatches = await fetchTournamentDivisionMatches(tournamentId, selectedDivisionId);
 
         if (divMatches.length === 0) {
           const allM = await fetchAllTournamentMatches(tournamentId);
@@ -97,7 +67,7 @@ export function H2HPage() {
       }
     }
     loadMatches();
-  }, [selectedDivisionId, divisions]);
+  }, [selectedDivisionId]);
 
   const youthDivisions = useMemo(() => {
     return divisions.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
@@ -233,11 +203,13 @@ export function H2HPage() {
               {/* Equipo A */}
               <div className="flex flex-col items-center gap-2">
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-background border-2 border-primary/30 shadow-md flex items-center justify-center p-2.5">
-                  {teamA.logo_url ? (
-                    <img src={teamA.logo_url} alt={teamA.name} className="w-full h-full object-contain" />
-                  ) : (
-                    <Shield className="w-10 h-10 text-muted-foreground" />
-                  )}
+                  <ClubLogo 
+                    url={teamA.logo_url} 
+                    name={teamA.name} 
+                    className="w-full h-full object-contain"
+                    iconClassName="w-10 h-10 text-muted-foreground"
+                    priority={true}
+                  />
                 </div>
                 <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-foreground truncate max-w-[130px]" title={teamA.name}>
                   {teamA.display_name ?? teamA.name}
@@ -264,11 +236,13 @@ export function H2HPage() {
               {/* Equipo B */}
               <div className="flex flex-col items-center gap-2">
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-background border-2 border-primary/30 shadow-md flex items-center justify-center p-2.5">
-                  {teamB.logo_url ? (
-                    <img src={teamB.logo_url} alt={teamB.name} className="w-full h-full object-contain" />
-                  ) : (
-                    <Shield className="w-10 h-10 text-muted-foreground" />
-                  )}
+                  <ClubLogo 
+                    url={teamB.logo_url} 
+                    name={teamB.name} 
+                    className="w-full h-full object-contain"
+                    iconClassName="w-10 h-10 text-muted-foreground"
+                    priority={true}
+                  />
                 </div>
                 <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-foreground truncate max-w-[130px]" title={teamB.name}>
                   {teamB.display_name ?? teamB.name}

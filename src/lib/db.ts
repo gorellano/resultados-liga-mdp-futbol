@@ -21,6 +21,73 @@ let memoryUsers: User[] = [
   { id: 'u2', username: 'editor',     role: 'editor',      is_active: true, created_at: new Date().toISOString() },
 ];
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
+const memoryCache = new Map<string, CacheEntry<any>>();
+const inFlightRequests = new Map<string, Promise<any>>();
+
+export function getCached<T>(key: string): T | null {
+  const entry = memoryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+export function setCached<T>(key: string, data: T, ttlMs: number): void {
+  memoryCache.set(key, {
+    data,
+    timestamp: Date.now(),
+    expiresAt: Date.now() + ttlMs,
+  });
+}
+
+export function invalidateDbCache(pattern?: string): void {
+  if (!pattern) {
+    memoryCache.clear();
+    return;
+  }
+  for (const key of memoryCache.keys()) {
+    if (key.includes(pattern)) {
+      memoryCache.delete(key);
+    }
+  }
+}
+
+async function withCache<T>(
+  cacheKey: string,
+  ttlMs: number,
+  fetcher: () => Promise<T>
+): Promise<T> {
+  const cached = getCached<T>(cacheKey);
+  if (cached !== null) {
+    return cached;
+  }
+
+  if (inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey) as Promise<T>;
+  }
+
+  const promise = (async () => {
+    try {
+      const result = await fetcher();
+      setCached(cacheKey, result, ttlMs);
+      return result;
+    } finally {
+      inFlightRequests.delete(cacheKey);
+    }
+  })();
+
+  inFlightRequests.set(cacheKey, promise);
+  return promise;
+}
+
 /**
  * Checks if Supabase has been configured with real, non-placeholder credentials
  */
@@ -34,83 +101,88 @@ export function isSupabaseActive(): boolean {
  * Fetches all tournaments from Supabase (or fallback MOCK_TOURNAMENTS)
  */
 export async function fetchTournaments(): Promise<Tournament[]> {
-  if (!isSupabaseActive()) {
-    return MOCK_TOURNAMENTS;
-  }
-  try {
-    const { data, error } = await supabase
-      .from('tournaments')
-      .select('id, name, year, is_current')
-      .order('year', { ascending: false });
+  return withCache('tournaments', 5 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      return MOCK_TOURNAMENTS;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('id, name, year, is_current')
+        .order('year', { ascending: false });
 
-    if (error) throw error;
-    
-    // Priorizar siempre el torneo marcado como actual (is_current), luego año descendente
-    const sorted = [...(data || [])].sort((a, b) => {
-      if (a.is_current && !b.is_current) return -1;
-      if (!a.is_current && b.is_current) return 1;
-      return (b.year ?? 0) - (a.year ?? 0);
-    });
+      if (error) throw error;
+      
+      // Priorizar siempre el torneo marcado como actual (is_current), luego año descendente
+      const sorted = [...(data || [])].sort((a, b) => {
+        if (a.is_current && !b.is_current) return -1;
+        if (!a.is_current && b.is_current) return 1;
+        return (b.year ?? 0) - (a.year ?? 0);
+      });
 
-    return sorted;
-  } catch (err) {
-    console.warn('Supabase fetchTournaments failed, falling back to mocks:', err);
-    return MOCK_TOURNAMENTS;
-  }
+      return sorted;
+    } catch (err) {
+      console.warn('Supabase fetchTournaments failed, falling back to mocks:', err);
+      return MOCK_TOURNAMENTS;
+    }
+  });
 }
 
 /**
  * Obtiene todos los partidos de todos los torneos de un año específico (con paginación completa)
  */
 export async function fetchMatchesForYear(year: number): Promise<Match[]> {
-  if (!isSupabaseActive()) {
-    return [...memoryMatchesCamp, ...memoryMatchesProm];
-  }
-  try {
-    const { data: tourns, error: tournErr } = await supabase
-      .from('tournaments')
-      .select('id')
-      .eq('year', year);
+  const cacheKey = `matches_year_${year}`;
+  return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      return [...memoryMatchesCamp, ...memoryMatchesProm];
+    }
+    try {
+      const { data: tourns, error: tournErr } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('year', year);
 
-    if (tournErr || !tourns || tourns.length === 0) {
+      if (tournErr || !tourns || tourns.length === 0) {
+        return [];
+      }
+
+      const tournIds = tourns.map(t => t.id);
+      let allMatches: Match[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from('matches')
+          .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+          .in('tournament_id', tournIds)
+          .range(from, to);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allMatches = allMatches.concat(data.map(m => ({
+            ...m,
+            status: m.status as 'scheduled' | 'finished' | 'postponed'
+          })));
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      return allMatches;
+    } catch (err) {
+      console.warn('fetchMatchesForYear failed:', err);
       return [];
     }
-
-    const tournIds = tourns.map(t => t.id);
-    let allMatches: Match[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      const { data, error } = await supabase
-        .from('matches')
-        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-        .in('tournament_id', tournIds)
-        .range(from, to);
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        allMatches = allMatches.concat(data.map(m => ({
-          ...m,
-          status: m.status as 'scheduled' | 'finished' | 'postponed'
-        })));
-        if (data.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
-    }
-    return allMatches;
-  } catch (err) {
-    console.warn('fetchMatchesForYear failed:', err);
-    return [];
-  }
+  });
 }
 
 /**
@@ -130,22 +202,24 @@ export async function fetchDivisions(): Promise<Division[]> {
     { id: '11111111-0001-0001-0001-000000000010', name: '16ta División', sort_order: 10 },
   ];
 
-  if (!isSupabaseActive()) {
-    return mockDivisions;
-  }
-  try {
-    const { data, error } = await supabase
-      .from('divisions')
-      .select('id, name, sort_order')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true });
+  return withCache('divisions', 10 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      return mockDivisions;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('divisions')
+        .select('id, name, sort_order')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
 
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.warn('Supabase fetchDivisions failed, falling back to mocks:', err);
-    return mockDivisions;
-  }
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn('Supabase fetchDivisions failed, falling back to mocks:', err);
+      return mockDivisions;
+    }
+  });
 }
 
 /**
@@ -169,20 +243,22 @@ export async function fetchZones(): Promise<Zone[]> {
     { id: '22222222-0001-0001-0001-000000000033', name: 'Zona 3 - Sexta' },
   ];
 
-  if (!isSupabaseActive()) {
-    return mockZones;
-  }
-  try {
-    const { data, error } = await supabase
-      .from('zones')
-      .select('id, name');
+  return withCache('zones', 10 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      return mockZones;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('zones')
+        .select('id, name');
 
-    if (error) throw error;
-    return data || [];
-  } catch (err) {
-    console.warn('Supabase fetchZones failed, falling back to mocks:', err);
-    return mockZones;
-  }
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.warn('Supabase fetchZones failed, falling back to mocks:', err);
+      return mockZones;
+    }
+  });
 }
 
 /**
@@ -191,33 +267,35 @@ export async function fetchZones(): Promise<Zone[]> {
 export async function fetchTeams(): Promise<Team[]> {
   const mockTeams = [...MOCK_TEAMS_CAMPEONATO, ...MOCK_TEAMS_PROMOCION];
 
-  if (!isSupabaseActive()) {
-    return mockTeams;
-  }
-  try {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('id, name, display_name, logo_url');
+  return withCache('teams', 10 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      return mockTeams;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name, display_name, logo_url');
 
-    if (error) throw error;
-    // Map team display names based on exact matches for visual presentation fallback
-    const DISPLAY_NAMES: Record<string, string> = {
-      "Talleres de Mar del Plata":            "Talleres",
-      "Club Banco Provincia de Mar del Plata": "Banco Provincia",
-      "Club Social y Deportivo Chapadmalal":   "Chapadmalal",
-      "El cañon":                             "El Cañón",
-      "General Mitre":                        "Gral. Mitre",
-    };
-    return (data || []).map(t => ({
-      ...t,
-      display_name: t.display_name || DISPLAY_NAMES[t.name],
-      website_url: WEBSITES[t.name] || null,
-      instagram_url: INSTAGRAMS[t.name] || null
-    }));
-  } catch (err) {
-    console.warn('Supabase fetchTeams failed, falling back to mocks:', err);
-    return mockTeams;
-  }
+      if (error) throw error;
+      // Map team display names based on exact matches for visual presentation fallback
+      const DISPLAY_NAMES: Record<string, string> = {
+        "Talleres de Mar del Plata":            "Talleres",
+        "Club Banco Provincia de Mar del Plata": "Banco Provincia",
+        "Club Social y Deportivo Chapadmalal":   "Chapadmalal",
+        "El cañon":                             "El Cañón",
+        "General Mitre":                        "Gral. Mitre",
+      };
+      return (data || []).map(t => ({
+        ...t,
+        display_name: t.display_name || DISPLAY_NAMES[t.name],
+        website_url: WEBSITES[t.name] || null,
+        instagram_url: INSTAGRAMS[t.name] || null
+      }));
+    } catch (err) {
+      console.warn('Supabase fetchTeams failed, falling back to mocks:', err);
+      return mockTeams;
+    }
+  });
 }
 
 /**
@@ -228,168 +306,177 @@ export async function fetchMatches(
   zoneId: string, 
   tournamentId: string
 ): Promise<Match[]> {
-  if (!isSupabaseActive()) {
-    // Determine target mock matches (Campeonato vs Promoción) based on selected zone
-    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002';
-    const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
-    return source
-      .filter(m => m.tournament_id === tournamentId)
-      .map(m => ({ ...m, division_id: divisionId, zone_id: zoneId }));
-  }
-  try {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-      .eq('division_id', divisionId)
-      .eq('zone_id', zoneId)
-      .eq('tournament_id', tournamentId);
-
-    if (error) throw error;
-    if (data && data.length > 0) {
-      return data.map(m => ({
-        ...m,
-        status: m.status as 'scheduled' | 'finished' | 'postponed'
-      }));
+  const cacheKey = `matches_${tournamentId}_${divisionId}_${zoneId}`;
+  return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      // Determine target mock matches (Campeonato vs Promoción) based on selected zone
+      const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002';
+      const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
+      return source
+        .filter(m => m.tournament_id === tournamentId)
+        .map(m => ({ ...m, division_id: divisionId, zone_id: zoneId }));
     }
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+        .eq('division_id', divisionId)
+        .eq('zone_id', zoneId)
+        .eq('tournament_id', tournamentId);
 
-    // Fallback mock fixture when Supabase has no matches yet for this division/zone/tournament
-    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
-    const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
-    return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
-  } catch (err) {
-    console.warn('Supabase fetchMatches failed, falling back to mocks:', err);
-    const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
-    const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
-    return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
-  }
+      if (error) throw error;
+      if (data && data.length > 0) {
+        return data.map(m => ({
+          ...m,
+          status: m.status as 'scheduled' | 'finished' | 'postponed'
+        }));
+      }
+
+      // Fallback mock fixture when Supabase has no matches yet for this division/zone/tournament
+      const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
+      const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
+      return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
+    } catch (err) {
+      console.warn('Supabase fetchMatches failed, falling back to mocks:', err);
+      const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002' || zoneId.toLowerCase().includes('prom');
+      const source = isProm ? memoryMatchesProm : memoryMatchesCamp;
+      return source.map(m => ({ ...m, tournament_id: tournamentId, division_id: divisionId, zone_id: zoneId }));
+    }
+  });
 }
 
 /**
  * Fetches all matches for a given tournament (across all divisions/zones)
  */
 export async function fetchAllTournamentMatches(tournamentId: string): Promise<Match[]> {
-  if (!isSupabaseActive()) {
-    // Generate mock matches dynamically for all active divisions
-    const divs = [
-      '11111111-0001-0001-0001-000000000001', // 7ma
-      '11111111-0001-0001-0001-000000000002', // 8va
-      '11111111-0001-0001-0001-000000000003', // 9na
-      '11111111-0001-0001-0001-000000000004', // 10ma
-      '11111111-0001-0001-0001-000000000005', // 11ma
-      '11111111-0001-0001-0001-000000000006', // 12ma
-      '11111111-0001-0001-0001-000000000007', // 13ra
-      '11111111-0001-0001-0001-000000000008', // 14ta
-      '11111111-0001-0001-0001-000000000009', // 15ta
-      '11111111-0001-0001-0001-000000000010', // 16ta
-    ];
-    const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
-    const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
-    
-    const allMatches: Match[] = [];
-    divs.forEach(divId => {
-      campMatches.forEach(m => {
-        allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000001' });
+  const cacheKey = `matches_${tournamentId}_all`;
+  return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      // Generate mock matches dynamically for all active divisions
+      const divs = [
+        '11111111-0001-0001-0001-000000000001', // 7ma
+        '11111111-0001-0001-0001-000000000002', // 8va
+        '11111111-0001-0001-0001-000000000003', // 9na
+        '11111111-0001-0001-0001-000000000004', // 10ma
+        '11111111-0001-0001-0001-000000000005', // 11ma
+        '11111111-0001-0001-0001-000000000006', // 12ma
+        '11111111-0001-0001-0001-000000000007', // 13ra
+        '11111111-0001-0001-0001-000000000008', // 14ta
+        '11111111-0001-0001-0001-000000000009', // 15ta
+        '11111111-0001-0001-0001-000000000010', // 16ta
+      ];
+      const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
+      const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
+      
+      const allMatches: Match[] = [];
+      divs.forEach(divId => {
+        campMatches.forEach(m => {
+          allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000001' });
+        });
+        promMatches.forEach(m => {
+          allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000002' });
+        });
       });
-      promMatches.forEach(m => {
-        allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000002' });
-      });
-    });
-    return allMatches;
-  }
-  try {
-    let allMatches: Match[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      const { data, error } = await supabase
-        .from('matches')
-        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-        .eq('tournament_id', tournamentId)
-        .range(from, to);
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        allMatches = allMatches.concat(data.map(m => ({
-          ...m,
-          status: m.status as 'scheduled' | 'finished' | 'postponed'
-        })));
-        if (data.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
-      } else {
-        hasMore = false;
-      }
+      return allMatches;
     }
-    return allMatches;
-  } catch (err) {
-    console.warn('Supabase fetchAllTournamentMatches failed, falling back to mocks:', err);
-    // Same dynamic expansion fallback
-    const divs = [
-      '11111111-0001-0001-0001-000000000001',
-      '11111111-0001-0001-0001-000000000002',
-      '11111111-0001-0001-0001-000000000003',
-      '11111111-0001-0001-0001-000000000004',
-      '11111111-0001-0001-0001-000000000005',
-      '11111111-0001-0001-0001-000000000006',
-      '11111111-0001-0001-0001-000000000007',
-      '11111111-0001-0001-0001-000000000008',
-      '11111111-0001-0001-0001-000000000009',
-      '11111111-0001-0001-0001-000000000010',
-    ];
-    const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
-    const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
-    const allMatches: Match[] = [];
-    divs.forEach(divId => {
-      campMatches.forEach(m => {
-        allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000001' });
+    try {
+      let allMatches: Match[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const { data, error } = await supabase
+          .from('matches')
+          .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+          .eq('tournament_id', tournamentId)
+          .range(from, to);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allMatches = allMatches.concat(data.map(m => ({
+            ...m,
+            status: m.status as 'scheduled' | 'finished' | 'postponed'
+          })));
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      return allMatches;
+    } catch (err) {
+      console.warn('Supabase fetchAllTournamentMatches failed, falling back to mocks:', err);
+      // Same dynamic expansion fallback
+      const divs = [
+        '11111111-0001-0001-0001-000000000001',
+        '11111111-0001-0001-0001-000000000002',
+        '11111111-0001-0001-0001-000000000003',
+        '11111111-0001-0001-0001-000000000004',
+        '11111111-0001-0001-0001-000000000005',
+        '11111111-0001-0001-0001-000000000006',
+        '11111111-0001-0001-0001-000000000007',
+        '11111111-0001-0001-0001-000000000008',
+        '11111111-0001-0001-0001-000000000009',
+        '11111111-0001-0001-0001-000000000010',
+      ];
+      const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
+      const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
+      const allMatches: Match[] = [];
+      divs.forEach(divId => {
+        campMatches.forEach(m => {
+          allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000001' });
+        });
+        promMatches.forEach(m => {
+          allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000002' });
+        });
       });
-      promMatches.forEach(m => {
-        allMatches.push({ ...m, division_id: divId, zone_id: '22222222-0001-0001-0001-000000000002' });
-      });
-    });
-    return allMatches;
-  }
+      return allMatches;
+    }
+  });
 }
 
 /**
  * Fetches matches for a given tournament and division
  */
 export async function fetchTournamentDivisionMatches(tournamentId: string, divisionId: string): Promise<Match[]> {
-  if (!isSupabaseActive()) {
-    const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
-    const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
-    
-    const allMatches: Match[] = [];
-    campMatches.forEach(m => {
-      allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000001' });
-    });
-    promMatches.forEach(m => {
-      allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000002' });
-    });
-    return allMatches;
-  }
-  try {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-      .eq('tournament_id', tournamentId)
-      .eq('division_id', divisionId);
+  const cacheKey = `matches_${tournamentId}_div_${divisionId}`;
+  return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    if (!isSupabaseActive()) {
+      const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
+      const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
+      
+      const allMatches: Match[] = [];
+      campMatches.forEach(m => {
+        allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000001' });
+      });
+      promMatches.forEach(m => {
+        allMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000002' });
+      });
+      return allMatches;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('matches')
+        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
+        .eq('tournament_id', tournamentId)
+        .eq('division_id', divisionId);
 
-    if (error) throw error;
-    return (data || []).map(m => ({
-      ...m,
-      status: m.status as 'scheduled' | 'finished' | 'postponed'
-    }));
-  } catch (err) {
-    console.warn('Supabase fetchTournamentDivisionMatches failed:', err);
-    return [];
-  }
+      if (error) throw error;
+      return (data || []).map(m => ({
+        ...m,
+        status: m.status as 'scheduled' | 'finished' | 'postponed'
+      }));
+    } catch (err) {
+      console.warn('Supabase fetchTournamentDivisionMatches failed:', err);
+      return [];
+    }
+  });
 }
 
 /**
@@ -418,6 +505,7 @@ export async function saveMatchResult(
     };
     memoryMatchesCamp = memoryMatchesCamp.map(updateMatch);
     memoryMatchesProm = memoryMatchesProm.map(updateMatch);
+    invalidateDbCache('matches');
     return true;
   }
   try {
@@ -436,6 +524,7 @@ export async function saveMatchResult(
       .eq('id', matchId);
 
     if (error) throw error;
+    invalidateDbCache('matches');
     return true;
   } catch (err) {
     console.error('Supabase saveMatchResult failed:', err);
@@ -532,6 +621,7 @@ export async function createTeam(
       display_name: displayName?.trim() || undefined,
       logo_url: logoUrl || null
     };
+    invalidateDbCache('teams');
     return newTeam;
   }
   try {
@@ -540,6 +630,7 @@ export async function createTeam(
       .insert([{ name: name.trim(), display_name: displayName?.trim() || null, logo_url: logoUrl }])
       .select('id, name, display_name, logo_url');
     if (error) throw error;
+    invalidateDbCache('teams');
     return data && data.length > 0 ? data[0] : null;
   } catch (err) {
     console.error('Supabase createTeam failed:', err);
@@ -560,6 +651,7 @@ export async function createTournament(
       name: name.trim(),
       year
     };
+    invalidateDbCache('tournaments');
     return newTourn;
   }
   try {
@@ -568,6 +660,7 @@ export async function createTournament(
       .insert([{ name: name.trim(), year }])
       .select('id, name, year');
     if (error) throw error;
+    invalidateDbCache('tournaments');
     return data && data.length > 0 ? data[0] : null;
   } catch (err) {
     console.error('Supabase createTournament failed:', err);
@@ -698,6 +791,7 @@ export async function createMatch(
     } else {
       memoryMatchesCamp.push(newMatch);
     }
+    invalidateDbCache('matches');
     return newMatch;
   }
   try {
@@ -707,6 +801,7 @@ export async function createMatch(
       .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date');
     if (error) throw error;
     if (data && data.length > 0) {
+      invalidateDbCache('matches');
       return {
         ...data[0],
         status: data[0].status as 'scheduled' | 'finished' | 'postponed'
@@ -728,6 +823,7 @@ export async function deleteMatch(
   if (!isSupabaseActive()) {
     memoryMatchesCamp = memoryMatchesCamp.filter(m => m.id !== matchId);
     memoryMatchesProm = memoryMatchesProm.filter(m => m.id !== matchId);
+    invalidateDbCache('matches');
     return true;
   }
   try {
@@ -736,6 +832,7 @@ export async function deleteMatch(
       .delete()
       .eq('id', matchId);
     if (error) throw error;
+    invalidateDbCache('matches');
     return true;
   } catch (err) {
     console.error('Supabase deleteMatch failed:', err);
@@ -761,6 +858,7 @@ export async function createMatches(
     } else {
       memoryMatchesCamp.push(...newMatches);
     }
+    invalidateDbCache('matches');
     return newMatches;
   }
   try {
@@ -769,6 +867,7 @@ export async function createMatches(
       .insert(matches)
       .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date');
     if (error) throw error;
+    invalidateDbCache('matches');
     return (data || []).map(m => ({
       ...m,
       status: m.status as 'scheduled' | 'finished' | 'postponed'
@@ -785,6 +884,7 @@ export async function createMatches(
     } else {
       memoryMatchesCamp.push(...newMatches);
     }
+    invalidateDbCache('matches');
     return newMatches;
   }
 }
@@ -801,6 +901,7 @@ export async function deleteMatchesByFilter(
     const filter = (m: Match) => !(m.tournament_id === tournamentId && m.division_id === divisionId && m.zone_id === zoneId);
     memoryMatchesCamp = memoryMatchesCamp.filter(filter);
     memoryMatchesProm = memoryMatchesProm.filter(filter);
+    invalidateDbCache('matches');
     return true;
   }
   try {
@@ -811,6 +912,7 @@ export async function deleteMatchesByFilter(
       .eq('division_id', divisionId)
       .eq('zone_id', zoneId);
     if (error) throw error;
+    invalidateDbCache('matches');
     return true;
   } catch (err) {
     console.error('Supabase deleteMatchesByFilter failed:', err);

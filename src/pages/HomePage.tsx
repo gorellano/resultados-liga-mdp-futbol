@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { Star, Shield, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award } from 'lucide-react';
+import { Star, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
@@ -12,6 +12,8 @@ import { SponsorBanner } from '../components/SponsorBanner';
 import { CommunityPoll } from '../components/CommunityPoll';
 import { createSlug, formatSlugToTitle } from '../lib/slug';
 import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
+
+import { ClubLogo } from '../components/ClubLogo';
 
 interface FavoriteStat {
   team: Team;
@@ -43,7 +45,8 @@ async function fetchFavoriteStatsForTeam(
   divisionId: string,
   tournamentId: string,
   allTeams: Team[],
-  activeDivs: Division[]
+  activeDivs: Division[],
+  allTournamentMatches?: Match[]
 ): Promise<FavoriteStat | null> {
   const currentDiv = activeDivs.find(d => d.id === divisionId || createSlug(d.name) === divisionId);
   if (!currentDiv) return null;
@@ -56,50 +59,57 @@ async function fetchFavoriteStatsForTeam(
 
   let divMatches: Match[] = [];
 
-  if (isTournament) {
-    const zones = await fetchZones();
-    const config = getTournamentConfig(divSlug);
-    const zoneNames = config?.zoneNames ?? ['Zona 1', 'Zona 2', 'Zona 3'];
-    const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
-
-    const matchArrays = await Promise.all(
-      foundZones.map(z => z ? fetchMatches(currentDiv.id, z.id, tournamentId) : Promise.resolve([]))
-    );
-
-    for (const mArray of matchArrays) {
-      if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
-        divMatches = mArray;
-        break;
-      }
-    }
-    if (divMatches.length === 0) {
-      divMatches = matchArrays.flat();
-    }
-  } else {
-    // Liga format (7ma to 16ta): fetch matches for all available zones
-    const zones = await fetchZones();
-    const matchArrays = await Promise.all(
-      zones.map(z => fetchMatches(currentDiv.id, z.id, tournamentId))
-    );
-
-    for (const mArray of matchArrays) {
-      if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
-        divMatches = mArray;
-        break;
-      }
-    }
-
-    if (divMatches.length === 0) {
-      const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
-      const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
-      divMatches = [...msCamp, ...msProm];
-    }
+  // Optimization: use already-fetched tournament matches directly to prevent N+1 queries
+  if (allTournamentMatches && allTournamentMatches.length > 0) {
+    divMatches = allTournamentMatches.filter(m => m.division_id === currentDiv.id);
   }
 
-  // Final fallback to ensure divMatches is never empty if tournament matches exist
   if (divMatches.length === 0) {
-    const allM = await fetchAllTournamentMatches(tournamentId);
-    divMatches = allM.filter(m => m.division_id === currentDiv.id);
+    if (isTournament) {
+      const zones = await fetchZones();
+      const config = getTournamentConfig(divSlug);
+      const zoneNames = config?.zoneNames ?? ['Zona 1', 'Zona 2', 'Zona 3'];
+      const foundZones = zoneNames.map(name => zones.find(z => z.name === name) ?? null);
+
+      const matchArrays = await Promise.all(
+        foundZones.map(z => z ? fetchMatches(currentDiv.id, z.id, tournamentId) : Promise.resolve([]))
+      );
+
+      for (const mArray of matchArrays) {
+        if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+          divMatches = mArray;
+          break;
+        }
+      }
+      if (divMatches.length === 0) {
+        divMatches = matchArrays.flat();
+      }
+    } else {
+      // Liga format (7ma to 16ta): fetch matches for all available zones
+      const zones = await fetchZones();
+      const matchArrays = await Promise.all(
+        zones.map(z => fetchMatches(currentDiv.id, z.id, tournamentId))
+      );
+
+      for (const mArray of matchArrays) {
+        if (mArray.some(m => m.home_team_id === teamId || m.away_team_id === teamId)) {
+          divMatches = mArray;
+          break;
+        }
+      }
+
+      if (divMatches.length === 0) {
+        const msCamp = await fetchMatches(currentDiv.id, 'camp', tournamentId);
+        const msProm = await fetchMatches(currentDiv.id, 'prom', tournamentId);
+        divMatches = [...msCamp, ...msProm];
+      }
+    }
+
+    // Final fallback to ensure divMatches is never empty if tournament matches exist
+    if (divMatches.length === 0) {
+      const allM = await fetchAllTournamentMatches(tournamentId);
+      divMatches = allM.filter(m => m.division_id === currentDiv.id);
+    }
   }
 
   const teamMatches = divMatches.filter(m => m.home_team_id === teamId || m.away_team_id === teamId);
@@ -186,6 +196,7 @@ export function HomePage() {
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [currentTournamentId, setCurrentTournamentId] = useState<string | null>(null);
+  const [tournamentMatches, setTournamentMatches] = useState<Match[]>([]);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
   const [favoritesStats, setFavoritesStats] = useState<FavoriteStat[]>([]);
 
@@ -214,6 +225,7 @@ export function HomePage() {
             setSeasonYear(activeTourn.year);
           }
           const matches = await fetchAllTournamentMatches(activeTourn.id);
+          setTournamentMatches(matches);
           
           const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
           divs.forEach(div => {
@@ -257,7 +269,7 @@ export function HomePage() {
           targetDivId = defaultDiv?.id;
         }
         if (!targetDivId) return null;
-        return fetchFavoriteStatsForTeam(fav.teamId, targetDivId, currentTournamentId!, allTeams, activeDivs);
+        return fetchFavoriteStatsForTeam(fav.teamId, targetDivId, currentTournamentId!, allTeams, activeDivs, tournamentMatches);
       });
 
       const results = await Promise.all(statsPromises);
@@ -269,7 +281,7 @@ export function HomePage() {
     loadFavStats();
 
     return () => { isMounted = false; };
-  }, [favorites, activeDivs, allTeams, currentTournamentId]);
+  }, [favorites, activeDivs, allTeams, currentTournamentId, tournamentMatches]);
 
   const divisionsList = activeDivs
     .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
@@ -291,7 +303,18 @@ export function HomePage() {
     >
       <section className="flex items-center gap-4 sm:gap-6 text-left bg-card/30 border border-border/50 p-4 sm:p-6 md:p-8 rounded-3xl backdrop-blur-sm max-w-4xl mx-auto shadow-sm">
         <div className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl bg-primary/5 border border-border/50 overflow-hidden shadow-md shrink-0 hover:scale-105 transition-transform duration-300">
-          <img src="/logo_costa_y_gol.png" alt="Costa y Gol Logo" className="w-full h-full object-cover" />
+          <picture>
+            <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
+            <img 
+              src="/logo_costa_y_gol.png" 
+              alt="Costa y Gol Logo" 
+              className="w-full h-full object-cover" 
+              loading="eager"
+              decoding="async"
+              // @ts-expect-error fetchpriority attribute
+              fetchpriority="high"
+            />
+          </picture>
         </div>
         <div className="space-y-1 sm:space-y-2 md:space-y-3">
           <h1 className="text-xl sm:text-3xl md:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-muted-foreground">
@@ -315,11 +338,13 @@ export function HomePage() {
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-background border border-amber-500/40 flex items-center justify-center p-1.5 shrink-0 shadow-xs">
-                    {favStat.team.logo_url ? (
-                      <img src={favStat.team.logo_url} alt={favStat.team.name} className="w-full h-full object-contain" />
-                    ) : (
-                      <Shield className="w-6 h-6 text-amber-500" />
-                    )}
+                    <ClubLogo 
+                      url={favStat.team.logo_url} 
+                      name={favStat.team.name} 
+                      className="w-full h-full object-contain"
+                      iconClassName="w-6 h-6 text-amber-500"
+                      priority={true}
+                    />
                   </div>
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">

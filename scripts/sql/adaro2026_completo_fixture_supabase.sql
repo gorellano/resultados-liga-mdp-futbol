@@ -131,88 +131,88 @@ UPDATE public.divisions
 -- ─── 5. VERIFICACIÓN / ALTA DE LOS 28 CLUBES ──────────────────────────────────
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Aldosivi', '/logos/aldosivi.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Aldosivi%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Aldosivi' OR name ILIKE '%Aldosivi%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Argentinos del Sud', '/logos/argentinos_del_sud.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Argentinos%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Argentinos del Sud' OR name ILIKE '%Argentinos%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Libertad', '/logos/libertad.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Libertad%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Libertad' OR name ILIKE '%Libertad%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'San Lorenzo', '/logos/san_lorenzo.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%San Lorenzo%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'San Lorenzo' OR name ILIKE '%San Lorenzo%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Kimberley', '/logos/kimberley.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Kimberley%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Kimberley' OR name ILIKE '%Kimberley%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Talleres', '/logos/talleres.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Talleres%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Talleres' OR name ILIKE 'Talleres%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Boca Juniors', '/logos/boca_juniors.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Boca%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Boca Juniors' OR name ILIKE '%Boca%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Chapadmalal', '/logos/chapadmalal.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Chapadmalal%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Chapadmalal' OR name ILIKE '%Chapadmalal%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'San Isidro', '/logos/san_isidro.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%San Isidro%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'San Isidro' OR name ILIKE '%San Isidro%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Alvarado', '/logos/alvarado.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Alvarado%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Alvarado' OR name ILIKE '%Alvarado%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Atlético Mar del Plata', '/logos/atletico_mar_del_plata.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Mar del Plata%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Atlético Mar del Plata' OR ((name ILIKE '%Atlético Mar del Plata%' OR name ILIKE '%Atletico Mar del Plata%' OR name ILIKE '%Mar del Plata%') AND name NOT ILIKE '%Talleres%' AND name NOT ILIKE '%Banco%'));
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Al Ver Veras', '/logos/al_ver_veras.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Veras%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Al Ver Veras' OR name ILIKE '%Veras%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Quilmes', '/logos/quilmes.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Quilmes%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Quilmes' OR name ILIKE '%Quilmes%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Independiente', '/logos/independiente.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Independiente%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Independiente' OR name ILIKE '%Independiente%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'El cañon', '/logos/el_canon.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%cañon%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'El cañon' OR name ILIKE '%cañon%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Racing', '/logos/racing.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Racing%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Racing' OR name ILIKE '%Racing%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Nacion', '/logos/nacion.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%nacio%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Nacion' OR name ILIKE '%nacio%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Deportivo Norte', '/logos/deportivo_norte.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Deportivo Norte%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Deportivo Norte' OR name ILIKE '%Deportivo Norte%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Almagro', '/logos/almagro_florida.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Almagro%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Almagro' OR name ILIKE '%Almagro%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Circulo', '/logos/circulo_deportivo.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Circulo%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Circulo' OR name ILIKE '%Circulo%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'River Plate', '/logos/river_plate.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%River%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'River Plate' OR name ILIKE '%River%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Colegiales', '/logos/colegiales_el_siciliano.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Colegiales%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Colegiales' OR name ILIKE '%Colegiales%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'San José', '/logos/san_jose.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%San Jos%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'San José' OR name ILIKE '%San Jos%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Cadetes', '/logos/cadetes.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Cadetes%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Cadetes' OR name ILIKE '%Cadetes%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Banfield', '/logos/banfield.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Banfield%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Banfield' OR name ILIKE '%Banfield%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Once Unidos', '/logos/once_unidos.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Once Unidos%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Once Unidos' OR name ILIKE '%Once Unidos%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'General Urquiza', '/logos/general_urquiza.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Urquiza%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'General Urquiza' OR name ILIKE '%Urquiza%');
 INSERT INTO public.teams (name, logo_url)
   SELECT 'Banco Provincia', '/logos/banco_provincia.png'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '%Banco%');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name = 'Banco Provincia' OR name ILIKE '%Banco Provincia%' OR name ILIKE '%Banco%');
 
 -- ─── 6. FIXTURE COMPLETO (6 FECHAS x 7 ZONAS x 11 DIVISIONES) ─────────────────
 
@@ -281,34 +281,34 @@ BEGIN
   SELECT id INTO v_d17 FROM public.divisions WHERE name = 'Decimoséptima División' OR name ILIKE '%decimoséptima%' OR name ILIKE '%decimoseptima%' OR name ILIKE '%17ma%' LIMIT 1;
 
   -- Obtener IDs de los 28 Equipos
-  SELECT id INTO t_aldosivi FROM public.teams WHERE name ILIKE '%Aldosivi%' LIMIT 1;
-  SELECT id INTO t_argsud FROM public.teams WHERE name ILIKE '%Argentinos%' LIMIT 1;
-  SELECT id INTO t_libertad FROM public.teams WHERE name ILIKE '%Libertad%' LIMIT 1;
-  SELECT id INTO t_sanlorenzo FROM public.teams WHERE name ILIKE '%San Lorenzo%' LIMIT 1;
-  SELECT id INTO t_kimberley FROM public.teams WHERE name ILIKE '%Kimberley%' LIMIT 1;
-  SELECT id INTO t_talleres FROM public.teams WHERE name ILIKE '%Talleres%' LIMIT 1;
-  SELECT id INTO t_boca FROM public.teams WHERE name ILIKE '%Boca%' LIMIT 1;
-  SELECT id INTO t_chap FROM public.teams WHERE name ILIKE '%Chapadmalal%' LIMIT 1;
-  SELECT id INTO t_sanisidro FROM public.teams WHERE name ILIKE '%San Isidro%' LIMIT 1;
-  SELECT id INTO t_alvarado FROM public.teams WHERE name ILIKE '%Alvarado%' LIMIT 1;
-  SELECT id INTO t_mdp FROM public.teams WHERE name ILIKE '%Mar del Plata%' LIMIT 1;
-  SELECT id INTO t_alver FROM public.teams WHERE name ILIKE '%Veras%' LIMIT 1;
-  SELECT id INTO t_quilmes FROM public.teams WHERE name ILIKE '%Quilmes%' LIMIT 1;
-  SELECT id INTO t_indep FROM public.teams WHERE name ILIKE '%Independiente%' LIMIT 1;
-  SELECT id INTO t_canon FROM public.teams WHERE name ILIKE '%cañon%' LIMIT 1;
-  SELECT id INTO t_racing FROM public.teams WHERE name ILIKE '%Racing%' LIMIT 1;
-  SELECT id INTO t_nacion FROM public.teams WHERE name ILIKE '%nacio%' LIMIT 1;
-  SELECT id INTO t_depnorte FROM public.teams WHERE name ILIKE '%Deportivo Norte%' LIMIT 1;
-  SELECT id INTO t_almagro FROM public.teams WHERE name ILIKE '%Almagro%' LIMIT 1;
-  SELECT id INTO t_circulo FROM public.teams WHERE name ILIKE '%Circulo%' LIMIT 1;
-  SELECT id INTO t_river FROM public.teams WHERE name ILIKE '%River%' LIMIT 1;
-  SELECT id INTO t_colegia FROM public.teams WHERE name ILIKE '%Colegiales%' LIMIT 1;
-  SELECT id INTO t_sanjose FROM public.teams WHERE name ILIKE '%San Jos%' LIMIT 1;
-  SELECT id INTO t_cadetes FROM public.teams WHERE name ILIKE '%Cadetes%' LIMIT 1;
-  SELECT id INTO t_banfield FROM public.teams WHERE name ILIKE '%Banfield%' LIMIT 1;
-  SELECT id INTO t_onceunidos FROM public.teams WHERE name ILIKE '%Once Unidos%' LIMIT 1;
-  SELECT id INTO t_urquiza FROM public.teams WHERE name ILIKE '%Urquiza%' LIMIT 1;
-  SELECT id INTO t_banco FROM public.teams WHERE name ILIKE '%Banco%' LIMIT 1;
+  SELECT id INTO t_aldosivi FROM public.teams WHERE name = 'Aldosivi' OR name ILIKE '%Aldosivi%' LIMIT 1;
+  SELECT id INTO t_argsud FROM public.teams WHERE name = 'Argentinos del Sud' OR name ILIKE '%Argentinos%' LIMIT 1;
+  SELECT id INTO t_libertad FROM public.teams WHERE name = 'Libertad' OR name ILIKE '%Libertad%' LIMIT 1;
+  SELECT id INTO t_sanlorenzo FROM public.teams WHERE name = 'San Lorenzo' OR name ILIKE '%San Lorenzo%' LIMIT 1;
+  SELECT id INTO t_kimberley FROM public.teams WHERE name = 'Kimberley' OR name ILIKE '%Kimberley%' LIMIT 1;
+  SELECT id INTO t_talleres FROM public.teams WHERE name = 'Talleres' OR name ILIKE 'Talleres%' LIMIT 1;
+  SELECT id INTO t_boca FROM public.teams WHERE name = 'Boca Juniors' OR name ILIKE '%Boca%' LIMIT 1;
+  SELECT id INTO t_chap FROM public.teams WHERE name = 'Chapadmalal' OR name ILIKE '%Chapadmalal%' LIMIT 1;
+  SELECT id INTO t_sanisidro FROM public.teams WHERE name = 'San Isidro' OR name ILIKE '%San Isidro%' LIMIT 1;
+  SELECT id INTO t_alvarado FROM public.teams WHERE name = 'Alvarado' OR name ILIKE '%Alvarado%' LIMIT 1;
+  SELECT id INTO t_mdp FROM public.teams WHERE name = 'Atlético Mar del Plata' OR ((name ILIKE '%Atlético Mar del Plata%' OR name ILIKE '%Atletico Mar del Plata%' OR name ILIKE '%Mar del Plata%') AND name NOT ILIKE '%Talleres%' AND name NOT ILIKE '%Banco%') LIMIT 1;
+  SELECT id INTO t_alver FROM public.teams WHERE name = 'Al Ver Veras' OR name ILIKE '%Veras%' LIMIT 1;
+  SELECT id INTO t_quilmes FROM public.teams WHERE name = 'Quilmes' OR name ILIKE '%Quilmes%' LIMIT 1;
+  SELECT id INTO t_indep FROM public.teams WHERE name = 'Independiente' OR name ILIKE '%Independiente%' LIMIT 1;
+  SELECT id INTO t_canon FROM public.teams WHERE name = 'El cañon' OR name ILIKE '%cañon%' LIMIT 1;
+  SELECT id INTO t_racing FROM public.teams WHERE name = 'Racing' OR name ILIKE '%Racing%' LIMIT 1;
+  SELECT id INTO t_nacion FROM public.teams WHERE name = 'Nacion' OR name ILIKE '%nacio%' LIMIT 1;
+  SELECT id INTO t_depnorte FROM public.teams WHERE name = 'Deportivo Norte' OR name ILIKE '%Deportivo Norte%' LIMIT 1;
+  SELECT id INTO t_almagro FROM public.teams WHERE name = 'Almagro' OR name ILIKE '%Almagro%' LIMIT 1;
+  SELECT id INTO t_circulo FROM public.teams WHERE name = 'Circulo' OR name ILIKE '%Circulo%' LIMIT 1;
+  SELECT id INTO t_river FROM public.teams WHERE name = 'River Plate' OR name ILIKE '%River%' LIMIT 1;
+  SELECT id INTO t_colegia FROM public.teams WHERE name = 'Colegiales' OR name ILIKE '%Colegiales%' LIMIT 1;
+  SELECT id INTO t_sanjose FROM public.teams WHERE name = 'San José' OR name ILIKE '%San Jos%' LIMIT 1;
+  SELECT id INTO t_cadetes FROM public.teams WHERE name = 'Cadetes' OR name ILIKE '%Cadetes%' LIMIT 1;
+  SELECT id INTO t_banfield FROM public.teams WHERE name = 'Banfield' OR name ILIKE '%Banfield%' LIMIT 1;
+  SELECT id INTO t_onceunidos FROM public.teams WHERE name = 'Once Unidos' OR name ILIKE '%Once Unidos%' LIMIT 1;
+  SELECT id INTO t_urquiza FROM public.teams WHERE name = 'General Urquiza' OR name ILIKE '%Urquiza%' LIMIT 1;
+  SELECT id INTO t_banco FROM public.teams WHERE name = 'Banco Provincia' OR name ILIKE '%Banco Provincia%' OR name ILIKE '%Banco%' LIMIT 1;
 
   -- Limpiar partidos previos de este torneo para evitar duplicaciones
   DELETE FROM public.matches WHERE tournament_id = v_tourn;

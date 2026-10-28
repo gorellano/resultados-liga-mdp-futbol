@@ -27,13 +27,13 @@ const TEAMS = [
   { key: 'sanlorenzo', name: 'San Lorenzo', pattern: '%San Lorenzo%', logo: '/logos/san_lorenzo.png' },
 
   { key: 'kimberley', name: 'Kimberley', pattern: '%Kimberley%', logo: '/logos/kimberley.png' },
-  { key: 'talleres', name: 'Talleres', pattern: '%Talleres%', logo: '/logos/talleres.png' },
+  { key: 'talleres', name: 'Talleres', pattern: '%Talleres%', sqlWhere: "name = 'Talleres' OR name ILIKE 'Talleres%'", logo: '/logos/talleres.png' },
   { key: 'boca', name: 'Boca Juniors', pattern: '%Boca%', logo: '/logos/boca_juniors.png' },
   { key: 'chap', name: 'Chapadmalal', pattern: '%Chapadmalal%', logo: '/logos/chapadmalal.png' },
 
   { key: 'sanisidro', name: 'San Isidro', pattern: '%San Isidro%', logo: '/logos/san_isidro.png' },
   { key: 'alvarado', name: 'Alvarado', pattern: '%Alvarado%', logo: '/logos/alvarado.png' },
-  { key: 'mdp', name: 'Atlético Mar del Plata', pattern: '%Mar del Plata%', logo: '/logos/atletico_mar_del_plata.png' },
+  { key: 'mdp', name: 'Atlético Mar del Plata', pattern: '%Atlético Mar del Plata%', sqlWhere: "name = 'Atlético Mar del Plata' OR ((name ILIKE '%Atlético Mar del Plata%' OR name ILIKE '%Atletico Mar del Plata%' OR name ILIKE '%Mar del Plata%') AND name NOT ILIKE '%Talleres%' AND name NOT ILIKE '%Banco%')", logo: '/logos/atletico_mar_del_plata.png' },
   { key: 'alver', name: 'Al Ver Veras', pattern: '%Veras%', logo: '/logos/al_ver_veras.png' },
 
   { key: 'quilmes', name: 'Quilmes', pattern: '%Quilmes%', logo: '/logos/quilmes.png' },
@@ -54,7 +54,7 @@ const TEAMS = [
   { key: 'banfield', name: 'Banfield', pattern: '%Banfield%', logo: '/logos/banfield.png' },
   { key: 'onceunidos', name: 'Once Unidos', pattern: '%Once Unidos%', logo: '/logos/once_unidos.png' },
   { key: 'urquiza', name: 'General Urquiza', pattern: '%Urquiza%', logo: '/logos/general_urquiza.png' },
-  { key: 'banco', name: 'Banco Provincia', pattern: '%Banco%', logo: '/logos/banco_provincia.png' },
+  { key: 'banco', name: 'Banco Provincia', pattern: '%Banco%', sqlWhere: "name = 'Banco Provincia' OR name ILIKE '%Banco Provincia%' OR name ILIKE '%Banco%'", logo: '/logos/banco_provincia.png' },
 ];
 
 const TEAM_MAP = {};
@@ -488,9 +488,10 @@ UPDATE public.divisions
 `;
 
   TEAMS.forEach(t => {
+    const whereClause = t.sqlWhere || `name = '${t.name}' OR name ILIKE '${t.pattern}'`;
     sql += `INSERT INTO public.teams (name, logo_url)
   SELECT '${t.name}', '${t.logo}'
-  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE name ILIKE '${t.pattern}');
+  WHERE NOT EXISTS (SELECT 1 FROM public.teams WHERE ${whereClause});
 `;
   });
 
@@ -543,7 +544,8 @@ DECLARE
 `;
 
   TEAMS.forEach(t => {
-    sql += `  SELECT id INTO t_${t.key} FROM public.teams WHERE name ILIKE '${t.pattern}' LIMIT 1;\n`;
+    const whereClause = t.sqlWhere || `name = '${t.name}' OR name ILIKE '${t.pattern}'`;
+    sql += `  SELECT id INTO t_${t.key} FROM public.teams WHERE ${whereClause} LIMIT 1;\n`;
   });
 
   sql += `

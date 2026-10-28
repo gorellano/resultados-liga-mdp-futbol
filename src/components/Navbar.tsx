@@ -93,9 +93,9 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
           {/* Brand Logo con Escala Óptica */}
           <Link
             to="/"
-            className="flex items-center space-x-3 group focus:outline-none transition-transform active:scale-95"
+            className="flex items-center space-x-2 sm:space-x-3 group focus:outline-none transition-transform active:scale-95 shrink-0"
           >
-            <div className="w-10 h-10 rounded-xl overflow-hidden border border-border/50 bg-primary/5 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-200">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-border/50 bg-primary/5 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-200 shrink-0">
               <picture>
                 <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
                 <img
@@ -107,11 +107,11 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
                 />
               </picture>
             </div>
-            <div className="flex flex-col">
-              <span className="font-black text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80 leading-none">
+            <div className="flex flex-col min-w-0">
+              <span className="font-black text-base sm:text-xl tracking-tight text-foreground leading-none whitespace-nowrap">
                 Costa y Gol
               </span>
-              <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-muted-foreground mt-0.5">
+              <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.14em] font-bold text-muted-foreground mt-0.5 whitespace-nowrap">
                 Fútbol Marplatense
               </span>
             </div>
@@ -148,11 +148,11 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
           </nav>
 
           {/* 3. Action Tools: Selector de Torneo, Contacto, Tema, Admin */}
-          <div className="flex items-center space-x-2 sm:space-x-2.5">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
             {/* Pill Selector de Torneo */}
             <button
               onClick={openSelector}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold tracking-tight transition-all active:scale-95 shadow-xs"
+              className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold tracking-tight transition-all active:scale-95 shadow-xs"
               title="Cambiar Torneo Oficial"
               aria-label="Cambiar Torneo"
             >
@@ -160,16 +160,16 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
               <span className="hidden sm:inline max-w-[150px] truncate">
                 {isAdaro ? 'Chamaco Adaro' : (selectedTournament ? selectedTournament.name.replace(/^Torneo\s+/i, '') : 'Clausura 2026')}
               </span>
-              <span className="sm:hidden font-bold max-w-[110px] truncate">
-                {isAdaro ? 'Adaro' : 'Clausura 2026'}
+              <span className="sm:hidden font-bold max-w-[80px] truncate text-[11px]">
+                {isAdaro ? 'Adaro' : 'Clausura'}
               </span>
               <ChevronDown className="w-3 h-3 opacity-70 flex-shrink-0" />
             </button>
 
-            {/* Botón Contacto */}
+            {/* Botón Contacto (oculto en móvil para no saturar el header superior) */}
             <button
               onClick={onOpenContact}
-              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90"
+              className="hidden sm:flex p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90"
               aria-label="Contacto"
               title="Contacto"
             >
@@ -179,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
             {/* Toggle Tema con feedback físico y vectores Lucide */}
             <button
               onClick={onToggleTheme}
-              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-foreground transition-all active:scale-90"
+              className="p-2 sm:p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-foreground transition-all active:scale-90"
               aria-label="Alternar tema claro/oscuro"
               title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
             >
@@ -193,7 +193,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
             {/* Acceso Admin */}
             <Link
               to="/admin"
-              className="p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90 flex items-center justify-center"
+              className="p-2 sm:p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90 flex items-center justify-center"
               title="Panel de Administración"
               aria-label="Panel de Administración"
             >

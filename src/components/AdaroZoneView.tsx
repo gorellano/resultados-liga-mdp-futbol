@@ -33,6 +33,31 @@ import {
 import { isExcludedDivision } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 
+const SHORT_TEAM_NAMES: Record<string, string> = {
+  'Argentinos del Sud': 'Arg. del Sud',
+  'Atlético Mar del Plata': 'Atlético MDP',
+  'General Urquiza': 'Gral. Urquiza',
+  'Deportivo Norte': 'Dep. Norte',
+  'Boca Juniors': 'Boca',
+  'River Plate': 'River',
+  'Banco Provincia': 'Banco Prov.',
+  'Círculo Deportivo': 'Círculo',
+  'San Isidro': 'San Isidro',
+  'San Lorenzo': 'San Lorenzo',
+  'Al Ver Veras': 'Al Ver Veras',
+  'Chapadmalal': 'Chapadmalal',
+  'Once Unidos': 'Once Unidos',
+  'Colegiales': 'Colegiales',
+  'San José': 'San José',
+  'Almagro Florida': 'Almagro',
+  'El Cañón': 'El Cañón',
+};
+
+function getTeamShortName(team: Team): string {
+  if (team.display_name && team.display_name.length <= 13) return team.display_name;
+  return SHORT_TEAM_NAMES[team.name] || team.display_name || team.name;
+}
+
 interface AdaroZoneViewProps {
   selectedZoneId: string;
   onSelectZone: (zoneId: string) => void;
@@ -371,18 +396,18 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-border/60 bg-muted/40 text-foreground/80 dark:text-muted-foreground text-[11px] uppercase tracking-wider font-extrabold">
-                  <th className="py-3.5 px-3 sm:px-4 w-12 text-center">#</th>
-                  <th className="py-3.5 px-3 sm:px-4">Club</th>
-                  <th className="py-3.5 px-2.5 text-center font-bold">PJ</th>
-                  <th className="py-3.5 px-2.5 text-center font-bold">PG</th>
-                  <th className="py-3.5 px-2.5 text-center font-bold">PE</th>
-                  <th className="py-3.5 px-2.5 text-center font-bold">PP</th>
-                  <th className="py-3.5 px-2.5 text-center hidden sm:table-cell font-bold">GF</th>
-                  <th className="py-3.5 px-2.5 text-center hidden sm:table-cell font-bold">GC</th>
-                  <th className="py-3.5 px-2.5 text-center font-bold">DG</th>
-                  <th className="py-3.5 px-3 sm:px-4 text-center font-black text-primary">PTS</th>
-                  <th className="py-3.5 px-3 sm:px-4 text-center font-black text-amber-600 dark:text-amber-400 bg-amber-500/10">PROM</th>
-                  <th className="py-3.5 px-3 sm:px-4 text-center hidden md:table-cell">Clasificación a Copas</th>
+                  <th className="py-3 px-2 sm:px-4 w-10 sm:w-12 text-center">#</th>
+                  <th className="py-3 px-2 sm:px-4">Club</th>
+                  <th className="py-3 px-2 text-center font-bold">PJ</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PG</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PE</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PP</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">GF</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">GC</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">DG</th>
+                  <th className="py-3 px-2 sm:px-4 text-center font-black text-primary">PTS</th>
+                  <th className="py-3 px-2 sm:px-4 text-center font-black text-amber-600 dark:text-amber-400 bg-amber-500/10">PROM</th>
+                  <th className="py-3 px-3 sm:px-4 text-center hidden md:table-cell">Clasificación a Copas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 font-medium">
@@ -398,7 +423,7 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                         }`}
                       >
                         {/* Puesto */}
-                        <td className="py-3.5 px-3 sm:px-4 text-center">
+                        <td className="py-3 px-2 sm:px-4 text-center">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black font-display shadow-2xs ${
                             row.rank === 1 
                               ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-300 border border-cyan-500/40'
@@ -413,9 +438,9 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                         </td>
 
                         {/* Club */}
-                        <td className="py-3.5 px-3 sm:px-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
+                        <td className="py-3 px-2 sm:px-4">
+                          <div className="flex items-center space-x-2 sm:space-x-3">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
                               {row.team.logo_url ? (
                                 <img 
                                   src={row.team.logo_url} 
@@ -433,34 +458,35 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                             </div>
                             <div className="min-w-0">
                               <span className="font-extrabold text-foreground block truncate text-xs sm:text-sm">
-                                {row.team.display_name || row.team.name}
+                                <span className="sm:hidden">{getTeamShortName(row.team)}</span>
+                                <span className="hidden sm:inline">{row.team.display_name || row.team.name}</span>
                               </span>
                               <button
                                 onClick={() => setExpandedClubBreakdown(isBreakdownOpen ? null : row.team.id)}
-                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 font-semibold transition-colors mt-0.5"
+                                className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 font-semibold transition-colors mt-0.5 whitespace-nowrap"
                               >
-                                <span>{isBreakdownOpen ? 'Ocultar categorías' : 'Ver desglose 7ª a 14ª'}</span>
+                                <span>{isBreakdownOpen ? 'Ocultar' : 'Ver desglose 7ª a 14ª'}</span>
                                 {isBreakdownOpen ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
                               </button>
                             </div>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground font-semibold">{row.played}</td>
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground">{row.won}</td>
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground">{row.drawn}</td>
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground">{row.lost}</td>
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground hidden sm:table-cell">{row.goalsFor}</td>
-                        <td className="py-3.5 px-2.5 text-center text-muted-foreground hidden sm:table-cell">{row.goalsAgainst}</td>
-                        <td className="py-3.5 px-2.5 text-center font-bold">
+                        <td className="py-3 px-2 text-center text-muted-foreground font-semibold">{row.played}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.won}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.drawn}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.lost}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.goalsFor}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.goalsAgainst}</td>
+                        <td className="py-3 px-2 text-center hidden sm:table-cell font-bold">
                           <span className={row.goalDifference > 0 ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : row.goalDifference < 0 ? 'text-rose-600 dark:text-rose-400 font-extrabold' : 'text-muted-foreground'}>
                             {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                           </span>
                         </td>
-                        <td className="py-3.5 px-3 sm:px-4 text-center font-display font-black text-sm sm:text-base text-primary">
+                        <td className="py-3 px-2 sm:px-4 text-center font-display font-black text-xs sm:text-base text-primary">
                           {row.points}
                         </td>
-                        <td className="py-3.5 px-3 sm:px-4 text-center font-display font-black text-sm sm:text-base text-amber-600 dark:text-amber-400 bg-amber-500/5">
+                        <td className="py-3 px-2 sm:px-4 text-center font-display font-black text-xs sm:text-base text-amber-600 dark:text-amber-400 bg-amber-500/5">
                           {row.average.toFixed(2).replace('.', ',')}
                         </td>
 
@@ -597,15 +623,16 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                   {/* Encabezado de la Tira */}
                   <div
                     onClick={() => toggleTira(pairKey)}
-                    className="p-4 sm:p-5 cursor-pointer hover:bg-muted/40 transition-colors flex items-center justify-between gap-4 select-none"
+                    className="p-3 sm:p-5 cursor-pointer hover:bg-muted/40 transition-colors flex items-center justify-between gap-2 sm:gap-4 select-none"
                   >
-                    <div className="flex items-center space-x-3 sm:space-x-4 flex-1">
+                    <div className="flex items-center space-x-1.5 sm:space-x-4 flex-1 min-w-0">
                       {/* Local */}
-                      <div className="flex items-center space-x-2.5 flex-1 justify-end text-right min-w-0">
-                        <span className="font-extrabold text-sm sm:text-base text-foreground truncate">
-                          {tira.homeTeam.display_name || tira.homeTeam.name}
+                      <div className="flex items-center space-x-1.5 sm:space-x-2.5 flex-1 justify-end text-right min-w-0">
+                        <span className="font-extrabold text-xs sm:text-base text-foreground truncate" title={tira.homeTeam.display_name || tira.homeTeam.name}>
+                          <span className="sm:hidden">{getTeamShortName(tira.homeTeam)}</span>
+                          <span className="hidden sm:inline">{tira.homeTeam.display_name || tira.homeTeam.name}</span>
                         </span>
-                        <div className="w-8 h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
                           {tira.homeTeam.logo_url ? (
                             <img src={tira.homeTeam.logo_url} alt="" className="w-full h-full object-cover" />
                           ) : (
@@ -617,21 +644,21 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                       </div>
 
                       {/* Marcador Acumulado de la Tira estilo Estadio */}
-                      <div className="px-3.5 py-1.5 rounded-2xl bg-muted/80 dark:bg-slate-900 border border-border/70 flex items-center space-x-2 shadow-inner flex-shrink-0">
-                        <span className="text-sm sm:text-base font-display font-black text-primary">
+                      <div className="px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-muted/80 dark:bg-slate-900 border border-border/70 flex items-center space-x-1 sm:space-x-2 shadow-inner flex-shrink-0">
+                        <span className="text-xs sm:text-base font-display font-black text-primary">
                           {tira.homeTiraPoints}
                         </span>
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">pts</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase hidden xs:inline">pts</span>
                         <span className="text-xs font-semibold text-muted-foreground">-</span>
-                        <span className="text-sm sm:text-base font-display font-black text-primary">
+                        <span className="text-xs sm:text-base font-display font-black text-primary">
                           {tira.awayTiraPoints}
                         </span>
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase">pts</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase hidden xs:inline">pts</span>
                       </div>
 
                       {/* Visitante */}
-                      <div className="flex items-center space-x-2.5 flex-1 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
+                      <div className="flex items-center space-x-1.5 sm:space-x-2.5 flex-1 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
                           {tira.awayTeam.logo_url ? (
                             <img src={tira.awayTeam.logo_url} alt="" className="w-full h-full object-cover" />
                           ) : (
@@ -640,14 +667,15 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <span className="font-extrabold text-sm sm:text-base text-foreground truncate">
-                          {tira.awayTeam.display_name || tira.awayTeam.name}
+                        <span className="font-extrabold text-xs sm:text-base text-foreground truncate" title={tira.awayTeam.display_name || tira.awayTeam.name}>
+                          <span className="sm:hidden">{getTeamShortName(tira.awayTeam)}</span>
+                          <span className="hidden sm:inline">{tira.awayTeam.display_name || tira.awayTeam.name}</span>
                         </span>
                       </div>
                     </div>
 
                     {/* Botón Acordeón */}
-                    <div className="flex items-center pl-2 text-muted-foreground">
+                    <div className="flex items-center pl-1 sm:pl-2 text-muted-foreground shrink-0">
                       <span className="text-xs font-bold hidden md:inline mr-2 text-foreground/80">
                         {isExpanded ? `Ocultar ${tira.matches.length} categorías` : `Ver ${tira.matches.length} categorías`}
                       </span>
@@ -856,28 +884,28 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-border/60 bg-muted/40 text-foreground/80 dark:text-muted-foreground text-[11px] uppercase tracking-wider font-extrabold">
-                  <th className="py-3 px-3 sm:px-4 w-12 text-center">#</th>
-                  <th className="py-3 px-3 sm:px-4">
+                  <th className="py-3 px-2 sm:px-4 w-10 sm:w-12 text-center">#</th>
+                  <th className="py-3 px-2 sm:px-4">
                     Club ({activeDivisionObj.name} {activeDivYear ? `· Cat. ${activeDivYear}` : ''})
                   </th>
-                  <th className="py-3 px-2.5 text-center font-bold">PJ</th>
-                  <th className="py-3 px-2.5 text-center font-bold">PG</th>
-                  <th className="py-3 px-2.5 text-center font-bold">PE</th>
-                  <th className="py-3 px-2.5 text-center font-bold">PP</th>
-                  <th className="py-3 px-2.5 text-center hidden sm:table-cell font-bold">GF</th>
-                  <th className="py-3 px-2.5 text-center hidden sm:table-cell font-bold">GC</th>
-                  <th className="py-3 px-2.5 text-center font-bold">DG</th>
-                  <th className="py-3 px-3 sm:px-4 text-center font-black text-primary">PTS</th>
+                  <th className="py-3 px-2 text-center font-bold">PJ</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PG</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PE</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">PP</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">GF</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">GC</th>
+                  <th className="py-3 px-2 text-center hidden sm:table-cell font-bold">DG</th>
+                  <th className="py-3 px-2 sm:px-4 text-center font-black text-primary">PTS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 font-medium">
                 {divisionStandings.map((row) => (
                   <tr key={row.team.id} className="transition-colors hover:bg-muted/30">
-                    <td className="py-3 px-3 sm:px-4 text-center font-display font-black text-xs text-muted-foreground">
+                    <td className="py-3 px-2 sm:px-4 text-center font-display font-black text-xs text-muted-foreground">
                       {row.rank}
                     </td>
-                    <td className="py-3 px-3 sm:px-4">
-                      <div className="flex items-center space-x-2.5">
+                    <td className="py-3 px-2 sm:px-4">
+                      <div className="flex items-center space-x-2 sm:space-x-2.5">
                         <div className="w-7 h-7 rounded-full bg-card border border-border/70 flex items-center justify-center overflow-hidden flex-shrink-0 shadow-2xs">
                           {row.team.logo_url ? (
                             <img src={row.team.logo_url} alt="" className="w-full h-full object-cover" />
@@ -887,23 +915,24 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                             </span>
                           )}
                         </div>
-                        <span className="font-extrabold text-foreground truncate">
-                          {row.team.display_name || row.team.name}
+                        <span className="font-extrabold text-foreground truncate text-xs sm:text-sm">
+                          <span className="sm:hidden">{getTeamShortName(row.team)}</span>
+                          <span className="hidden sm:inline">{row.team.display_name || row.team.name}</span>
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground font-semibold">{row.played}</td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground">{row.won}</td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground">{row.drawn}</td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground">{row.lost}</td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground hidden sm:table-cell">{row.goalsFor}</td>
-                    <td className="py-3 px-2.5 text-center text-muted-foreground hidden sm:table-cell">{row.goalsAgainst}</td>
-                    <td className="py-3 px-2.5 text-center font-bold">
+                    <td className="py-3 px-2 text-center text-muted-foreground font-semibold">{row.played}</td>
+                    <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.won}</td>
+                    <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.drawn}</td>
+                    <td className="py-3 px-2 text-center hidden sm:table-cell text-muted-foreground">{row.lost}</td>
+                    <td className="py-3 px-2 text-center text-muted-foreground hidden sm:table-cell">{row.goalsFor}</td>
+                    <td className="py-3 px-2 text-center text-muted-foreground hidden sm:table-cell">{row.goalsAgainst}</td>
+                    <td className="py-3 px-2 text-center hidden sm:table-cell font-bold">
                       <span className={row.goalDifference > 0 ? 'text-emerald-600 dark:text-emerald-400 font-extrabold' : row.goalDifference < 0 ? 'text-rose-600 dark:text-rose-400 font-extrabold' : 'text-muted-foreground'}>
                         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
                       </span>
                     </td>
-                    <td className="py-3 px-3 sm:px-4 text-center font-display font-black text-sm sm:text-base text-primary">
+                    <td className="py-3 px-2 sm:px-4 text-center font-display font-black text-xs sm:text-base text-primary">
                       {row.points}
                     </td>
                   </tr>

@@ -181,11 +181,6 @@ export async function fetchTournaments(): Promise<Tournament[]> {
         .order('year', { ascending: false });
 
       if (error) throw error;
-      
-      const adaroEntry: Tournament = {
-        ...ADARO_TOURNAMENT,
-        is_current: true,
-      };
 
       const dbTournaments = (data || []).map(t => {
         if (t.id === ADARO_TOURNAMENT_ID || t.name.toLowerCase().includes('adaro') || t.name.toLowerCase().includes('chamaco')) {
@@ -194,10 +189,23 @@ export async function fetchTournaments(): Promise<Tournament[]> {
         return { ...t, is_current: false };
       });
 
+      const adaroInDb = dbTournaments.find(t => 
+        t.id === ADARO_TOURNAMENT_ID || 
+        t.name.toLowerCase().includes('adaro') || 
+        t.name.toLowerCase().includes('chamaco')
+      );
+
+      const adaroEntry: Tournament = {
+        ...ADARO_TOURNAMENT,
+        id: adaroInDb ? adaroInDb.id : ADARO_TOURNAMENT_ID,
+        is_current: true,
+      };
+
       const withoutAdaro = dbTournaments.filter(t => {
         const name = t.name.toLowerCase();
         return (
           t.id !== ADARO_TOURNAMENT_ID &&
+          t.id !== adaroEntry.id &&
           !name.includes('adaro') &&
           !name.includes('chamaco') &&
           !name.includes('cacho') &&
@@ -494,7 +502,65 @@ export async function fetchMatches(
 export async function fetchAllTournamentMatches(tournamentId: string): Promise<Match[]> {
   const cacheKey = `matches_${tournamentId}_all`;
   return withCache(cacheKey, 2 * 60 * 1000, async () => {
-    if (tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro')) {
+    const isAdaro = tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro') || tournamentId.toLowerCase().includes('chamaco');
+
+    if (isSupabaseActive()) {
+      try {
+        let targetTournId = tournamentId;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tournamentId);
+
+        if (!isUuid && isAdaro) {
+          const { data: dbTourns } = await supabase
+            .from('tournaments')
+            .select('id')
+            .or('name.ilike.%adaro%,name.ilike.%chamaco%')
+            .limit(1);
+          if (dbTourns && dbTourns[0]) {
+            targetTournId = dbTourns[0].id;
+          }
+        }
+
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTournId)) {
+          let allMatches: Match[] = [];
+          let page = 0;
+          const pageSize = 1000;
+          let hasMore = true;
+
+          while (hasMore) {
+            const from = page * pageSize;
+            const to = from + pageSize - 1;
+            const { data, error } = await supabase
+              .from('matches')
+              .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage')
+              .eq('tournament_id', targetTournId)
+              .range(from, to);
+
+            if (error) throw error;
+            if (data && data.length > 0) {
+              allMatches = allMatches.concat(data.map(m => ({
+                ...m,
+                status: m.status as 'scheduled' | 'finished' | 'postponed'
+              })));
+              if (data.length < pageSize) {
+                hasMore = false;
+              } else {
+                page++;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          if (allMatches.length > 0) {
+            return allMatches;
+          }
+        }
+      } catch (err) {
+        console.warn('fetchAllTournamentMatches from Supabase failed, falling back:', err);
+      }
+    }
+
+    if (isAdaro) {
       const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
       return getOrGenerateAdaroMatches(teams, divs, zns);
     }

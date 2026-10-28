@@ -8,13 +8,15 @@ import {
   Layers,
   Sparkles
 } from 'lucide-react';
-import type { Team, Match } from '../lib/types';
+import type { Team, Match, Zone, Division } from '../lib/types';
 import { calculateAdaroZoneStandings, CUP_BADGES, type AdaroCupTier } from '../lib/adaroStandings';
-import { ADARO_ZONES, ADARO_PUNTUABLE_DIVISION_IDS } from '../lib/mockAdaroData';
+import { ADARO_ZONES, ADARO_PUNTUABLE_DIVISION_IDS, resolveAdaroZoneIds, resolveAdaroPuntuableDivisionIds } from '../lib/mockAdaroData';
 
 interface AdaroPlayoffBracketProps {
   matches: Match[];
   teams: Team[];
+  zones?: Zone[];
+  divisions?: Division[];
 }
 
 interface PlayoffMatch {
@@ -57,7 +59,9 @@ export const PLAYOFF_DIVISIONS: DivisionCategoryOption[] = [
 
 export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
   matches,
-  teams
+  teams,
+  zones = [],
+  divisions = []
 }) => {
   const [selectedCup, setSelectedCup] = useState<AdaroCupTier>('platino');
   // 'general' = Tira General de Clubes, o un divisionId específico de 7ma a 14ta
@@ -73,8 +77,17 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
       bronce: []
     };
 
+    const zoneIdMap = resolveAdaroZoneIds(zones);
+    const puntuableIds = resolveAdaroPuntuableDivisionIds(divisions);
+    const allPuntuableIds = Array.from(new Set([...puntuableIds, ...ADARO_PUNTUABLE_DIVISION_IDS]));
+
     ADARO_ZONES.forEach(zone => {
-      const zoneMatches = matches.filter(m => m.zone_id === zone.id);
+      const zoneUuid = zoneIdMap[zone.id] || zone.id;
+      const zoneMatches = matches.filter(m => 
+        m.zone_id === zone.id || 
+        m.zone_id === zoneUuid ||
+        (zones.length > 0 && zones.find(z => z.id === m.zone_id)?.name.toLowerCase().trim() === zone.name.toLowerCase().trim())
+      );
       const teamIdSet = new Set<string>();
       zoneMatches.forEach(m => {
         teamIdSet.add(m.home_team_id);
@@ -85,7 +98,8 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
       const standings = calculateAdaroZoneStandings(
         zoneMatches,
         zTeams,
-        ADARO_PUNTUABLE_DIVISION_IDS
+        allPuntuableIds,
+        divisions
       );
 
       standings.forEach(s => {

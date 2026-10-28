@@ -2,26 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTournament } from '../context/TournamentContext';
-import { fetchTeams, fetchAllTournamentMatches } from '../lib/db';
+import { fetchTeams, fetchZones, fetchDivisions, fetchAllTournamentMatches } from '../lib/db';
 import { AdaroPlayoffBracket } from '../components/AdaroPlayoffBracket';
-import type { Team, Match } from '../lib/types';
+import type { Team, Match, Zone, Division } from '../lib/types';
 
 export const PlayoffCopasPage: React.FC = () => {
   const { selectedTournament, selectedTournamentId, openSelector } = useTournament();
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [tms, mtchs] = await Promise.all([
+        const [tms, mtchs, zns, divs] = await Promise.all([
           fetchTeams(),
-          fetchAllTournamentMatches(selectedTournamentId)
+          fetchAllTournamentMatches(selectedTournamentId),
+          fetchZones(),
+          fetchDivisions()
         ]);
         setTeams(tms);
         setMatches(mtchs);
+        setZones(zns);
+        setDivisions(divs);
       } catch (err) {
         console.error('Error loading Playoff Copas data:', err);
       } finally {
@@ -78,7 +84,12 @@ export const PlayoffCopasPage: React.FC = () => {
           </p>
         </div>
       ) : (
-        <AdaroPlayoffBracket matches={matches} teams={teams} />
+        <AdaroPlayoffBracket 
+          matches={matches} 
+          teams={teams} 
+          zones={zones} 
+          divisions={divisions} 
+        />
       )}
     </div>
   );

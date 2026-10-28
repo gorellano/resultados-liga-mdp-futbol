@@ -22,11 +22,13 @@ import {
 } from '../lib/adaroStandings';
 import { 
   ADARO_PUNTUABLE_DIVISION_IDS, 
+  ADARO_ALL_DIVISION_IDS,
   ADARO_ZONES,
   getAdaroZoneClubs,
   isAdaroPuntuableDivision,
   isAdaroParticipativeDivision,
-  resolveAdaroPuntuableDivisionIds
+  resolveAdaroPuntuableDivisionIds,
+  resolveAdaroZoneIds
 } from '../lib/mockAdaroData';
 import { isExcludedDivision } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
@@ -50,6 +52,7 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
   matches,
   teams,
   divisions,
+  zones = [],
   initialMode = 'general',
   initialDivisionSlug,
 }) => {
@@ -71,6 +74,27 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
   const adaroZones = useMemo(() => {
     return ADARO_ZONES;
   }, []);
+
+  // Mapeo de IDs de zona canónicos (adaro-zone-X) a UUIDs de Supabase
+  const zoneIdMap = useMemo(() => resolveAdaroZoneIds(zones), [zones]);
+  const resolvedZoneUuid = useMemo(() => zoneIdMap[selectedZoneId] || selectedZoneId, [zoneIdMap, selectedZoneId]);
+
+  // Identificar el objeto de zona y letra correspondiente
+  const currentZone = useMemo(() => {
+    return (
+      zones.find(z => z.id === selectedZoneId || z.id === resolvedZoneUuid) ||
+      adaroZones.find(z => z.id === selectedZoneId) ||
+      adaroZones[0]
+    );
+  }, [zones, selectedZoneId, resolvedZoneUuid, adaroZones]);
+
+  const currentZoneLetter = useMemo(() => {
+    const norm = currentZone.name.toLowerCase().trim();
+    const match = norm.match(/zona\s*([a-g])/i);
+    if (match) return match[1].toLowerCase();
+    const slugMatch = selectedZoneId.match(/adaro-zone-([a-g])/i);
+    return slugMatch ? slugMatch[1].toLowerCase() : 'a';
+  }, [currentZone, selectedZoneId]);
 
   // Divisiones garantizadas sin Primera, Quinta ni Sexta
   const safeDivisions = useMemo(() => {
@@ -115,10 +139,19 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
     return [...puntuableDivisions, ...participativeDivisions];
   }, [puntuableDivisions, participativeDivisions]);
 
-  // Partidos de la zona actual
+  // Partidos de la zona actual (acepta tanto slug canónico como UUID de Supabase)
   const currentZoneMatches = useMemo(() => {
-    return matches.filter(m => m.zone_id === selectedZoneId);
-  }, [matches, selectedZoneId]);
+    return matches.filter(m => {
+      if (m.zone_id === selectedZoneId || m.zone_id === resolvedZoneUuid) return true;
+      if (m.zone_id === `adaro-zone-${currentZoneLetter}`) return true;
+      const mZone = zones.find(z => z.id === m.zone_id);
+      if (mZone) {
+        const mNorm = mZone.name.toLowerCase().trim();
+        if (mNorm === `zona ${currentZoneLetter}`) return true;
+      }
+      return false;
+    });
+  }, [matches, selectedZoneId, resolvedZoneUuid, currentZoneLetter, zones]);
 
   // Equipos participantes en esta zona (garantiza los 4 clubes con logo y nombre)
   const zoneTeams = useMemo(() => {
@@ -128,10 +161,12 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
   // 1. Tabla Oficial Acumulada de la Zona (Suma de 7ª a 14ª División)
   const generalStandings = useMemo(() => {
     const puntuableIds = resolveAdaroPuntuableDivisionIds(safeDivisions);
+    const allPuntuableIds = Array.from(new Set([...puntuableIds, ...ADARO_PUNTUABLE_DIVISION_IDS]));
     return calculateAdaroZoneStandings(
       currentZoneMatches,
       zoneTeams,
-      puntuableIds
+      allPuntuableIds,
+      safeDivisions
     );
   }, [currentZoneMatches, zoneTeams, safeDivisions]);
 
@@ -153,23 +188,20 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
     if (!targetDivision) return false;
     if (matchDivisionId === targetDivision.id) return true;
 
+    const targetOrder = getDivisionOrder(targetDivision.name);
+
     // Buscar si matchDivisionId es de divisions
     const matchDivObj = safeDivisions.find(d => d.id === matchDivisionId);
     if (matchDivObj) {
-      const normMatch = matchDivObj.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const normTarget = targetDivision.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      if (normMatch === normTarget) return true;
+      const matchOrder = getDivisionOrder(matchDivObj.name);
+      if (matchOrder !== 99 && matchOrder === targetOrder) return true;
     }
 
-    // Buscar si matchDivisionId es un mock ID (índice 0 a 7 de 7ma a 14ta)
-    const mockIdx = ADARO_PUNTUABLE_DIVISION_IDS.indexOf(matchDivisionId);
+    // Buscar si matchDivisionId es un mock ID (índice 0 a 10 de 7ma a 17ma)
+    const mockIdx = ADARO_ALL_DIVISION_IDS.indexOf(matchDivisionId);
     if (mockIdx !== -1) {
-      const keywords = ['septima', 'octava', 'novena', 'decima', 'undecima', 'duodecima', 'decimotercera', 'decimocuarta'];
-      const altKeywords = ['7ma', '8va', '9na', '10ma', '11ma', '12ma', '13ra', '14ta'];
-      const normTarget = targetDivision.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      if (normTarget.includes(keywords[mockIdx]) || normTarget.includes(altKeywords[mockIdx])) {
-        return true;
-      }
+      const mockOrder = 7 + mockIdx; // 7ma es 7, 8va es 8, ..., 17ma es 17
+      if (mockOrder === targetOrder) return true;
     }
 
     return false;
@@ -213,7 +245,6 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
     }));
   };
 
-  const currentZone = adaroZones.find(z => z.id === selectedZoneId) || adaroZones[0];
   const isActiveDivPuntuable = activeDivisionObj 
     ? isAdaroPuntuableDivision(activeDivisionObj)
     : false;

@@ -50,13 +50,24 @@ export interface AdaroTiraMatch {
 export function calculateAdaroZoneStandings(
   zoneMatches: Match[],
   zoneTeams: Team[],
-  puntuableDivisionIds: string[] = []
+  puntuableDivisionIds: string[] = [],
+  divisions?: Division[]
 ): ZoneClubStanding[] {
   const puntuableSet = new Set(puntuableDivisionIds);
   
-  // Filtrar solo partidos de divisiones puntuables
+  // Filtrar solo partidos de divisiones puntuables (7ª a 14ª)
   const validMatches = puntuableSet.size > 0
-    ? zoneMatches.filter(m => puntuableSet.has(m.division_id))
+    ? zoneMatches.filter(m => {
+        if (puntuableSet.has(m.division_id)) return true;
+        if (divisions && divisions.length > 0) {
+          const d = divisions.find(div => div.id === m.division_id);
+          if (d) {
+            const order = getDivisionOrder(d.name);
+            return order >= 7 && order <= 14;
+          }
+        }
+        return false;
+      })
     : zoneMatches;
 
   const standingsMap = new Map<string, ZoneClubStanding>();
@@ -222,13 +233,21 @@ export function getDivisionOrder(name: string): number {
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
-  if (norm.includes('decimoseptima') || norm.includes('17')) return 17;
-  if (norm.includes('decimosexta') || norm.includes('16')) return 16;
-  if (norm.includes('decimoquinta') || norm.includes('15')) return 15;
-  if (norm.includes('decimocuarta') || norm.includes('14')) return 14;
-  if (norm.includes('decimotercera') || norm.includes('13')) return 13;
-  if (norm.includes('duodecima') || norm.includes('decimosegunda') || norm.includes('12')) return 12;
-  if (norm.includes('undecima') || norm.includes('decimoprimera') || norm.includes('11')) return 11;
+  // Excluir pre-décimas/formativas
+  if (norm.includes('pre-decima') || norm.includes('predecima')) {
+    if (norm.includes('2018') || norm.includes('15')) return 15;
+    if (norm.includes('2019') || norm.includes('16')) return 16;
+    if (norm.includes('2020') || norm.includes('17')) return 17;
+    return 15;
+  }
+
+  if (norm.includes('decimoseptima') || norm.includes('decima septima') || norm.includes('17')) return 17;
+  if (norm.includes('decimosexta') || norm.includes('decima sexta') || norm.includes('16')) return 16;
+  if (norm.includes('decimoquinta') || norm.includes('decima quinta') || norm.includes('15')) return 15;
+  if (norm.includes('decimocuarta') || norm.includes('decima cuarta') || norm.includes('14')) return 14;
+  if (norm.includes('decimotercera') || norm.includes('decima tercera') || norm.includes('13')) return 13;
+  if (norm.includes('duodecima') || norm.includes('decimosegunda') || norm.includes('decima segunda') || norm.includes('12')) return 12;
+  if (norm.includes('undecima') || norm.includes('decimoprimera') || norm.includes('decima primera') || norm.includes('11')) return 11;
   if (norm.includes('decima') || norm.includes('10')) return 10;
   if (norm.includes('novena') || norm.includes('9')) return 9;
   if (norm.includes('octava') || norm.includes('8')) return 8;

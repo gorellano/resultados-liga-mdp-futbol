@@ -1,5 +1,6 @@
 import type { Tournament, Zone, Team, Match, Division } from './types';
 import { MOCK_TEAMS_CAMPEONATO, MOCK_TEAMS_PROMOCION } from './mockData';
+import { getDivisionOrder } from './adaroStandings';
 
 export const ADARO_TOURNAMENT_ID = 'adaro-2026';
 
@@ -125,8 +126,8 @@ export const ADARO_ALL_DIVISION_IDS = [
   ...ADARO_FORMATIVE_DIVISION_IDS,
 ];
 
-export function isAdaroPuntuableDivision(div: { id: string; name: string }): boolean {
-  if (ADARO_PUNTUABLE_DIVISION_IDS.includes(div.id)) return true;
+export function isAdaroPuntuableDivision(div: { id?: string; name: string }): boolean {
+  if (div.id && ADARO_PUNTUABLE_DIVISION_IDS.includes(div.id)) return true;
   if (div.id && ADARO_FORMATIVE_DIVISION_IDS.includes(div.id)) return false;
 
   const nameNorm = div.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
@@ -143,9 +144,16 @@ export function isAdaroPuntuableDivision(div: { id: string; name: string }): boo
     nameNorm.includes('decimoseptima') ||
     nameNorm.includes('decima septima') ||
     nameNorm.includes('formativa') ||
-    nameNorm.includes('promocional')
+    nameNorm.includes('promocional') ||
+    nameNorm.includes('pre-decima') ||
+    nameNorm.includes('predecima')
   ) {
     return false;
+  }
+
+  const order = getDivisionOrder(div.name);
+  if (order !== 99) {
+    return order >= 7 && order <= 14;
   }
 
   // Verificar que sea 7ma, 8va, 9na, 10ma, 11ma, 12ma, 13ra o 14ta
@@ -163,11 +171,26 @@ export function isAdaroPuntuableDivision(div: { id: string; name: string }): boo
 
 export function isAdaroParticipativeDivision(div: { id?: string; name: string }): boolean {
   if (div.id && ADARO_FORMATIVE_DIVISION_IDS.includes(div.id)) return true;
+
   const nameNorm = div.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   // Excluir terminantemente Primera, Quinta, Sexta
   if (/\bprimera\b/.test(nameNorm) || /^1(ra|era|ª|º|°)?(\s+division)?$/i.test(nameNorm)) return false;
   if (/\bquinta\b/.test(nameNorm) || /^5(ta|to|ª|º|°)?(\s+division)?$/i.test(nameNorm)) return false;
   if (/\bsexta\b/.test(nameNorm) || /^6(ta|to|ª|º|°)?(\s+division)?$/i.test(nameNorm)) return false;
+
+  if (
+    nameNorm.includes('formativa') ||
+    nameNorm.includes('promocional') ||
+    nameNorm.includes('pre-decima') ||
+    nameNorm.includes('predecima')
+  ) {
+    return true;
+  }
+
+  const order = getDivisionOrder(div.name);
+  if (order !== 99) {
+    return order >= 15 && order <= 17;
+  }
 
   // Formativas y promocionales (15ta, 16ta y 17ma)
   return (
@@ -175,69 +198,43 @@ export function isAdaroParticipativeDivision(div: { id?: string; name: string })
     nameNorm.includes('16') ||
     nameNorm.includes('17') ||
     nameNorm.includes('decimoquinta') ||
+    nameNorm.includes('decima quinta') ||
     nameNorm.includes('decimosexta') ||
+    nameNorm.includes('decima sexta') ||
     nameNorm.includes('decimoseptima') ||
-    nameNorm.includes('promocional') ||
-    nameNorm.includes('formativa') ||
-    nameNorm.includes('pre-decima') ||
-    nameNorm.includes('predecima')
+    nameNorm.includes('decima septima')
   );
 }
 
 export function resolveAdaroAllDivisionIds(divisions?: Division[]): string[] {
   if (!divisions || divisions.length === 0) return ADARO_ALL_DIVISION_IDS;
 
-  const keywords = [
-    'septima', 'octava', 'novena', 'decima', 'undecima', 'duodecima', 'decimotercera', 'decimocuarta',
-    'decimoquinta', 'decimosexta', 'decimoseptima'
-  ];
-  const altKeywords = [
-    '7ma', '8va', '9na', '10ma', '11ma', '12ma', '13ra', '14ta',
-    '15ta', '16ta', '17ma'
-  ];
-
   const resolved: string[] = [];
-  keywords.forEach((kw, i) => {
-    const alt = altKeywords[i];
-    const found = divisions.find(d => {
-      const norm = d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return norm.includes(kw) || norm.includes(alt);
-    });
+  for (let order = 7; order <= 17; order++) {
+    const found = divisions.find(d => getDivisionOrder(d.name) === order);
     if (found) {
       resolved.push(found.id);
     } else {
-      resolved.push(ADARO_ALL_DIVISION_IDS[i] || `fallback-div-${i}`);
+      const fallbackIdx = order - 7;
+      resolved.push(ADARO_ALL_DIVISION_IDS[fallbackIdx] || `fallback-div-${fallbackIdx}`);
     }
-  });
+  }
   return resolved;
 }
 
 export function resolveAdaroPuntuableDivisionIds(divisions?: Division[]): string[] {
   if (!divisions || divisions.length === 0) return ADARO_PUNTUABLE_DIVISION_IDS;
 
-  const matchers = [
-    (n: string) => (n.includes('7') || n.includes('septima')) && !n.includes('17') && !n.includes('decimoseptima'),
-    (n: string) => n.includes('8') || n.includes('octava'),
-    (n: string) => n.includes('9') || n.includes('novena'),
-    (n: string) => (n.includes('10') || (n.includes('decima') && !n.includes('undecima') && !n.includes('duodecima') && !n.includes('decimotercera') && !n.includes('decimocuarta') && !n.includes('quinta') && !n.includes('sexta') && !n.includes('septima'))),
-    (n: string) => n.includes('11') || n.includes('undecima'),
-    (n: string) => n.includes('12') || n.includes('duodecima'),
-    (n: string) => n.includes('13') || n.includes('decimotercera'),
-    (n: string) => n.includes('14') || n.includes('decimocuarta'),
-  ];
-
   const resolved: string[] = [];
-  matchers.forEach((matcher, i) => {
-    const found = divisions.find(d => {
-      const norm = d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return matcher(norm);
-    });
+  for (let order = 7; order <= 14; order++) {
+    const found = divisions.find(d => getDivisionOrder(d.name) === order);
     if (found) {
       resolved.push(found.id);
     } else {
-      resolved.push(ADARO_PUNTUABLE_DIVISION_IDS[i]);
+      const fallbackIdx = order - 7;
+      resolved.push(ADARO_PUNTUABLE_DIVISION_IDS[fallbackIdx]);
     }
-  });
+  }
   return resolved;
 }
 
@@ -254,6 +251,12 @@ export function getAdaroDivisionIndex(divisionIdOrName: string, divisions?: Divi
     if (div) {
       return getAdaroDivisionIndex(div.name);
     }
+  }
+
+  // 3. Coincidencia por getDivisionOrder (7 a 17 mapean a índices 0 a 10)
+  const order = getDivisionOrder(divisionIdOrName);
+  if (order >= 7 && order <= 17) {
+    return order - 7;
   }
 
   // 3. Coincidencia por palabra clave del nombre

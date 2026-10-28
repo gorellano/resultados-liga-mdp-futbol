@@ -631,6 +631,6 @@ END $$;
   return sql;
 }
 
-const outputPath = path.join(__dirname, '..', 'adaro2026_completo_fixture_supabase.sql');
+const outputPath = path.join(__dirname, 'sql', 'adaro2026_completo_fixture_supabase.sql');
 fs.writeFileSync(outputPath, generateSql(), 'utf8');
 console.log(`Generated ${outputPath}`);

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '../App';
-import { authenticateUser, fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches, saveMatchResult } from '../lib/db';
+import { authenticateUser, fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches, saveMatchResult, isExcludedDivision } from '../lib/db';
 import { loadAuth, clearAuth } from '../lib/auth';
 import type { AuthUser } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
@@ -55,7 +55,7 @@ export function AdminPage() {
 
       if (tourns.length > 0) setSelectedTournament(tourns[0].id);
       if (divs.length > 0) {
-        const defaultDiv = divs.find(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name)) || divs[0];
+        const defaultDiv = divs.find(d => !isExcludedDivision(d.name)) || divs[0];
         setSelectedDivision(defaultDiv.id);
       }
       if (zns.length > 0) setSelectedZone(zns[0].id);

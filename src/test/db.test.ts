@@ -11,8 +11,11 @@ import {
   fetchUsers,
   createUser,
   updateUserPassword,
-  toggleUserActive
+  toggleUserActive,
+  isExcludedDivision,
+  fetchTournamentDivisionMatches
 } from '../lib/db';
+import { isAdaroParticipativeDivision } from '../lib/mockAdaroData';
 
 // ─── Mock localStorage ───────────────────────────────────────────────────────
 const localStorageMock = (() => {
@@ -38,23 +41,26 @@ describe('db.ts - Hibrido de Base de Datos y Mocks', () => {
     const data = await fetchTournaments();
     expect(data).toBeDefined();
     expect(data.length).toBeGreaterThan(0);
-    expect(data[0].name).toBe('Clausura Joaquín "Cacho" Méndez');
+    expect(data.some(t => t.name.includes('Adaro'))).toBe(true);
+    expect(data.some(t => t.name.includes('Clausura'))).toBe(true);
   });
 
   it('debe obtener divisiones de fallback con sort_order correcto', async () => {
     const data = await fetchDivisions();
     expect(data).toBeDefined();
-    expect(data.length).toBe(10); // 7ma a 16ta
+    expect(data.length).toBe(11); // 7ma a 17ma
     expect(data[0].name).toBe('7ma División');
     expect(data[9].name).toBe('16ta División');
+    expect(data[10].name).toBe('17ma División');
   });
 
   it('debe obtener zonas de fallback', async () => {
     const data = await fetchZones();
     expect(data).toBeDefined();
-    expect(data.length).toBe(11);
+    expect(data.length).toBe(18); // 11 base + 7 zonas Adaro
     expect(data[0].name).toBe('Campeonato');
     expect(data[1].name).toBe('Promoción');
+    expect(data.some(z => z.name === 'Zona A')).toBe(true);
   });
 
   it('debe obtener equipos de campeonato y promocion combinados', async () => {
@@ -128,5 +134,52 @@ describe('db.ts - Hibrido de Base de Datos y Mocks', () => {
     const updatedUsers = await fetchUsers();
     const checkedUser = updatedUsers.find(u => u.id === newUser!.id);
     expect(checkedUser?.is_active).toBe(false);
+  });
+
+  it('debe excluir de forma estricta Primera, Quinta y Sexta divisiones sin afectar 11ma, 15ta ni 16ta', () => {
+    expect(isExcludedDivision('Primera División')).toBe(true);
+    expect(isExcludedDivision('primera')).toBe(true);
+    expect(isExcludedDivision('1ra División')).toBe(true);
+    expect(isExcludedDivision('Quinta División')).toBe(true);
+    expect(isExcludedDivision('quinta')).toBe(true);
+    expect(isExcludedDivision('5ta División')).toBe(true);
+    expect(isExcludedDivision('Sexta División')).toBe(true);
+    expect(isExcludedDivision('sexta')).toBe(true);
+    expect(isExcludedDivision('6ta División')).toBe(true);
+
+    // No debe excluir divisiones juveniles válidas
+    expect(isExcludedDivision('7ma División')).toBe(false);
+    expect(isExcludedDivision('8va División')).toBe(false);
+    expect(isExcludedDivision('9na División')).toBe(false);
+    expect(isExcludedDivision('10ma División')).toBe(false);
+    expect(isExcludedDivision('11ma División')).toBe(false);
+    expect(isExcludedDivision('Decimoprimera División')).toBe(false);
+    expect(isExcludedDivision('12ma División')).toBe(false);
+    expect(isExcludedDivision('13ra División')).toBe(false);
+    expect(isExcludedDivision('14ta División')).toBe(false);
+    expect(isExcludedDivision('15ta División')).toBe(false);
+    expect(isExcludedDivision('Decimoquinta División')).toBe(false);
+    expect(isExcludedDivision('16ta División')).toBe(false);
+    expect(isExcludedDivision('Decimosexta División')).toBe(false);
+
+    // Validar participativas
+    expect(isAdaroParticipativeDivision({ name: 'Primera División' })).toBe(false);
+    expect(isAdaroParticipativeDivision({ name: 'Quinta División' })).toBe(false);
+    expect(isAdaroParticipativeDivision({ name: 'Sexta División' })).toBe(false);
+    expect(isAdaroParticipativeDivision({ name: '15ta División' })).toBe(true);
+    expect(isAdaroParticipativeDivision({ name: '16ta División' })).toBe(true);
+    expect(isAdaroParticipativeDivision({ name: 'Decimoquinta División' })).toBe(true);
+    expect(isAdaroParticipativeDivision({ name: 'Decimosexta División' })).toBe(true);
+  });
+
+  it('debe devolver partidos para Torneo Adaro en cualquier division (incluyendo Novena)', async () => {
+    const divs = await fetchDivisions();
+    const novena = divs.find(d => d.name.toLowerCase().includes('novena') || d.name.toLowerCase().includes('9na'));
+    expect(novena).toBeDefined();
+
+    const matchesNovena = await fetchTournamentDivisionMatches('adaro-2026', novena!.id);
+    expect(matchesNovena.length).toBe(84); // 7 zonas x 2 partidos x 6 fechas = 84
+    expect(matchesNovena.some(m => m.round_number === 1)).toBe(true);
+    expect(matchesNovena.some(m => m.round_number === 6)).toBe(true);
   });
 });

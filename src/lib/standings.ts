@@ -134,8 +134,21 @@ export function calculateAnnualClubStandings(
   matches.forEach(match => {
     if (match.status !== 'finished' || match.home_goals === null || match.away_goals === null) return;
 
-    const home = clubMap[match.home_team_id];
-    const away = clubMap[match.away_team_id];
+    let home = clubMap[match.home_team_id];
+    let away = clubMap[match.away_team_id];
+
+    if (!home || !away) {
+      for (const key in clubMap) {
+        const c = clubMap[key];
+        const cNorm = c.team.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (!home && (match.home_team_id.toLowerCase().includes(cNorm) || cNorm.includes(match.home_team_id.toLowerCase()))) {
+          home = c;
+        }
+        if (!away && (match.away_team_id.toLowerCase().includes(cNorm) || cNorm.includes(match.away_team_id.toLowerCase()))) {
+          away = c;
+        }
+      }
+    }
 
     if (!home || !away) return;
 

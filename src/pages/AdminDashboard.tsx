@@ -30,10 +30,12 @@ import {
   fetchContactMessages,
   markContactMessageAsRead,
   deleteContactMessage,
-  logoutUser
+  logoutUser,
+  isExcludedDivision
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
+import { ALL_MOCK_TEAMS } from '../lib/mockAdaroData';
 
 const SponsorsSettings = lazy(() =>
   import('./SponsorsSettings').then(m => ({ default: m.SponsorsSettings }))
@@ -111,7 +113,7 @@ export function AdminDashboard() {
   const [adminChampions, setAdminChampions] = useState<Record<string, Record<'campeonato' | 'promocion', string>>>({});
   const [savingChampions, setSavingChampions] = useState(false);
   const [selectedChampYear, setSelectedChampYear] = useState<number>(new Date().getFullYear());
-  const [selectedChampTournament, setSelectedChampTournament] = useState<string>('Apertura');
+  const [selectedChampTournament, setSelectedChampTournament] = useState<string>('Clausura');
 
   // Filtros seleccionados
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
@@ -120,6 +122,15 @@ export function AdminDashboard() {
   const [selectedRound, setSelectedRound] = useState<number>(1);
 
   const availableZonesForDivision = useMemo(() => {
+    const selectedTourn = tournaments.find(t => t.id === selectedTournamentId);
+    if (
+      selectedTourn?.format === 'copas_multinivel' || 
+      selectedTournamentId === 'adaro-2026' || 
+      selectedTourn?.name?.toLowerCase().includes('adaro')
+    ) {
+      return zones.filter((z: Zone) => z.id.startsWith('adaro-zone-') || (z.name.startsWith('Zona ') && !z.name.includes('-')));
+    }
+
     const selectedDiv = divisions.find(d => d.id === selectedDivisionId);
     if (!selectedDiv) return zones;
 
@@ -130,7 +141,7 @@ export function AdminDashboard() {
     } else {
       return zones.filter((z: Zone) => z.name === 'Campeonato' || z.name === 'Promoción');
     }
-  }, [zones, divisions, selectedDivisionId]);
+  }, [zones, divisions, selectedDivisionId, selectedTournamentId, tournaments]);
 
   useEffect(() => {
     if (availableZonesForDivision.length > 0 && !availableZonesForDivision.some((z: Zone) => z.id === selectedZoneId)) {
@@ -263,13 +274,13 @@ export function AdminDashboard() {
           })
         ]);
         setTournaments(tourns);
-        setDivisions(divs);
+        const validDivs = divs.filter(d => !isExcludedDivision(d.name));
+        setDivisions(validDivs);
         setZones(zns);
         setTeams(tms);
         setMessages(msgs);
 
         if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
-        const validDivs = divs.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
         if (validDivs.length > 0) setSelectedDivisionId(validDivs[0].id);
         if (zns.length > 0) setSelectedZoneId(zns[0].id);
       } catch (err) {
@@ -417,9 +428,16 @@ export function AdminDashboard() {
 
   useEffect(() => {
     const key = `${selectedDivisionId}-${selectedZoneId}`;
-    if (lastAutoSelectedZone === key) return;
+    const isMatchInZone = (mZoneId: string, targetZoneId: string) => {
+      if (mZoneId === targetZoneId) return true;
+      const mZ = zones.find(z => z.id === mZoneId);
+      const tZ = zones.find(z => z.id === targetZoneId);
+      const mName = (mZ?.name || mZoneId).toLowerCase().trim();
+      const tName = (tZ?.name || targetZoneId).toLowerCase().trim();
+      return mName !== '' && mName === tName;
+    };
 
-    const zoneMatches = allMatches.filter(m => m.zone_id === selectedZoneId);
+    const zoneMatches = allMatches.filter(m => isMatchInZone(m.zone_id, selectedZoneId));
     if (zoneMatches.length === 0) return;
 
     const roundsList = Array.from(new Set(zoneMatches.map(m => m.round_number))).sort((a, b) => a - b);
@@ -442,9 +460,36 @@ export function AdminDashboard() {
       setSelectedRound(1);
       setLastAutoSelectedZone(key);
     }
-  }, [allMatches, selectedZoneId, selectedDivisionId, lastAutoSelectedZone]);
-  // Filtrar partidos locales del tab activo
-  const matches = allMatches.filter(m => m.zone_id === selectedZoneId);
+  }, [allMatches, selectedZoneId, selectedDivisionId, lastAutoSelectedZone, zones]);
+  // Filtrar partidos locales del tab activo con coincidencia flexible por zona
+  const matches = allMatches.filter(m => {
+    if (m.zone_id === selectedZoneId) return true;
+    const mZ = zones.find(z => z.id === m.zone_id);
+    const tZ = zones.find(z => z.id === selectedZoneId);
+    const mName = (mZ?.name || m.zone_id).toLowerCase().trim();
+    const tName = (tZ?.name || selectedZoneId).toLowerCase().trim();
+    return mName !== '' && mName === tName;
+  });
+
+  const resolveTeam = (teamId: string): Team | undefined => {
+    if (!teamId) return undefined;
+    const direct = teams.find(t => t.id === teamId);
+    if (direct) return direct;
+    const mock = ALL_MOCK_TEAMS.find(t => t.id === teamId);
+    if (mock) {
+      const matchInTeams = teams.find(t => 
+        t.name.toLowerCase().trim() === mock.name.toLowerCase().trim() ||
+        (t.display_name && t.display_name.toLowerCase().trim() === (mock.display_name || mock.name).toLowerCase().trim())
+      );
+      if (matchInTeams) return matchInTeams;
+      return mock;
+    }
+    const clean = teamId.toLowerCase().trim();
+    return teams.find(t => 
+      t.name.toLowerCase().trim() === clean || 
+      (t.display_name && t.display_name.toLowerCase().trim() === clean)
+    );
+  };
 
   // Sincronizar inputs de goles editados cuando cambian los partidos cargados
   useEffect(() => {
@@ -577,8 +622,8 @@ export function AdminDashboard() {
       // Auto-send push notification if finished and feature flag is ON
       if (status === 'finished' && match && homeGoals !== null && awayGoals !== null && sendNotificationsFlag) {
         const isEdit = match.status === 'finished';
-        const homeTeam = teams.find(t => t.id === match.home_team_id);
-        const awayTeam = teams.find(t => t.id === match.away_team_id);
+        const homeTeam = resolveTeam(match.home_team_id);
+        const awayTeam = resolveTeam(match.away_team_id);
         supabase.functions.invoke('notify-subscribers', {
           body: {
             match_id: matchId,
@@ -616,8 +661,8 @@ export function AdminDashboard() {
     
     try {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'saving' })); // Reusing status for UI feedback
-      const homeTeam = teams.find(t => t.id === match.home_team_id);
-      const awayTeam = teams.find(t => t.id === match.away_team_id);
+      const homeTeam = resolveTeam(match.home_team_id);
+      const awayTeam = resolveTeam(match.away_team_id);
       const { error } = await supabase.functions.invoke('notify-subscribers', {
         body: {
           match_id: match.id,
@@ -1911,8 +1956,8 @@ export function AdminDashboard() {
                                 <h4 className="font-extrabold text-sm text-primary uppercase tracking-wider ml-1">Fecha {roundNum}</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   {roundMatches.map(m => {
-                                    const home = teams.find(t => t.id === m.home_team_id);
-                                    const away = teams.find(t => t.id === m.away_team_id);
+                                    const home = resolveTeam(m.home_team_id);
+                                    const away = resolveTeam(m.away_team_id);
                                     if (!home || !away) return null;
                                     return (
                                       <div key={m.id} className="bg-background border border-border/50 rounded-2xl p-4 flex items-center justify-between hover:border-primary/20 transition-all duration-200 shadow-sm">
@@ -2042,8 +2087,8 @@ export function AdminDashboard() {
                   ) : (
                     <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-3">
                       {matches.filter(m => m.round_number === selectedRound).map(match => {
-                        const home = teams.find(t => t.id === match.home_team_id);
-                        const away = teams.find(t => t.id === match.away_team_id);
+                        const home = resolveTeam(match.home_team_id);
+                        const away = resolveTeam(match.away_team_id);
                         if (!home || !away) return null;
 
                         const edit = editingResults[match.id] || { homeGoals: '', awayGoals: '' };
@@ -2389,8 +2434,17 @@ export function AdminDashboard() {
                         onChange={(e) => setSelectedChampTournament(e.target.value)}
                         className="bg-background border border-border/60 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
                       >
-                        <option value="Apertura">Apertura</option>
-                        <option value="Clausura">Clausura</option>
+                        {selectedChampYear === 2026 ? (
+                          <>
+                            <option value="Clausura">Clausura</option>
+                            <option value="Chamaco Adaro">Chamaco Adaro</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value="Apertura">Apertura</option>
+                            <option value="Clausura">Clausura</option>
+                          </>
+                        )}
                       </select>
                       
                       <button

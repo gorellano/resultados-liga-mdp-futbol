@@ -12,10 +12,14 @@ const TablaAnualPage = lazy(() => import('./pages/TablaAnualPage').then(m => ({ 
 const TeamsPage = lazy(() => import('./pages/TeamsPage').then(m => ({ default: m.TeamsPage })));
 const CampeonesPage = lazy(() => import('./pages/CampeonesPage').then(m => ({ default: m.CampeonesPage })));
 const H2HPage = lazy(() => import('./pages/H2HPage').then(m => ({ default: m.H2HPage })));
+const PlayoffCopasPage = lazy(() => import('./pages/PlayoffCopasPage').then(m => ({ default: m.PlayoffCopasPage })));
 const AdminLogin = lazy(() => import('./pages/AdminLogin').then(m => ({ default: m.AdminLogin })));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const ContactModal = lazy(() => import('./components/ContactModal').then(m => ({ default: m.ContactModal })));
+const TournamentSelectorModal = lazy(() => import('./components/TournamentSelectorModal').then(m => ({ default: m.TournamentSelectorModal })));
+const ZonePage = lazy(() => import('./pages/ZonePage').then(m => ({ default: m.ZonePage })));
+import { TournamentProvider } from './context/TournamentContext';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -92,6 +96,10 @@ function Layout({ children }: { children: React.ReactNode }) {
         </Suspense>
       )}
 
+      <Suspense fallback={null}>
+        <TournamentSelectorModal />
+      </Suspense>
+
       {/* Push notification (Toast) */}
       <AnimatePresence>
         {showToast && (
@@ -145,7 +153,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           <p className="text-xs text-muted-foreground/75 text-center sm:text-left order-2 sm:order-1">
-            &copy; {new Date().getFullYear()} Costa y Gol · Liga Marplatense de Fútbol. Todos los derechos reservados.
+            &copy; {new Date().getFullYear()} Costa y Gol. Todos los derechos reservados.
           </p>
         </div>
       </footer>
@@ -156,22 +164,28 @@ function Layout({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/tabla-anual" element={<TablaAnualPage />} />
-            <Route path="/tabla-general" element={<TablaAnualPage />} />
-            <Route path="/division/:name" element={<DivisionPage />} />
-            <Route path="/equipos" element={<TeamsPage />} />
-            <Route path="/campeones" element={<CampeonesPage />} />
-            <Route path="/h2h" element={<H2HPage />} />
-            <Route path="/admin" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/*" element={<AdminPage />} />
-          </Routes>
-        </Suspense>
-      </Layout>
+      <TournamentProvider>
+        <Layout>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/copas" element={<PlayoffCopasPage />} />
+              <Route path="/:year/zona/:zoneId" element={<ZonePage />} />
+              <Route path="/zona/:year/:zoneId" element={<ZonePage />} />
+              <Route path="/zona/:zoneId" element={<ZonePage />} />
+              <Route path="/tabla-anual" element={<TablaAnualPage />} />
+              <Route path="/tabla-general" element={<TablaAnualPage />} />
+              <Route path="/division/:name" element={<DivisionPage />} />
+              <Route path="/equipos" element={<TeamsPage />} />
+              <Route path="/campeones" element={<CampeonesPage />} />
+              <Route path="/h2h" element={<H2HPage />} />
+              <Route path="/admin" element={<AdminLogin />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/*" element={<AdminPage />} />
+            </Routes>
+          </Suspense>
+        </Layout>
+      </TournamentProvider>
     </BrowserRouter>
   );
 }

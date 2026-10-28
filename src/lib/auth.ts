@@ -140,6 +140,7 @@ export function getCategoryYear(divisionName: string, tournamentYear: number): n
     '14ta': 14, 'decimocuarta': 14,
     '15ta': 15, 'decimoquinta': 15,
     '16ta': 16, 'decimosexta': 16,
+    '17ma': 17, 'decimoseptima': 17, 'décimoseptima': 17, 'decimoséptima': 17,
   };
   
   const lowerName = divisionName.toLowerCase();

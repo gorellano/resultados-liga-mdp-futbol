@@ -10,8 +10,10 @@ import {
   Sun, 
   Moon, 
   Lock, 
-  Home
+  Home,
+  ChevronDown
 } from 'lucide-react';
+import { useTournament } from '../context/TournamentContext';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -43,6 +45,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
 }) => {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const { isAdaro, selectedTournament, openSelector } = useTournament();
 
   useEffect(() => {
     let ticking = false;
@@ -144,8 +147,25 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
             })}
           </nav>
 
-          {/* 3. Action Tools: Contacto, Tema, Admin */}
+          {/* 3. Action Tools: Selector de Torneo, Contacto, Tema, Admin */}
           <div className="flex items-center space-x-2 sm:space-x-2.5">
+            {/* Pill Selector de Torneo */}
+            <button
+              onClick={openSelector}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold tracking-tight transition-all active:scale-95 shadow-xs"
+              title="Cambiar Torneo Oficial"
+              aria-label="Cambiar Torneo"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+              <span className="hidden sm:inline max-w-[150px] truncate">
+                {isAdaro ? 'Chamaco Adaro' : (selectedTournament ? selectedTournament.name.replace(/^Torneo\s+/i, '') : 'Clausura 2026')}
+              </span>
+              <span className="sm:hidden font-bold max-w-[110px] truncate">
+                {isAdaro ? 'Adaro' : 'Clausura 2026'}
+              </span>
+              <ChevronDown className="w-3 h-3 opacity-70 flex-shrink-0" />
+            </button>
+
             {/* Botón Contacto */}
             <button
               onClick={onOpenContact}

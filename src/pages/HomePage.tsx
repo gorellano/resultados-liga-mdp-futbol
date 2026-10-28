@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { Star, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award } from 'lucide-react';
+import { Star, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award, Sparkles, Layers, ChevronDown } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
-import { fetchDivisions, fetchTournaments, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches } from '../lib/db';
+import { fetchDivisions, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches, isExcludedDivision } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import { calculateStandings } from '../lib/standings';
 import type { Division, Match, Team } from '../lib/types';
@@ -12,6 +12,12 @@ import { SponsorBanner } from '../components/SponsorBanner';
 import { CommunityPoll } from '../components/CommunityPoll';
 import { createSlug, formatSlugToTitle } from '../lib/slug';
 import { isTournamentDivision, getTournamentConfig } from '../lib/divisionConfig';
+import { useTournament } from '../context/TournamentContext';
+import { 
+  ADARO_ZONES, 
+  ADARO_PUNTUABLE_DIVISION_IDS,
+  getAdaroZoneClubs 
+} from '../lib/mockAdaroData';
 
 import { ClubLogo } from '../components/ClubLogo';
 
@@ -192,10 +198,10 @@ async function fetchFavoriteStatsForTeam(
 
 export function HomePage() {
   const { favorites, toggleFavorite, setFavoriteDivisionId } = useFavoriteTeam();
+  const { isAdaro, selectedTournament, selectedTournamentId, openSelector } = useTournament();
   const [seasonYear, setSeasonYear] = useState<number>(new Date().getFullYear());
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
-  const [currentTournamentId, setCurrentTournamentId] = useState<string | null>(null);
   const [tournamentMatches, setTournamentMatches] = useState<Match[]>([]);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
   const [favoritesStats, setFavoritesStats] = useState<FavoriteStat[]>([]);
@@ -203,58 +209,56 @@ export function HomePage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [tourns, divs, tms] = await Promise.all([
-          fetchTournaments(),
+        const [divs, tms] = await Promise.all([
           fetchDivisions(),
           fetchTeams()
         ]);
         setActiveDivs(divs);
         setAllTeams(tms);
-
-        if (tourns.length > 0) {
-          const leagueTourns = tourns.filter(t => 
-            !t.name.toLowerCase().includes('cacho') && 
-            !t.name.toLowerCase().includes('reyes')
-          );
-          const activeTourn = leagueTourns.find(t => t.name.toLowerCase().includes('clausura') && t.is_current) ||
-                              leagueTourns.find(t => t.is_current) || 
-                              leagueTourns[0] || tourns[0];
-
-          setCurrentTournamentId(activeTourn.id);
-          if (activeTourn.year) {
-            setSeasonYear(activeTourn.year);
-          }
-          const matches = await fetchAllTournamentMatches(activeTourn.id);
-          setTournamentMatches(matches);
-          
-          const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
-          divs.forEach(div => {
-            const divMatches = matches.filter(m => m.division_id === div.id);
-            if (divMatches.length === 0) {
-              statuses[div.id] = 'en_curso';
-            } else {
-              const round13Matches = divMatches.filter(m => m.round_number === 13);
-              const round13Finished = round13Matches.filter(m => m.status === 'finished').length;
-              const round13Total = round13Matches.length;
-              
-              if (round13Total > 0 && (round13Finished / round13Total) >= 0.9) {
-                statuses[div.id] = 'finalizado';
-              } else {
-                statuses[div.id] = 'en_curso';
-              }
-            }
-          });
-          setDivisionStatuses(statuses);
-        }
       } catch (err) {
-        console.error('Error loading homepage data:', err);
+        console.error('Error loading homepage base data:', err);
       }
     }
     loadData();
   }, []);
 
   useEffect(() => {
-    if (favorites.length === 0 || activeDivs.length === 0 || allTeams.length === 0 || !currentTournamentId) {
+    if (!selectedTournamentId || activeDivs.length === 0) return;
+    let isMounted = true;
+    async function loadMatchesForSelectedTourn() {
+      try {
+        const matches = await fetchAllTournamentMatches(selectedTournamentId);
+        if (!isMounted) return;
+        setTournamentMatches(matches);
+        if (selectedTournament?.year) {
+          setSeasonYear(selectedTournament.year);
+        }
+
+        const statuses: Record<string, 'en_curso' | 'finalizado'> = {};
+        activeDivs.forEach(div => {
+          const divMatches = matches.filter(m => m.division_id === div.id);
+          if (divMatches.length === 0) {
+            statuses[div.id] = 'en_curso';
+          } else {
+            const finished = divMatches.filter(m => m.status === 'finished').length;
+            if (divMatches.length > 0 && (finished / divMatches.length) >= 0.9) {
+              statuses[div.id] = 'finalizado';
+            } else {
+              statuses[div.id] = 'en_curso';
+            }
+          }
+        });
+        setDivisionStatuses(statuses);
+      } catch (err) {
+        console.error('Error loading tournament matches for homepage:', err);
+      }
+    }
+    loadMatchesForSelectedTourn();
+    return () => { isMounted = false; };
+  }, [selectedTournamentId, selectedTournament, activeDivs]);
+
+  useEffect(() => {
+    if (favorites.length === 0 || activeDivs.length === 0 || allTeams.length === 0 || !selectedTournamentId) {
       setFavoritesStats([]);
       return;
     }
@@ -269,7 +273,7 @@ export function HomePage() {
           targetDivId = defaultDiv?.id;
         }
         if (!targetDivId) return null;
-        return fetchFavoriteStatsForTeam(fav.teamId, targetDivId, currentTournamentId!, allTeams, activeDivs, tournamentMatches);
+        return fetchFavoriteStatsForTeam(fav.teamId, targetDivId, selectedTournamentId, allTeams, activeDivs, tournamentMatches);
       });
 
       const results = await Promise.all(statsPromises);
@@ -281,10 +285,15 @@ export function HomePage() {
     loadFavStats();
 
     return () => { isMounted = false; };
-  }, [favorites, activeDivs, allTeams, currentTournamentId, tournamentMatches]);
+  }, [favorites, activeDivs, allTeams, selectedTournamentId, tournamentMatches]);
 
   const divisionsList = activeDivs
-    .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
+    .filter(d => {
+      if (isAdaro) {
+        return ADARO_PUNTUABLE_DIVISION_IDS.includes(d.id);
+      }
+      return !isExcludedDivision(d.name);
+    })
     .map(d => {
       return {
         id: d.id,
@@ -323,6 +332,26 @@ export function HomePage() {
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed max-w-[550px]">
             Viví la pasión del fútbol juvenil de la ciudad. Seguí al instante los resultados, estadísticas completas, fixtures y tablas de posiciones de todas las divisiones de la LMF en <strong className="text-primary font-bold">Costa y Gol</strong>.
           </p>
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            <button
+              onClick={openSelector}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold transition-all active:scale-95 shadow-2xs"
+            >
+              <Trophy className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+              <span>{selectedTournament?.name || 'Torneo Actual'}</span>
+              <ChevronDown className="w-3 h-3 opacity-70" />
+            </button>
+
+            {isAdaro && (
+              <Link
+                to="/copas"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-all active:scale-95 shadow-2xs"
+              >
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                <span>Playoffs & 4 Copas</span>
+              </Link>
+            )}
+          </div>
         </div>
       </section>
 
@@ -490,6 +519,193 @@ export function HomePage() {
         </section>
       )}
 
+      {/* ─── Torneo Clásico (Clausura): Divisiones LMF como sección principal arriba ─── */}
+      {!isAdaro && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="space-y-4 max-w-4xl mx-auto"
+        >
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
+              <span>Divisiones LMF</span>
+              <span className="text-xs font-extrabold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
+                Temporada {seasonYear}
+              </span>
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+            {divisionsList.map((div) => {
+              const slug = createSlug(div.name);
+              const isFinished = div.status === 'finalizado';
+
+              return (
+                <div key={div.id} className="relative group">
+                  <Link
+                    to={`/division/${slug}`}
+                    className="block p-5 sm:p-6 rounded-3xl bg-card/60 hover:bg-card/90 border border-border/60 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md backdrop-blur-xs relative overflow-hidden text-left"
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border",
+                        isFinished
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      )}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isFinished ? "bg-amber-500" : "bg-emerald-500")} />
+                        {isFinished ? 'Torneo Finalizado' : 'En Curso'}
+                      </span>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
+                    </div>
+
+                    <h3 className="font-extrabold text-lg sm:text-xl text-foreground tracking-tight group-hover:text-primary transition-colors">
+                      {div.name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground font-medium mt-0.5">
+                      (Categoría {getCategoryYear(div.name, seasonYear)})
+                    </p>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* ─── Torneo Chamaco Adaro: Camino a las 4 Copas & 7 Zonas ─── */}
+      {isAdaro && (
+        <div className="space-y-6 max-w-4xl mx-auto">
+          {/* Banner Camino a las 4 Copas */}
+          <section className="bg-gradient-to-br from-card/90 via-card/50 to-background border border-border/70 rounded-3xl p-5 sm:p-7 backdrop-blur-xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                    Formato Oficial 2026
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2 mt-0.5">
+                  <Trophy className="w-5 h-5 text-amber-500" />
+                  Camino a las 4 Copas
+                </h2>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed max-w-xl">
+                  Cada zona clasifica a sus 4 clubes a una copa diferente según la sumatoria general de 7ª a 14ª división.
+                </p>
+              </div>
+
+              <Link
+                to="/copas"
+                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold shadow-md hover:bg-primary/90 transition-all active:scale-95 self-start sm:self-auto flex-shrink-0"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Ver Cuadro de Playoffs</span>
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+              <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg">💎</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">1º Puesto</span>
+                </div>
+                <h3 className="font-bold text-sm text-foreground">Copa Platino</h3>
+                <p className="text-[11px] text-muted-foreground">Los 1º de cada zona (el mejor promedio accede directo a Semifinales)</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg">🥇</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">2º Puesto</span>
+                </div>
+                <h3 className="font-bold text-sm text-foreground">Copa de Oro</h3>
+                <p className="text-[11px] text-muted-foreground">Los 2º de cada zona (el mejor promedio accede directo a Semifinales)</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-400/10 border border-slate-400/25 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg">🥈</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">3º Puesto</span>
+                </div>
+                <h3 className="font-bold text-sm text-foreground">Copa de Plata</h3>
+                <p className="text-[11px] text-muted-foreground">Los 3º de cada zona (el mejor promedio accede directo a Semifinales)</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-orange-600/10 border border-orange-600/25 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg">🥉</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-orange-700 dark:text-orange-400">4º Puesto</span>
+                </div>
+                <h3 className="font-bold text-sm text-foreground">Copa de Bronce</h3>
+                <p className="text-[11px] text-muted-foreground">Los 4º de cada zona (el mejor promedio accede directo a Semifinales)</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Strip de las 7 Zonas Oficiales */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg sm:text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-primary" />
+                  Las 7 Zonas de Clasificación
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Accedé a la tabla general de cada zona y el fixture de tiras completas
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+              {ADARO_ZONES.map((zone) => {
+                const zoneClubs = getAdaroZoneClubs(zone.id, allTeams);
+
+                return (
+                  <Link
+                    key={zone.id}
+                    to={`/2026/zona/${zone.id}`}
+                    className="group p-4 rounded-3xl border border-border/70 bg-card/60 hover:bg-card/90 transition-all hover:scale-[1.02] shadow-sm flex flex-col justify-between space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-sm tracking-tight text-foreground flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-primary" />
+                        {zone.name}
+                      </span>
+                      <span className="text-[10px] font-bold text-primary group-hover:translate-x-0.5 transition-transform flex items-center">
+                        Ver zona <ChevronRight className="w-3 h-3 ml-0.5" />
+                      </span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {zoneClubs.map(c => (
+                        <div key={c.id} className="flex items-center space-x-2 text-xs text-muted-foreground group-hover:text-foreground transition-colors">
+                          <div className="w-5 h-5 rounded-full bg-muted/60 border border-border/50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {c.logo_url ? (
+                              <img src={c.logo_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[8px] font-bold">{c.name.slice(0, 2)}</span>
+                            )}
+                          </div>
+                          <span className="truncate font-semibold">{c.display_name || c.name}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="pt-2 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground font-medium">
+                      <span>4 clubes</span>
+                      <span>6 fechas ida y vuelta</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
       <CommunityPoll />
 
       {/* Tabla General de Clubes Promo Card */}
@@ -528,58 +744,6 @@ export function HomePage() {
       </section>
 
       <SponsorBanner />
-
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="space-y-4 max-w-4xl mx-auto"
-      >
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
-            <span>Divisiones LMF</span>
-            <span className="text-xs font-extrabold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
-              Temporada {seasonYear}
-            </span>
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
-          {divisionsList.map((div) => {
-            const slug = createSlug(div.name);
-            const isFinished = div.status === 'finalizado';
-
-            return (
-              <div key={div.id} className="relative group">
-                <Link
-                  to={`/division/${slug}`}
-                  className="block p-5 sm:p-6 rounded-3xl bg-card/60 hover:bg-card/90 border border-border/60 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md backdrop-blur-xs relative overflow-hidden text-left"
-                >
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider border",
-                      isFinished
-                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                        : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    )}>
-                      <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", isFinished ? "bg-amber-500" : "bg-emerald-500")} />
-                      {isFinished ? 'Torneo Finalizado' : 'En Curso'}
-                    </span>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
-                  </div>
-
-                  <h3 className="font-extrabold text-lg sm:text-xl text-foreground tracking-tight group-hover:text-primary transition-colors">
-                    {div.name}
-                  </h3>
-                  <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                    (Categoría {getCategoryYear(div.name, seasonYear)})
-                  </p>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
     </motion.div>
   );
 }

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchDivisions, fetchTeams, fetchTournaments, isSupabaseActive } from '../lib/db';
+import { fetchDivisions, fetchTeams, isSupabaseActive } from '../lib/db';
 import type { Division, Team } from '../lib/types';
 import { Trophy, Star, ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTournament } from '../context/TournamentContext';
 
 interface Champion {
   id: string;
@@ -15,10 +16,13 @@ interface Champion {
 }
 
 export function CampeonesPage() {
+  const { isAdaro, selectedTournament: globalTourn } = useTournament();
   const currentYear = new Date().getFullYear();
   const startYear = 2026;
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedTournament, setSelectedTournament] = useState<string>('Clausura');
+  const [selectedTournament, setSelectedTournament] = useState<string>(
+    isAdaro || globalTourn?.name?.toLowerCase().includes('adaro') ? 'Chamaco Adaro' : 'Clausura'
+  );
   
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -33,38 +37,38 @@ export function CampeonesPage() {
     (_, i) => maxYear - i
   );
 
-  // 1. Cargar divisiones, equipos y determinar el torneo activo al montar
+  const availableTournaments = useMemo(() => {
+    if (selectedYear === 2026) {
+      return [
+        { id: 'Chamaco Adaro', name: 'Chamaco Adaro' },
+        { id: 'Clausura', name: 'Clausura' },
+      ];
+    }
+    return [
+      { id: 'Apertura', name: 'Apertura' },
+      { id: 'Clausura', name: 'Clausura' },
+    ];
+  }, [selectedYear]);
+
+  // Si cambia el año y el torneo actual no existe en el año seleccionado, ajustar
+  useEffect(() => {
+    if (!availableTournaments.some(t => t.id === selectedTournament)) {
+      setSelectedTournament(availableTournaments[0].id);
+    }
+  }, [availableTournaments, selectedTournament]);
+
+  // 1. Cargar divisiones y equipos al montar
   useEffect(() => {
     async function loadStaticData() {
       try {
-        const [divs, tms, tourns] = await Promise.all([
+        const [divs, tms] = await Promise.all([
           fetchDivisions(),
-          fetchTeams(),
-          fetchTournaments()
+          fetchTeams()
         ]);
         setDivisions(divs);
         setTeams(tms);
-
-        if (tourns && tourns.length > 0) {
-          // Filtrar torneos de liga juvenil / regular
-          const leagueTourns = tourns.filter(t => 
-            !t.name.toLowerCase().includes('cacho') && 
-            !t.name.toLowerCase().includes('reyes')
-          );
-
-          // Obtener el torneo activo actual o el más reciente
-          const activeTourn = leagueTourns.find(t => t.is_current) || leagueTourns[0] || tourns[0];
-          
-          if (activeTourn) {
-            if (activeTourn.year) {
-              setSelectedYear(activeTourn.year);
-            }
-            const isApertura = activeTourn.name.toLowerCase().includes('apertura');
-            setSelectedTournament(isApertura ? 'Apertura' : 'Clausura');
-          }
-        }
       } catch (err) {
-        console.error('Error cargando divisiones, equipos y torneos:', err);
+        console.error('Error cargando divisiones y equipos:', err);
       } finally {
         setInitialLoading(false);
       }
@@ -117,6 +121,14 @@ export function CampeonesPage() {
     return teams.find(t => t.id === champ.team_id) || null;
   };
 
+  const badgeText = useMemo(() => {
+    const norm = selectedTournament.toLowerCase();
+    if (norm.includes('adaro') || norm.includes('chamaco')) {
+      return `TORNEO ARMANDO "CHAMACO" ADARO ${selectedYear} EN CURSO ⚽`;
+    }
+    return `TORNEO ${selectedTournament.toUpperCase()} ${selectedYear} EN CURSO ⚽`;
+  }, [selectedTournament, selectedYear]);
+
   return (
     <div className="space-y-8">
       {/* Cabecera */}
@@ -152,8 +164,9 @@ export function CampeonesPage() {
             onChange={(e) => setSelectedTournament(e.target.value)}
             className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
           >
-            <option value="Apertura">Apertura</option>
-            <option value="Clausura">Clausura</option>
+            {availableTournaments.map(t => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -169,7 +182,7 @@ export function CampeonesPage() {
             <Trophy className="w-10 h-10 fill-amber-500/20 animate-soft-pulse" />
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-extrabold border border-amber-500/25 mb-3 uppercase tracking-wider">
-            Torneo {selectedTournament} {selectedYear} en curso ⚽
+            {badgeText}
           </span>
           <h3 className="font-extrabold text-xl text-foreground tracking-tight">¡La copa está en disputa!</h3>
           <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2 leading-relaxed font-medium">

@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { cn } from '../App';
 import { calculateStandings } from '../lib/standings';
-import { Share2, Copy, Calendar, MapPin, Trophy, Award, Swords, Star } from 'lucide-react';
+import { Share2, Copy, Calendar, MapPin, Trophy, Award, Swords, Star, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
-import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches } from '../lib/db';
+import { fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches, fetchAllTournamentMatches } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
 import { villasDeportivas } from '../lib/villasDeportivas';
@@ -17,6 +17,8 @@ import { TournamentDivisionView } from './TournamentDivisionView';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { H2HModal } from '../components/H2HModal';
 import { ClubLogo } from '../components/ClubLogo';
+import { useTournament } from '../context/TournamentContext';
+import { AdaroZoneView } from '../components/AdaroZoneView';
 
 function StandingsSkeleton() {
   return (
@@ -97,11 +99,26 @@ function FixtureSkeleton() {
 }
 
 export function DivisionPage() {
-  const { name } = useParams();
+  const { name, zoneId } = useParams();
+  const { isAdaro, selectedTournament, selectedTournamentId: contextTournId, setTournamentById, openSelector } = useTournament();
+  const [adaroZoneId, setAdaroZoneId] = useState<string>(zoneId || 'adaro-zone-a');
+  const [adaroMatches, setAdaroMatches] = useState<Match[]>([]);
+  const [adaroLoading, setAdaroLoading] = useState(false);
+
+  // Sincronizar selectedTournamentId con el torneo del contexto global
+  const [selectedYear, setSelectedYear] = useState<number>(selectedTournament?.year || 2026);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>(contextTournId || '');
+
+  useEffect(() => {
+    if (selectedTournament) {
+      setSelectedYear(selectedTournament.year);
+      setSelectedTournamentId(selectedTournament.id);
+    }
+  }, [selectedTournament]);
 
   // Divisiones con formato torneo (3 zonas + fase eliminatoria)
-  // se renderizan con el nuevo componente dedicado
-  if (name && isTournamentDivision(name)) {
+  // se renderizan con el nuevo componente dedicado solo para torneos anteriores
+  if (!isAdaro && name && isTournamentDivision(name)) {
     return <TournamentDivisionView slug={name} />;
   }
 
@@ -172,11 +189,36 @@ export function DivisionPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
   const [currentDivId, setCurrentDivId] = useState<string | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Sincronizar zona si viene en los parámetros de la URL
+  useEffect(() => {
+    if (zoneId) {
+      setAdaroZoneId(zoneId);
+    }
+  }, [zoneId]);
+
+  // Cargar partidos de Adaro si el torneo activo es Chamaco Adaro
+  useEffect(() => {
+    if (!isAdaro || !selectedTournament) return;
+    const tournId = selectedTournament.id;
+    let isMounted = true;
+    async function loadAdaroMatches() {
+      setAdaroLoading(true);
+      try {
+        const data = await fetchAllTournamentMatches(tournId);
+        if (isMounted) setAdaroMatches(data);
+      } catch (err) {
+        console.error('Error loading Adaro matches in DivisionPage:', err);
+      } finally {
+        if (isMounted) setAdaroLoading(false);
+      }
+    }
+    loadAdaroMatches();
+    return () => { isMounted = false; };
+  }, [isAdaro, selectedTournament]);
 
   // 1. Cargar datos base al montar
   useEffect(() => {
@@ -193,7 +235,7 @@ export function DivisionPage() {
         setZones(zns);
         setAllTeams(tms);
 
-        if (tourns.length > 0) {
+        if (!selectedTournamentId && tourns.length > 0) {
           const leagueTourns = tourns.filter(t => 
             !t.name.toLowerCase().includes('cacho') && 
             !t.name.toLowerCase().includes('reyes')
@@ -211,7 +253,75 @@ export function DivisionPage() {
       }
     }
     loadBaseData();
-  }, []);
+  }, [selectedTournamentId]);
+
+  // Si el torneo activo es Chamaco Adaro, renderizamos la vista de Zonas oficial
+  if (isAdaro) {
+    return (
+      <div className="space-y-6">
+        {/* Top Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <Link
+              to="/"
+              className="p-2.5 rounded-2xl bg-card border border-border/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95 shadow-xs"
+              title="Volver al Inicio"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Torneo Oficial LMF 2026
+                </span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                {selectedTournament?.name || 'Torneo Armando "Chamaco" Adaro'}
+              </h1>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              to="/copas"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold hover:bg-amber-500/25 transition-all active:scale-95 shadow-xs"
+            >
+              <Trophy className="w-4 h-4 text-amber-500" />
+              <span>Ver Cuadro de Copas</span>
+            </Link>
+
+            <button
+              onClick={openSelector}
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl bg-card border border-border/60 text-muted-foreground hover:text-foreground text-xs font-semibold hover:bg-muted transition-all active:scale-95"
+            >
+              <span>Cambiar Formato</span>
+            </button>
+          </div>
+        </div>
+
+        {adaroLoading ? (
+          <div className="p-12 text-center animate-pulse space-y-3">
+            <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
+              Cargando fixture y zonas oficiales...
+            </p>
+          </div>
+        ) : (
+          <AdaroZoneView
+            selectedZoneId={adaroZoneId}
+            onSelectZone={setAdaroZoneId}
+            matches={adaroMatches}
+            teams={allTeams}
+            divisions={divisions}
+            zones={zones}
+            initialMode={name ? 'division' : 'general'}
+            initialDivisionSlug={name}
+          />
+        )}
+      </div>
+    );
+  }
 
   // 2. Cargar partidos filtrados cuando cambien los filtros o la ruta
   useEffect(() => {
@@ -222,9 +332,17 @@ export function DivisionPage() {
       try {
         // Encontrar UUID de división correspondiente al nombre o slug de la URL
         const currentDiv = divisions.find(d => d.name === name || createSlug(d.name) === name) || divisions[0];
-        if (currentDiv) setCurrentDivId(currentDiv.id);
+        if (!currentDiv) {
+          setLoading(false);
+          return;
+        }
+        setCurrentDivId(currentDiv.id);
         const normalize = (str: string) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
         const currentZone = zones.find(z => normalize(z.name) === normalize(zone)) || zones[0];
+        if (!currentZone) {
+          setLoading(false);
+          return;
+        }
 
         const data = await fetchMatches(currentDiv.id, currentZone.id, selectedTournamentId);
         setMatches(data);
@@ -403,7 +521,10 @@ export function DivisionPage() {
               const year = Number(e.target.value);
               setSelectedYear(year);
               const tourns = tournaments.filter(t => t.year === year);
-              if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
+              if (tourns.length > 0) {
+                setSelectedTournamentId(tourns[0].id);
+                setTournamentById(tourns[0].id);
+              }
             }}
           >
             {uniqueYears.map(year => (
@@ -413,7 +534,11 @@ export function DivisionPage() {
           <select 
             className="flex-1 sm:flex-none bg-background border border-border/50 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary/50 outline-none"
             value={selectedTournamentId}
-            onChange={(e) => setSelectedTournamentId(e.target.value)}
+            onChange={(e) => {
+              const newId = e.target.value;
+              setSelectedTournamentId(newId);
+              setTournamentById(newId);
+            }}
           >
             {tournamentsForYear.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>

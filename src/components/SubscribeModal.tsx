@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { fetchDivisions } from '../lib/db';
 import type { Division, Team } from '../lib/types';
 
 interface SubscribeModalProps {
@@ -34,7 +34,7 @@ export function SubscribeModal({ isOpen, onClose, team, initialDivisions, onSave
   async function loadDivisions() {
     setLoading(true);
     try {
-      const { data } = await supabase.from('divisions').select('*').order('sort_order', { ascending: true });
+      const data = await fetchDivisions();
       if (data) setDivisions(data);
     } catch (e) {
       console.error('Error loading divisions:', e);

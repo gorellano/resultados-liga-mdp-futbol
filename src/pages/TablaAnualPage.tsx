@@ -17,13 +17,20 @@ import {
   fetchTournaments, 
   fetchDivisions, 
   fetchTeams, 
-  fetchAllTournamentMatches 
+  fetchAllTournamentMatches,
+  isExcludedDivision 
 } from '../lib/db';
 import { calculateAnnualClubStandings } from '../lib/standings';
 import type { Tournament, Division, Team, Match } from '../lib/types';
 import { SponsorBanner } from '../components/SponsorBanner';
+import { useTournament } from '../context/TournamentContext';
+import { 
+  ADARO_TOURNAMENT_ID, 
+  isAdaroPuntuableDivision 
+} from '../lib/mockAdaroData';
 
 export function TablaAnualPage() {
+  const { selectedTournamentId: contextTournId, setTournamentById } = useTournament();
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -32,9 +39,15 @@ export function TablaAnualPage() {
 
   // Filtros
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('');
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>(contextTournId || ADARO_TOURNAMENT_ID);
   const [searchQuery, setSearchQuery] = useState('');
   const [showExtendedStats, setShowExtendedStats] = useState(false);
+
+  const isAdaroActive = useMemo(() => {
+    return selectedTournamentId === ADARO_TOURNAMENT_ID || 
+           (tournaments.find(t => t.id === selectedTournamentId)?.name.toLowerCase().includes('adaro') ?? false) ||
+           (tournaments.find(t => t.id === selectedTournamentId)?.name.toLowerCase().includes('chamaco') ?? false);
+  }, [selectedTournamentId, tournaments]);
 
   useEffect(() => {
     async function init() {
@@ -46,25 +59,34 @@ export function TablaAnualPage() {
           fetchTeams(),
         ]);
 
-        // Filtrar torneos de liga juvenil (excluir torneos especiales de Primera/Quinta/Sexta como Cacho Méndez)
-        const leagueTourns = tourns.filter(t => 
-          !t.name.toLowerCase().includes('cacho') && 
-          !t.name.toLowerCase().includes('reyes')
-        );
+        // Cargar torneos válidos de inferiores (excluyendo Cacho Méndez)
+        const leagueTourns = tourns.filter(t => {
+          const name = t.name.toLowerCase();
+          return (
+            !name.includes('cacho') &&
+            !name.includes('mendez') &&
+            !name.includes('méndez') &&
+            !name.includes('joaquin') &&
+            !name.includes('joaquín') &&
+            !name.includes('reyes')
+          );
+        });
         setTournaments(leagueTourns);
 
-        // Filtrar divisiones juveniles formativas (7ma a 16ta)
+        // Filtrar divisiones juveniles formativas
         const youthDivs = divs
-          .filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name))
+          .filter(d => !isExcludedDivision(d.name))
           .sort((a, b) => a.sort_order - b.sort_order);
         setDivisions(youthDivs);
         setTeams(tms);
 
-        // Determinar torneo activo (priorizar torneo juvenil con is_current o el primero)
-        const activeTourn = leagueTourns.find(t => t.name.toLowerCase().includes('clausura') && t.is_current) ||
+        // Determinar torneo activo (priorizar torneo del contexto o Adaro por default)
+        const activeTourn = leagueTourns.find(t => t.id === contextTournId) ||
+                            leagueTourns.find(t => t.id === ADARO_TOURNAMENT_ID) ||
+                            leagueTourns.find(t => t.name.toLowerCase().includes('adaro')) ||
+                            leagueTourns.find(t => t.name.toLowerCase().includes('chamaco')) ||
                             leagueTourns.find(t => t.is_current) ||
-                            leagueTourns.find(t => t.name.toLowerCase().includes('clausura')) ||
-                            leagueTourns[0] || tourns[0];
+                            leagueTourns[0];
 
         if (activeTourn) {
           const defaultYear = activeTourn.year || new Date().getFullYear();
@@ -79,7 +101,7 @@ export function TablaAnualPage() {
     }
 
     init();
-  }, []);
+  }, [contextTournId]);
 
   // Cargar partidos cuando cambia el torneo seleccionado
   useEffect(() => {
@@ -104,31 +126,25 @@ export function TablaAnualPage() {
     return () => { isMounted = false; };
   }, [selectedTournamentId]);
 
-  // Lista de años disponibles basados en torneos registrados
-  const availableYears = useMemo(() => {
-    const yearsSet = new Set<number>();
-    tournaments.forEach(t => {
-      if (t.year) yearsSet.add(t.year);
-    });
-    if (yearsSet.size === 0) yearsSet.add(new Date().getFullYear());
-    return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [tournaments]);
-
-  // Torneos correspondientes al año seleccionado
-  const tournamentsInYear = useMemo(() => {
-    return tournaments.filter(t => t.year === selectedYear);
-  }, [tournaments, selectedYear]);
 
   // Torneo actualmente seleccionado
   const selectedTournament = useMemo(() => {
     return tournaments.find(t => t.id === selectedTournamentId) || null;
   }, [tournaments, selectedTournamentId]);
 
-  // Cálculo de la Tabla Anual de Clubes
+  // Cálculo de divisiones efectivas para la tabla general
+  // Si Adaro está activo, puntúan exclusivamente las divisiones 7ª a 14ª
+  const effectiveDivisions = useMemo(() => {
+    if (isAdaroActive) {
+      return divisions.filter(d => isAdaroPuntuableDivision(d));
+    }
+    return divisions;
+  }, [divisions, isAdaroActive]);
+
   const standings = useMemo(() => {
-    if (teams.length === 0 || divisions.length === 0) return [];
-    return calculateAnnualClubStandings(matches, teams, divisions);
-  }, [matches, teams, divisions]);
+    if (teams.length === 0 || effectiveDivisions.length === 0) return [];
+    return calculateAnnualClubStandings(matches, teams, effectiveDivisions);
+  }, [matches, teams, effectiveDivisions]);
 
   // Filtrado por buscador
   const filteredStandings = useMemo(() => {
@@ -140,7 +156,7 @@ export function TablaAnualPage() {
     );
   }, [standings, searchQuery]);
 
-  // Estadísticas globales del año
+  // Estadísticas globales del torneo
   const leaderClub = standings[0] || null;
   const totalGoals = useMemo(() => {
     return standings.reduce((acc, s) => acc + s.goalsFor, 0) / 2; // cada gol se cuenta en home y away
@@ -152,6 +168,7 @@ export function TablaAnualPage() {
   // Diccionario de abreviaciones de divisiones
   const DIVISION_SHORT_LABELS: Record<string, string> = {
     'séptima': '7ª',
+    'septima': '7ª',
     'octava': '8ª',
     'novena': '9ª',
     'décima': '10ª',
@@ -187,63 +204,63 @@ export function TablaAnualPage() {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -15 }}
-      className="space-y-6 sm:space-y-8 max-w-6xl mx-auto text-left"
+      exit={{ opacity: 0, y: -12 }}
+      className="space-y-6 sm:space-y-7 max-w-6xl mx-auto text-left font-sans"
     >
-      {/* ── Breadcrumb & Back Navigation ── */}
+      {/* ── Breadcrumb & Navigation ── */}
       <div className="flex items-center justify-between">
         <Link
           to="/"
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-primary transition-colors bg-card/60 px-3 py-1.5 rounded-xl border border-border/50 shadow-xs"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors bg-card px-3 py-1.5 rounded-xl border border-border/70 shadow-xs"
         >
           <ChevronLeft className="w-4 h-4" />
           <span>Volver al Inicio</span>
         </Link>
 
-        <span className="text-xs font-bold text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50 flex items-center gap-1.5">
+        <span className="text-xs font-semibold text-muted-foreground bg-muted/60 px-3 py-1 rounded-full border border-border/60 flex items-center gap-1.5">
           <Calendar className="w-3.5 h-3.5 text-primary" />
           {selectedTournament ? selectedTournament.name : `Temporada ${selectedYear}`}
         </span>
       </div>
 
-      {/* ── Hero Banner ── */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/15 via-card to-card border border-amber-500/30 p-5 sm:p-7 md:p-8 shadow-md backdrop-blur-md">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-60 h-60 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/35">
-              <Award className="w-3.5 h-3.5 text-amber-500" />
-              Tabla General de Clubes
+      {/* ── Hero Banner (Estilo Costa y Gol, sobrio y natural) ── */}
+      <section className="rounded-2xl bg-card border border-border/80 p-5 sm:p-7 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+              <Award className="w-3.5 h-3.5" />
+              <span>{isAdaroActive ? 'Torneo Armando "Chamaco" Adaro' : 'Tabla General de Clubes'}</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-foreground tracking-tight">
-              Tabla General LMF
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+              {isAdaroActive ? 'Tabla General del Torneo' : 'Tabla General LMF'}
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              Sumatoria de puntos de cada institución en todas sus divisiones formativas (7ª a 16ª) en el <strong className="text-foreground">{selectedTournament ? selectedTournament.name : `Torneo ${selectedYear}`}</strong>.
+              {isAdaroActive
+                ? 'Sumatoria de puntos oficial de las 8 divisiones puntuables (7ª a 14ª). Todos los clubes inician desde cero en este torneo.'
+                : `Sumatoria de puntos de cada institución en todas sus divisiones formativas en el ${selectedTournament ? selectedTournament.name : `Torneo ${selectedYear}`}.`}
             </p>
           </div>
 
-          {/* Quick Metrics Badge */}
-          {leaderClub && (
-            <div className="bg-card/80 border border-amber-500/30 p-4 rounded-2xl shadow-sm flex items-center gap-3.5 shrink-0 self-start md:self-auto">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center p-1 shrink-0">
+          {/* Líder de la Tabla General */}
+          {leaderClub && leaderClub.totalPoints > 0 && (
+            <div className="bg-muted/40 border border-border/70 p-3.5 sm:p-4 rounded-xl shadow-xs flex items-center gap-3 shrink-0 self-start md:self-auto">
+              <div className="w-11 h-11 rounded-xl bg-background border border-border/60 flex items-center justify-center p-1.5 shrink-0 shadow-2xs">
                 {leaderClub.team.logo_url ? (
                   <img src={leaderClub.team.logo_url} alt={leaderClub.team.name} className="w-full h-full object-contain" />
                 ) : (
-                  <Trophy className="w-6 h-6 text-amber-500" />
+                  <Trophy className="w-5 h-5 text-amber-500" />
                 )}
               </div>
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 block">
-                  👑 Líder General
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Líder General
                 </span>
-                <span className="text-sm sm:text-base font-black text-foreground block truncate max-w-[170px]">
+                <span className="text-sm font-bold text-foreground block truncate max-w-[170px]">
                   {leaderClub.team.display_name || leaderClub.team.name}
                 </span>
-                <span className="text-xs font-extrabold text-primary">
+                <span className="text-xs font-semibold text-primary">
                   {leaderClub.totalPoints} puntos acumulados
                 </span>
               </div>
@@ -252,101 +269,85 @@ export function TablaAnualPage() {
         </div>
       </section>
 
-      {/* ── Metric Summary Cards ── */}
+      {/* ── Métricas Resumen ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="p-4 rounded-2xl bg-card/60 border border-border/60 shadow-xs flex items-center gap-3.5">
+        <div className="p-4 rounded-xl bg-card border border-border/70 shadow-xs flex items-center gap-3.5">
           <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <Trophy className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-muted-foreground block">Clubes en Competencia</span>
-            <span className="text-lg font-black text-foreground">{standings.length} instituciones</span>
+            <span className="text-xs font-medium text-muted-foreground block">Clubes en Competencia</span>
+            <span className="text-base sm:text-lg font-bold text-foreground">
+              {standings.length > 0 ? `${standings.length} instituciones` : 'Sin datos'}
+            </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card/60 border border-border/60 shadow-xs flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+        <div className="p-4 rounded-xl bg-card border border-border/70 shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-muted-foreground block">Partidos Jugados</span>
-            <span className="text-lg font-black text-foreground">{Math.round(totalMatchesPlayed)} encuentros</span>
+            <span className="text-xs font-medium text-muted-foreground block">Partidos Jugados</span>
+            <span className="text-base sm:text-lg font-bold text-foreground">
+              {Math.round(totalMatchesPlayed)} encuentros
+            </span>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-card/60 border border-border/60 shadow-xs flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+        <div className="p-4 rounded-xl bg-card border border-border/70 shadow-xs flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
             <Goal className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold text-muted-foreground block">Goles Totales</span>
-            <span className="text-lg font-black text-foreground">{Math.round(totalGoals)} goles</span>
+            <span className="text-xs font-medium text-muted-foreground block">Goles Totales</span>
+            <span className="text-base sm:text-lg font-bold text-foreground">
+              {Math.round(totalGoals)} goles
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ── Filters & Search Toolbar ── */}
-      <div className="bg-card/70 border border-border/60 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3">
+      {/* ── Toolbar de Filtros & Buscador ── */}
+      <div className="bg-card border border-border/70 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Left: Year & Tournament Selectors */}
+          {/* Selector de Torneos (permite ver torneos actuales y anteriores) */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* Year Selector */}
-            <div className="flex items-center gap-1.5 bg-muted/60 border border-border/60 rounded-xl px-3 py-1.5">
-              <Calendar className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-xs font-bold text-muted-foreground">Año:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => {
-                  const newYear = Number(e.target.value);
-                  setSelectedYear(newYear);
-                  const inYear = tournaments.filter(t => t.year === newYear);
-                  const currentInYear = inYear.find(t => t.is_current) || inYear[0];
-                  if (currentInYear) {
-                    setSelectedTournamentId(currentInYear.id);
-                  } else {
-                    setSelectedTournamentId('');
-                  }
-                }}
-                className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer"
-              >
-                {availableYears.map(yr => (
-                  <option key={yr} value={yr} className="bg-card text-foreground">
-                    {yr}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Tournament Selector */}
-            {tournamentsInYear.length > 0 && (
-              <div className="flex items-center gap-1.5 bg-muted/60 border border-border/60 rounded-xl px-3 py-1.5">
+            {tournaments.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-muted/60 border border-border/70 rounded-xl px-3 py-1.5">
                 <Filter className="w-4 h-4 text-primary shrink-0" />
-                <span className="text-xs font-bold text-muted-foreground">Torneo:</span>
+                <span className="text-xs font-semibold text-muted-foreground">Torneo:</span>
                 <select
                   value={selectedTournamentId}
-                  onChange={(e) => setSelectedTournamentId(e.target.value)}
-                  className="bg-transparent text-xs font-black text-foreground outline-none cursor-pointer max-w-[180px] sm:max-w-[240px] truncate"
+                  onChange={(e) => {
+                    const newId = e.target.value;
+                    setSelectedTournamentId(newId);
+                    setTournamentById(newId);
+                    const sel = tournaments.find(t => t.id === newId);
+                    if (sel && sel.year) setSelectedYear(sel.year);
+                  }}
+                  className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer max-w-[200px] sm:max-w-[280px] truncate"
                 >
-                  {tournamentsInYear.map(t => (
+                  {tournaments.map(t => (
                     <option key={t.id} value={t.id} className="bg-card text-foreground">
-                      {t.name}
+                      {t.name} {t.year ? `(${t.year})` : ''} {t.is_current ? '· Actual' : '· Finalizado'}
                     </option>
                   ))}
                 </select>
               </div>
             )}
 
-            {/* Toggle Extended Stats (PJ, PG, PE, PP, DIF) */}
+            {/* Toggle Estadísticas Extendidas (PJ, PG, PE, PP, DIF) */}
             <button
               type="button"
               onClick={() => setShowExtendedStats(!showExtendedStats)}
-              className="text-xs font-bold text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl border border-border/60 bg-muted/30 hover:bg-muted/60 transition-colors"
+              className="text-xs font-semibold text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl border border-border/70 bg-muted/40 hover:bg-muted/80 transition-colors"
             >
               {showExtendedStats ? '📊 Ocultar PJ/DIF' : '📊 Ver PJ/DIF'}
             </button>
           </div>
 
-          {/* Right: Search Input */}
+          {/* Buscador de Club */}
           <div className="relative w-full md:w-64">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -354,24 +355,24 @@ export function TablaAnualPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar club..."
-              className="w-full pl-9 pr-4 py-1.5 bg-muted/40 border border-border/60 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full pl-9 pr-4 py-1.5 bg-muted/50 border border-border/70 rounded-xl text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </div>
         </div>
       </div>
 
-      {/* ── Standings Table ── */}
-      <section className="bg-card/70 border border-border/70 rounded-3xl overflow-hidden shadow-sm backdrop-blur-xs">
+      {/* ── Tabla General ── */}
+      <section className="bg-card border border-border/70 rounded-2xl overflow-hidden shadow-xs">
         {loading ? (
-          <div className="p-12 text-center text-muted-foreground text-sm font-semibold flex items-center justify-center gap-2">
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm font-medium flex items-center justify-center gap-2">
             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span>Calculando posiciones de la tabla general...</span>
           </div>
         ) : filteredStandings.length === 0 ? (
           <div className="p-12 text-center space-y-2">
-            <Info className="w-8 h-8 text-muted-foreground mx-auto" />
-            <h3 className="font-extrabold text-foreground text-base">No se encontraron resultados</h3>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            <Info className="w-8 h-8 text-slate-400 mx-auto" />
+            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-base">No se encontraron resultados</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
               {searchQuery
                 ? `No hay clubes que coincidan con "${searchQuery}".`
                 : `Aún no hay partidos finalizados cargados para el torneo seleccionado.`}
@@ -381,20 +382,20 @@ export function TablaAnualPage() {
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-muted/80 border-b border-border/70 text-[11px] font-black text-muted-foreground uppercase tracking-wider">
-                  <th className="py-3.5 px-3 text-center w-12 sticky left-0 bg-card z-20 border-r border-border/40 shadow-xs">
+                <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-border/70 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 px-3 text-center w-12 sticky left-0 bg-card z-20 border-r border-border/40">
                     Pos
                   </th>
-                  <th className="py-3.5 px-3 sm:px-4 sticky left-12 bg-card z-20 min-w-[140px] sm:min-w-[180px] border-r border-border/40 shadow-xs">
+                  <th className="py-3 px-3 sm:px-4 sticky left-12 bg-card z-20 min-w-[140px] sm:min-w-[180px] border-r border-border/40">
                     Club
                   </th>
 
-                  {/* Columnas por división */}
-                  {divisions.map(div => (
+                  {/* Columnas por división puntuable */}
+                  {effectiveDivisions.map(div => (
                     <th 
                       key={div.id} 
                       title={div.name}
-                      className="py-3.5 px-2.5 text-center min-w-[42px] max-w-[50px] cursor-help hover:text-primary transition-colors select-none"
+                      className="py-3 px-2 text-center min-w-[38px] max-w-[46px] select-none"
                     >
                       {getDivShortName(div.name)}
                     </th>
@@ -403,16 +404,16 @@ export function TablaAnualPage() {
                   {/* Estadísticas extendidas */}
                   {showExtendedStats && (
                     <>
-                      <th className="py-3.5 px-2 text-center text-muted-foreground min-w-[36px]">PJ</th>
-                      <th className="py-3.5 px-2 text-center text-emerald-600 dark:text-emerald-400 min-w-[36px]">PG</th>
-                      <th className="py-3.5 px-2 text-center text-amber-600 dark:text-amber-400 min-w-[36px]">PE</th>
-                      <th className="py-3.5 px-2 text-center text-rose-600 dark:text-rose-400 min-w-[36px]">PP</th>
-                      <th className="py-3.5 px-2 text-center min-w-[40px]">DIF</th>
+                      <th className="py-3 px-2 text-center text-slate-500 min-w-[36px]">PJ</th>
+                      <th className="py-3 px-2 text-center text-emerald-600 dark:text-emerald-400 min-w-[36px]">PG</th>
+                      <th className="py-3 px-2 text-center text-amber-600 dark:text-amber-400 min-w-[36px]">PE</th>
+                      <th className="py-3 px-2 text-center text-rose-600 dark:text-rose-400 min-w-[36px]">PP</th>
+                      <th className="py-3 px-2 text-center text-slate-600 dark:text-slate-300 min-w-[40px]">DIF</th>
                     </>
                   )}
 
-                  {/* Columna TOTAL */}
-                  <th className="py-3.5 px-3 sm:px-5 text-center bg-card text-primary font-black text-xs sm:text-sm min-w-[76px] sticky right-0 z-20 border-l border-primary/25 shadow-[-3px_0_8px_rgba(0,0,0,0.12)]">
+                  {/* Columna TOTAL Puntos */}
+                  <th className="py-3 px-3 sm:px-5 text-center bg-card text-primary font-bold text-xs sm:text-sm min-w-[70px] sticky right-0 z-20 border-l border-primary/20 shadow-[-3px_0_6px_rgba(0,0,0,0.06)]">
                     TOTAL
                   </th>
                 </tr>
@@ -426,51 +427,51 @@ export function TablaAnualPage() {
                   return (
                     <tr
                       key={standing.team.id}
-                      className="hover:bg-muted/30 transition-colors group"
+                      className="hover:bg-muted/40 transition-colors group"
                     >
                       {/* Posición */}
-                      <td className="py-3 px-3 text-center font-black sticky left-0 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
+                      <td className="py-2.5 px-3 text-center font-bold sticky left-0 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
                         {isTop1 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-xs shadow-2xs">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 font-bold text-xs">
                             1°
                           </span>
                         ) : rank === 2 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-400/20 text-slate-700 dark:text-slate-300 font-black text-xs">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-muted text-muted-foreground font-bold text-xs">
                             2°
                           </span>
                         ) : rank === 3 ? (
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-700/20 text-amber-800 dark:text-amber-600 font-black text-xs">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-800/15 text-amber-800 dark:text-amber-500 font-bold text-xs">
                             3°
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">{rank}</span>
+                          <span className="text-muted-foreground font-medium">{rank}</span>
                         )}
                       </td>
 
                       {/* Club (Escudo + Nombre) */}
-                      <td className="py-3 px-3 sm:px-4 sticky left-12 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
+                      <td className="py-2.5 px-3 sm:px-4 sticky left-12 bg-card group-hover:bg-muted/60 transition-colors border-r border-border/40 z-10">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-background border border-border/60 flex items-center justify-center p-1 shrink-0 shadow-2xs">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-background border border-border/60 flex items-center justify-center p-1 shrink-0 shadow-2xs">
                             {standing.team.logo_url ? (
                               <img src={standing.team.logo_url} alt={standing.team.name} className="w-full h-full object-contain" />
                             ) : (
                               <Shield className="w-4 h-4 text-muted-foreground" />
                             )}
                           </div>
-                          <span className="font-extrabold text-foreground tracking-tight truncate text-xs sm:text-sm">
+                          <span className="font-semibold text-foreground tracking-tight truncate text-xs sm:text-sm">
                             {standing.team.display_name || standing.team.name}
                           </span>
                         </div>
                       </td>
 
                       {/* Puntos por división */}
-                      {divisions.map(div => {
+                      {effectiveDivisions.map(div => {
                         const pts = standing.divisionPoints[div.id] ?? 0;
                         return (
                           <td
                             key={div.id}
-                            className={`py-3 px-2 text-center font-bold text-xs ${
-                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/40'
+                            className={`py-2.5 px-2 text-center font-semibold text-xs ${
+                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/35'
                             }`}
                           >
                             {pts}
@@ -481,19 +482,19 @@ export function TablaAnualPage() {
                       {/* Estadísticas extendidas */}
                       {showExtendedStats && (
                         <>
-                          <td className="py-3 px-2 text-center text-muted-foreground font-semibold">{standing.played}</td>
-                          <td className="py-3 px-2 text-center text-emerald-600 dark:text-emerald-400 font-bold">{standing.won}</td>
-                          <td className="py-3 px-2 text-center text-amber-600 dark:text-amber-400 font-bold">{standing.drawn}</td>
-                          <td className="py-3 px-2 text-center text-rose-600 dark:text-rose-400 font-bold">{standing.lost}</td>
-                          <td className="py-3 px-2 text-center font-bold text-foreground">
+                          <td className="py-2.5 px-2 text-center text-muted-foreground font-medium">{standing.played}</td>
+                          <td className="py-2.5 px-2 text-center text-emerald-600 dark:text-emerald-400 font-semibold">{standing.won}</td>
+                          <td className="py-2.5 px-2 text-center text-amber-600 dark:text-amber-400 font-semibold">{standing.drawn}</td>
+                          <td className="py-2.5 px-2 text-center text-rose-600 dark:text-rose-400 font-semibold">{standing.lost}</td>
+                          <td className="py-2.5 px-2 text-center font-semibold text-foreground">
                             {standing.goalDifference > 0 ? `+${standing.goalDifference}` : standing.goalDifference}
                           </td>
                         </>
                       )}
 
                       {/* TOTAL Puntos */}
-                      <td className="py-3 px-3 sm:px-5 text-center bg-card group-hover:bg-muted/60 transition-colors sticky right-0 z-10 border-l border-primary/25 shadow-[-3px_0_8px_rgba(0,0,0,0.12)]">
-                        <span className="inline-block px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-black text-xs sm:text-sm shadow-xs min-w-[2.75rem]">
+                      <td className="py-2.5 px-3 sm:px-5 text-center bg-card group-hover:bg-muted/60 transition-colors sticky right-0 z-10 border-l border-primary/20 shadow-[-3px_0_6px_rgba(0,0,0,0.06)]">
+                        <span className="inline-block px-2.5 py-1 rounded-lg bg-primary text-primary-foreground font-bold text-xs sm:text-sm shadow-xs min-w-[2.5rem]">
                           {standing.totalPoints}
                         </span>
                       </td>
@@ -506,8 +507,9 @@ export function TablaAnualPage() {
         )}
       </section>
 
-      {/* ── Footer Sponsor Banner ── */}
+      {/* ── Sponsor Banner ── */}
       <SponsorBanner />
     </motion.div>
   );
 }
+

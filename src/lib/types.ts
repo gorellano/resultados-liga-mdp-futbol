@@ -13,6 +13,7 @@ export interface Tournament {
   name: string; // e.g. "Apertura"
   year: number; // e.g. 2026
   is_current?: boolean;
+  format?: 'liga_clasica' | 'copas_multinivel' | string;
 }
 
 export interface Division {
@@ -38,6 +39,9 @@ export interface Match {
   away_goals: number | null;
   status: 'scheduled' | 'finished' | 'postponed' | 'live';
   match_date: string | null;
+  home_penalties?: number | null;
+  away_penalties?: number | null;
+  stage?: 'regular' | 'cuartos' | 'semifinal' | 'final' | string | null;
 }
 
 export interface Standing {

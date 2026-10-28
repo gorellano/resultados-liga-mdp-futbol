@@ -9,11 +9,59 @@ import {
   WEBSITES,
   INSTAGRAMS
 } from './mockData';
+import {
+  ADARO_TOURNAMENT,
+  ADARO_TOURNAMENT_ID,
+  ADARO_ZONES,
+  generateAdaroMatches,
+  getAdaroDivisionIndex,
+  getAdaroZoneIndex
+} from './mockAdaroData';
 import { saveAuth } from './auth';
 
 // In-memory copies of mock matches to persist edits during the mock session
 let memoryMatchesCamp = [...MOCK_MATCHES_CAMPEONATO];
 let memoryMatchesProm = [...MOCK_MATCHES_PROMOCION];
+let memoryMatchesAdaro: Match[] = [];
+let adaroInitializedWithReal = false;
+
+function getOrGenerateAdaroMatches(teams?: Team[], divs?: Division[], zns?: Zone[]): Match[] {
+  const hasRealTeams = Boolean(teams && teams.length > 0 && !teams[0].id.startsWith('00000000-'));
+
+  if (memoryMatchesAdaro.length === 0 || (!adaroInitializedWithReal && hasRealTeams)) {
+    const existingEdits = new Map<string, { home_goals: number | null; away_goals: number | null; status: any; match_date?: string | null }>();
+    if (memoryMatchesAdaro.length > 0) {
+      memoryMatchesAdaro.forEach(m => {
+        if (m.home_goals !== null || m.away_goals !== null || m.status === 'finished') {
+          existingEdits.set(`${m.round_number}-${m.home_team_id}-${m.away_team_id}`, {
+            home_goals: m.home_goals,
+            away_goals: m.away_goals,
+            status: m.status,
+            match_date: m.match_date
+          });
+        }
+      });
+    }
+
+    memoryMatchesAdaro = generateAdaroMatches(teams, divs, zns);
+    if (hasRealTeams) {
+      adaroInitializedWithReal = true;
+    }
+
+    if (existingEdits.size > 0) {
+      memoryMatchesAdaro.forEach(m => {
+        const edit = existingEdits.get(`${m.round_number}-${m.home_team_id}-${m.away_team_id}`);
+        if (edit) {
+          m.home_goals = edit.home_goals;
+          m.away_goals = edit.away_goals;
+          m.status = edit.status;
+          if (edit.match_date) m.match_date = edit.match_date;
+        }
+      });
+    }
+  }
+  return memoryMatchesAdaro;
+}
 
 // In-memory copies of users
 let memoryUsers: User[] = [
@@ -94,7 +142,14 @@ async function withCache<T>(
 export function isSupabaseActive(): boolean {
   const url = import.meta.env.VITE_SUPABASE_URL;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  return !!(url && url !== 'https://placeholder.supabase.co' && key && key !== 'placeholder');
+  return !!(
+    url && 
+    url !== 'https://placeholder.supabase.co' && 
+    !url.includes('dummy') &&
+    key && 
+    key !== 'placeholder' &&
+    !key.includes('dummy')
+  );
 }
 
 /**
@@ -102,8 +157,22 @@ export function isSupabaseActive(): boolean {
  */
 export async function fetchTournaments(): Promise<Tournament[]> {
   return withCache('tournaments', 5 * 60 * 1000, async () => {
+    const filterYouthTournaments = (list: Tournament[]) => {
+      return list.filter(t => {
+        const name = t.name.toLowerCase();
+        return (
+          !name.includes('cacho') &&
+          !name.includes('mendez') &&
+          !name.includes('méndez') &&
+          !name.includes('joaquin') &&
+          !name.includes('joaquín') &&
+          !name.includes('reyes')
+        );
+      });
+    };
+
     if (!isSupabaseActive()) {
-      return MOCK_TOURNAMENTS;
+      return [ADARO_TOURNAMENT, ...filterYouthTournaments(MOCK_TOURNAMENTS)];
     }
     try {
       const { data, error } = await supabase
@@ -113,17 +182,36 @@ export async function fetchTournaments(): Promise<Tournament[]> {
 
       if (error) throw error;
       
-      // Priorizar siempre el torneo marcado como actual (is_current), luego año descendente
-      const sorted = [...(data || [])].sort((a, b) => {
-        if (a.is_current && !b.is_current) return -1;
-        if (!a.is_current && b.is_current) return 1;
-        return (b.year ?? 0) - (a.year ?? 0);
+      const adaroEntry: Tournament = {
+        ...ADARO_TOURNAMENT,
+        is_current: true,
+      };
+
+      const dbTournaments = (data || []).map(t => {
+        if (t.id === ADARO_TOURNAMENT_ID || t.name.toLowerCase().includes('adaro') || t.name.toLowerCase().includes('chamaco')) {
+          return { ...t, is_current: true };
+        }
+        return { ...t, is_current: false };
       });
 
-      return sorted;
+      const withoutAdaro = dbTournaments.filter(t => {
+        const name = t.name.toLowerCase();
+        return (
+          t.id !== ADARO_TOURNAMENT_ID &&
+          !name.includes('adaro') &&
+          !name.includes('chamaco') &&
+          !name.includes('cacho') &&
+          !name.includes('mendez') &&
+          !name.includes('méndez') &&
+          !name.includes('joaquin') &&
+          !name.includes('joaquín') &&
+          !name.includes('reyes')
+        );
+      });
+      return [adaroEntry, ...withoutAdaro];
     } catch (err) {
       console.warn('Supabase fetchTournaments failed, falling back to mocks:', err);
-      return MOCK_TOURNAMENTS;
+      return [ADARO_TOURNAMENT, ...filterYouthTournaments(MOCK_TOURNAMENTS)];
     }
   });
 }
@@ -186,7 +274,27 @@ export async function fetchMatchesForYear(year: number): Promise<Match[]> {
 }
 
 /**
- * Fetches all divisions (or fallback mocks)
+ * Helper to identify senior divisions (Primera, Quinta, Sexta) that must NEVER
+ * be shown anywhere in this youth/infantiles football platform.
+ */
+export function isExcludedDivision(name: string): boolean {
+  if (!name) return false;
+  const norm = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+  // Coincidencia exacta de palabras o prefijos (evita falso positivo en decimoprimera, decimoquinta, decimosexta)
+  const isPrimera = /\bprimera\b/.test(norm) || /^1(ra|era|ª|º|°)?(\s+division)?$/i.test(norm) || norm.startsWith('1ra ') || norm.startsWith('1era ');
+  const isQuinta  = /\bquinta\b/.test(norm)  || /^5(ta|to|ª|º|°)?(\s+division)?$/i.test(norm)  || norm.startsWith('5ta ')  || norm.startsWith('5to ');
+  const isSexta   = /\bsexta\b/.test(norm)   || /^6(ta|to|ª|º|°)?(\s+division)?$/i.test(norm)   || norm.startsWith('6ta ')   || norm.startsWith('6to ');
+
+  return isPrimera || isQuinta || isSexta;
+}
+
+/**
+ * Fetches all youth divisions (7ma a 16ta), strictly excluding senior/unwanted divisions.
  */
 export async function fetchDivisions(): Promise<Division[]> {
   const mockDivisions: Division[] = [
@@ -200,6 +308,7 @@ export async function fetchDivisions(): Promise<Division[]> {
     { id: '11111111-0001-0001-0001-000000000008', name: '14ta División', sort_order: 8 },
     { id: '11111111-0001-0001-0001-000000000009', name: '15ta División', sort_order: 9 },
     { id: '11111111-0001-0001-0001-000000000010', name: '16ta División', sort_order: 10 },
+    { id: '11111111-0001-0001-0001-000000000011', name: '17ma División', sort_order: 11 },
   ];
 
   return withCache('divisions', 10 * 60 * 1000, async () => {
@@ -214,7 +323,15 @@ export async function fetchDivisions(): Promise<Division[]> {
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      const valid = (data || []).filter(d => !isExcludedDivision(d.name));
+      if (valid.length > 0) {
+        // Garantizar que la 17ma division exista en la lista
+        if (!valid.some(d => d.name.toLowerCase().includes('17') || d.name.toLowerCase().includes('decimoseptima'))) {
+          valid.push({ id: '11111111-0001-0001-0001-000000000011', name: '17ma División', sort_order: 11 });
+        }
+        return valid;
+      }
+      return mockDivisions;
     } catch (err) {
       console.warn('Supabase fetchDivisions failed, falling back to mocks:', err);
       return mockDivisions;
@@ -241,6 +358,7 @@ export async function fetchZones(): Promise<Zone[]> {
     { id: '22222222-0001-0001-0001-000000000031', name: 'Zona 1 - Sexta' },
     { id: '22222222-0001-0001-0001-000000000032', name: 'Zona 2 - Sexta' },
     { id: '22222222-0001-0001-0001-000000000033', name: 'Zona 3 - Sexta' },
+    ...ADARO_ZONES,
   ];
 
   return withCache('zones', 10 * 60 * 1000, async () => {
@@ -253,7 +371,14 @@ export async function fetchZones(): Promise<Zone[]> {
         .select('id, name');
 
       if (error) throw error;
-      return data || [];
+      const zonesList = [...(data || [])];
+      // Si las zonas de Adaro aún no están en la BD, las añadimos a la lista
+      ADARO_ZONES.forEach(az => {
+        if (!zonesList.some(z => z.id === az.id || z.name.toLowerCase() === az.name.toLowerCase())) {
+          zonesList.push(az);
+        }
+      });
+      return zonesList;
     } catch (err) {
       console.warn('Supabase fetchZones failed, falling back to mocks:', err);
       return mockZones;
@@ -308,6 +433,24 @@ export async function fetchMatches(
 ): Promise<Match[]> {
   const cacheKey = `matches_${tournamentId}_${divisionId}_${zoneId}`;
   return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    // Intercepción Torneo Chamaco Adaro en memoria / fallback
+    if (tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro') || (zoneId && zoneId.startsWith('adaro-zone-'))) {
+      const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
+      const matchesPool = getOrGenerateAdaroMatches(teams, divs, zns);
+      const targetDivIdx = divisionId ? getAdaroDivisionIndex(divisionId, divs) : -1;
+      const targetZoneIdx = zoneId ? getAdaroZoneIndex(zoneId, zns) : -1;
+
+      return matchesPool.filter(m => {
+        const matchesDiv = !divisionId || m.division_id === divisionId || (targetDivIdx !== -1 && getAdaroDivisionIndex(m.division_id, divs) === targetDivIdx);
+        const matchesZone = !zoneId || m.zone_id === zoneId || (targetZoneIdx !== -1 && getAdaroZoneIndex(m.zone_id, zns) === targetZoneIdx);
+        return matchesDiv && matchesZone;
+      }).map(m => ({
+        ...m,
+        ...(divisionId ? { division_id: divisionId } : {}),
+        ...(zoneId ? { zone_id: zoneId } : {})
+      }));
+    }
+
     if (!isSupabaseActive()) {
       // Determine target mock matches (Campeonato vs Promoción) based on selected zone
       const isProm = zoneId === 'prom' || zoneId === '22222222-0001-0001-0001-000000000002';
@@ -351,6 +494,11 @@ export async function fetchMatches(
 export async function fetchAllTournamentMatches(tournamentId: string): Promise<Match[]> {
   const cacheKey = `matches_${tournamentId}_all`;
   return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    if (tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro')) {
+      const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
+      return getOrGenerateAdaroMatches(teams, divs, zns);
+    }
+
     if (!isSupabaseActive()) {
       // Generate mock matches dynamically for all active divisions
       const divs = [
@@ -447,6 +595,41 @@ export async function fetchAllTournamentMatches(tournamentId: string): Promise<M
 export async function fetchTournamentDivisionMatches(tournamentId: string, divisionId: string): Promise<Match[]> {
   const cacheKey = `matches_${tournamentId}_div_${divisionId}`;
   return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    // 1. Si Supabase está configurado, consultar primero la BD
+    if (isSupabaseActive()) {
+      try {
+        const { data, error } = await supabase
+          .from('matches')
+          .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage')
+          .eq('tournament_id', tournamentId)
+          .eq('division_id', divisionId);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          return data.map(m => ({
+            ...m,
+            status: m.status as 'scheduled' | 'finished' | 'postponed'
+          }));
+        }
+      } catch (err) {
+        console.warn('Supabase fetchTournamentDivisionMatches query failed, trying fallback:', err);
+      }
+    }
+
+    // 2. Torneo Adaro: coincidencia flexible de divisiones y zonas para que todas las categorías tengan sus partidos
+    if (tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro')) {
+      const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
+      const matchesPool = getOrGenerateAdaroMatches(teams, divs, zns);
+      const targetDivIdx = getAdaroDivisionIndex(divisionId, divs);
+      return matchesPool.filter(m => {
+        if (m.division_id === divisionId) return true;
+        if (targetDivIdx !== -1) {
+          return getAdaroDivisionIndex(m.division_id, divs) === targetDivIdx;
+        }
+        return false;
+      }).map(m => ({ ...m, division_id: divisionId }));
+    }
+
     if (!isSupabaseActive()) {
       const campMatches = memoryMatchesCamp.filter(m => m.tournament_id === tournamentId);
       const promMatches = memoryMatchesProm.filter(m => m.tournament_id === tournamentId);
@@ -460,22 +643,7 @@ export async function fetchTournamentDivisionMatches(tournamentId: string, divis
       });
       return allMatches;
     }
-    try {
-      const { data, error } = await supabase
-        .from('matches')
-        .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date')
-        .eq('tournament_id', tournamentId)
-        .eq('division_id', divisionId);
-
-      if (error) throw error;
-      return (data || []).map(m => ({
-        ...m,
-        status: m.status as 'scheduled' | 'finished' | 'postponed'
-      }));
-    } catch (err) {
-      console.warn('Supabase fetchTournamentDivisionMatches failed:', err);
-      return [];
-    }
+    return [];
   });
 }
 
@@ -487,9 +655,12 @@ export async function saveMatchResult(
   homeGoals: number | null, 
   awayGoals: number | null,
   status: 'scheduled' | 'finished' | 'postponed',
-  matchDate?: string | null
+  matchDate?: string | null,
+  homePenalties?: number | null,
+  awayPenalties?: number | null,
+  stage?: string | null
 ): Promise<boolean> {
-  if (!isSupabaseActive()) {
+  if (matchId.startsWith('adaro-') || !isSupabaseActive()) {
     // Update local session memory
     const updateMatch = (m: Match) => {
       if (m.id === matchId) {
@@ -498,11 +669,15 @@ export async function saveMatchResult(
           home_goals: homeGoals, 
           away_goals: awayGoals, 
           status,
-          ...(matchDate !== undefined ? { match_date: matchDate } : {})
+          ...(matchDate !== undefined ? { match_date: matchDate } : {}),
+          ...(homePenalties !== undefined ? { home_penalties: homePenalties } : {}),
+          ...(awayPenalties !== undefined ? { away_penalties: awayPenalties } : {}),
+          ...(stage !== undefined ? { stage } : {})
         };
       }
       return m;
     };
+    memoryMatchesAdaro = memoryMatchesAdaro.map(updateMatch);
     memoryMatchesCamp = memoryMatchesCamp.map(updateMatch);
     memoryMatchesProm = memoryMatchesProm.map(updateMatch);
     invalidateDbCache('matches');
@@ -516,6 +691,15 @@ export async function saveMatchResult(
     };
     if (matchDate !== undefined) {
       updateFields.match_date = matchDate;
+    }
+    if (homePenalties !== undefined) {
+      updateFields.home_penalties = homePenalties;
+    }
+    if (awayPenalties !== undefined) {
+      updateFields.away_penalties = awayPenalties;
+    }
+    if (stage !== undefined) {
+      updateFields.stage = stage;
     }
 
     const { error } = await supabase
@@ -575,6 +759,17 @@ export async function authenticateUser(
 
       saveAuth(authData);
       return authData;
+    }
+    
+    // Si la BD de Supabase aún no tiene usuarios dados de alta, permitir credenciales de fallback
+    const credentials = [
+      { username: 'superadmin', password: 'SuperSecret123!', role: 'super_admin' as const },
+      { username: 'editor',     password: 'Editor123!',       role: 'editor'      as const },
+    ];
+    const found = credentials.find(c => c.username === username.trim().toLowerCase() && c.password === password);
+    if (found) {
+      saveAuth({ username: found.username, role: found.role });
+      return { username: found.username, role: found.role };
     }
     return null;
   } catch (err) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Swords, Trophy, Calendar, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { fetchDivisions, fetchTeams, fetchTournaments, fetchTournamentDivisionMatches, fetchAllTournamentMatches } from '../lib/db';
+import { fetchDivisions, fetchTeams, fetchTournaments, fetchTournamentDivisionMatches, fetchAllTournamentMatches, isExcludedDivision } from '../lib/db';
 import type { Division, Team, Match } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { calculateStandings } from '../lib/standings';
@@ -70,7 +70,7 @@ export function H2HPage() {
   }, [selectedDivisionId]);
 
   const youthDivisions = useMemo(() => {
-    return divisions.filter(d => !['Primera División', 'Quinta División', 'Sexta División'].includes(d.name));
+    return divisions.filter(d => !isExcludedDivision(d.name));
   }, [divisions]);
 
   const sortedTeams = useMemo(() => {

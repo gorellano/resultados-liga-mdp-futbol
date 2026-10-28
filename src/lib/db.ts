@@ -333,8 +333,12 @@ export async function fetchDivisions(): Promise<Division[]> {
       if (error) throw error;
       const valid = (data || []).filter(d => !isExcludedDivision(d.name));
       if (valid.length > 0) {
-        // Garantizar que la 17ma division exista en la lista
-        if (!valid.some(d => d.name.toLowerCase().includes('17') || d.name.toLowerCase().includes('decimoseptima'))) {
+        // Garantizar que la 17ma division exista en la lista sin duplicar
+        const has17 = valid.some(d => {
+          const norm = d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          return norm.includes('17') || norm.includes('decimoseptima');
+        });
+        if (!has17) {
           valid.push({ id: '11111111-0001-0001-0001-000000000011', name: '17ma División', sort_order: 11 });
         }
         return valid;

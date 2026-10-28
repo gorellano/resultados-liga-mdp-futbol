@@ -267,18 +267,18 @@ BEGIN
   SELECT id INTO v_zf FROM public.zones WHERE name = 'Zona F' LIMIT 1;
   SELECT id INTO v_zg FROM public.zones WHERE name = 'Zona G' LIMIT 1;
 
-  -- Obtener IDs de las 11 Divisiones
-  SELECT id INTO v_d7  FROM public.divisions WHERE name ILIKE '%séptima%' OR name ILIKE '%7ma%' LIMIT 1;
-  SELECT id INTO v_d8  FROM public.divisions WHERE name ILIKE '%octava%' OR name ILIKE '%8va%' LIMIT 1;
-  SELECT id INTO v_d9  FROM public.divisions WHERE name ILIKE '%novena%' OR name ILIKE '%9na%' LIMIT 1;
-  SELECT id INTO v_d10 FROM public.divisions WHERE name ILIKE '%décima%' OR name ILIKE '%10ma%' LIMIT 1;
-  SELECT id INTO v_d11 FROM public.divisions WHERE name ILIKE '%undécima%' OR name ILIKE '%11ma%' LIMIT 1;
-  SELECT id INTO v_d12 FROM public.divisions WHERE name ILIKE '%duodécima%' OR name ILIKE '%12ma%' LIMIT 1;
-  SELECT id INTO v_d13 FROM public.divisions WHERE name ILIKE '%decimotercera%' OR name ILIKE '%13ra%' LIMIT 1;
-  SELECT id INTO v_d14 FROM public.divisions WHERE name ILIKE '%decimocuarta%' OR name ILIKE '%14ta%' LIMIT 1;
-  SELECT id INTO v_d15 FROM public.divisions WHERE name ILIKE '%decimoquinta%' OR name ILIKE '%15ta%' LIMIT 1;
-  SELECT id INTO v_d16 FROM public.divisions WHERE name ILIKE '%decimosexta%' OR name ILIKE '%16ta%' LIMIT 1;
-  SELECT id INTO v_d17 FROM public.divisions WHERE name ILIKE '%decimoséptima%' OR name ILIKE '%17ma%' LIMIT 1;
+  -- Obtener IDs de las 11 Divisiones (con coincidencia exacta primero para evitar colisiones)
+  SELECT id INTO v_d7  FROM public.divisions WHERE name = 'Séptima División' OR ((name ILIKE '%séptima%' OR name ILIKE '%septima%' OR name ILIKE '%7ma%') AND name NOT ILIKE '%decimo%') LIMIT 1;
+  SELECT id INTO v_d8  FROM public.divisions WHERE name = 'Octava División' OR name ILIKE '%octava%' OR name ILIKE '%8va%' LIMIT 1;
+  SELECT id INTO v_d9  FROM public.divisions WHERE name = 'Novena División' OR name ILIKE '%novena%' OR name ILIKE '%9na%' LIMIT 1;
+  SELECT id INTO v_d10 FROM public.divisions WHERE name = 'Décima División' OR ((name ILIKE '%décima%' OR name ILIKE '%decima%' OR name ILIKE '%10ma%') AND name NOT ILIKE '%un%' AND name NOT ILIKE '%duo%' AND name NOT ILIKE '%ter%' AND name NOT ILIKE '%cuar%' AND name NOT ILIKE '%quin%' AND name NOT ILIKE '%sex%' AND name NOT ILIKE '%sep%') LIMIT 1;
+  SELECT id INTO v_d11 FROM public.divisions WHERE name = 'Undécima División' OR name ILIKE '%undécima%' OR name ILIKE '%undecima%' OR name ILIKE '%11ma%' LIMIT 1;
+  SELECT id INTO v_d12 FROM public.divisions WHERE name = 'Duodécima División' OR name ILIKE '%duodécima%' OR name ILIKE '%duodecima%' OR name ILIKE '%12ma%' LIMIT 1;
+  SELECT id INTO v_d13 FROM public.divisions WHERE name = 'Decimotercera División' OR name ILIKE '%decimotercera%' OR name ILIKE '%13ra%' LIMIT 1;
+  SELECT id INTO v_d14 FROM public.divisions WHERE name = 'Decimocuarta División' OR name ILIKE '%decimocuarta%' OR name ILIKE '%14ta%' LIMIT 1;
+  SELECT id INTO v_d15 FROM public.divisions WHERE name = 'Decimoquinta División' OR name ILIKE '%decimoquinta%' OR name ILIKE '%15ta%' LIMIT 1;
+  SELECT id INTO v_d16 FROM public.divisions WHERE name = 'Decimosexta División' OR name ILIKE '%decimosexta%' OR name ILIKE '%16ta%' LIMIT 1;
+  SELECT id INTO v_d17 FROM public.divisions WHERE name = 'Decimoséptima División' OR name ILIKE '%decimoséptima%' OR name ILIKE '%decimoseptima%' OR name ILIKE '%17ma%' LIMIT 1;
 
   -- Obtener IDs de los 28 Equipos
   SELECT id INTO t_aldosivi FROM public.teams WHERE name ILIKE '%Aldosivi%' LIMIT 1;

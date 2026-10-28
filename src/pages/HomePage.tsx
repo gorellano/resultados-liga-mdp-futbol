@@ -403,7 +403,7 @@ export function HomePage() {
 
                 {/* Right Header Controls (Position & Desktop Link & Remove) */}
                 <div className="flex items-center gap-2 shrink-0">
-                  {favStat.positionRank && (
+                  {!isAdaro && favStat.positionRank && (
                     <div className="bg-amber-500/20 border border-amber-500/40 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-xl flex items-center gap-1 text-xs font-black shadow-2xs">
                       <Trophy className="w-3.5 h-3.5 text-amber-500" />
                       <span>P {favStat.positionRank}</span>
@@ -413,7 +413,7 @@ export function HomePage() {
                     </div>
                   )}
 
-                  {favStat.divisionSlug && (
+                  {!isAdaro && favStat.divisionSlug && (
                     <Link
                       to={`/division/${favStat.divisionSlug}`}
                       className="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs hidden sm:flex items-center gap-1.5 transition-all shadow-xs"
@@ -465,7 +465,7 @@ export function HomePage() {
               </div>
 
               {/* Mobile Direct Button */}
-              {favStat.divisionSlug && (
+              {!isAdaro && favStat.divisionSlug && (
                 <div className="pt-1 sm:hidden">
                   <Link
                     to={`/division/${favStat.divisionSlug}`}

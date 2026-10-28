@@ -96,9 +96,23 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
     return slugMatch ? slugMatch[1].toLowerCase() : 'a';
   }, [currentZone, selectedZoneId]);
 
-  // Divisiones garantizadas sin Primera, Quinta ni Sexta
+  // Divisiones garantizadas sin Primera, Quinta ni Sexta, y sin duplicados por orden
   const safeDivisions = useMemo(() => {
-    return divisions.filter(d => !isExcludedDivision(d.name));
+    const raw = divisions.filter(d => !isExcludedDivision(d.name));
+    const seen = new Set<number>();
+    const unique: Division[] = [];
+    for (const d of raw) {
+      const order = getDivisionOrder(d.name);
+      if (order >= 7 && order <= 17) {
+        if (!seen.has(order)) {
+          seen.add(order);
+          unique.push(d);
+        }
+      } else {
+        unique.push(d);
+      }
+    }
+    return unique;
   }, [divisions]);
 
   // Divisiones puntuables ordenadas estrictamente de 7ma a 14ta

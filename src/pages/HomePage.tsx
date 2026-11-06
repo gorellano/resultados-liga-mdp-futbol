@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { cn } from '../App';
-import { Star, ChevronRight, Trophy, Calendar, RefreshCw, Plus, Award, Sparkles, Layers, ChevronDown } from 'lucide-react';
+import { Star, ChevronRight, Trophy, Calendar, Trash2, Plus, Award, Sparkles, Layers, Search, ShieldAlert } from 'lucide-react';
 import { useFavoriteTeam } from '../hooks/useFavoriteTeam';
 import { fetchDivisions, fetchAllTournamentMatches, fetchTeams, fetchZones, fetchMatches, isExcludedDivision } from '../lib/db';
 import { getCategoryYear } from '../lib/auth';
@@ -198,29 +198,34 @@ async function fetchFavoriteStatsForTeam(
 
 export function HomePage() {
   const { favorites, toggleFavorite, setFavoriteDivisionId } = useFavoriteTeam();
-  const { isAdaro, selectedTournament, selectedTournamentId, openSelector } = useTournament();
+  const { isAdaro, selectedTournament, selectedTournamentId } = useTournament();
   const [seasonYear, setSeasonYear] = useState<number>(new Date().getFullYear());
   const [activeDivs, setActiveDivs] = useState<Division[]>([]);
   const [allTeams, setAllTeams] = useState<Team[]>([]);
   const [tournamentMatches, setTournamentMatches] = useState<Match[]>([]);
   const [divisionStatuses, setDivisionStatuses] = useState<Record<string, 'en_curso' | 'finalizado'>>({});
   const [favoritesStats, setFavoritesStats] = useState<FavoriteStat[]>([]);
+  const [zoneClubFilter, setZoneClubFilter] = useState<string>('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadBaseData = useCallback(async () => {
+    try {
+      setLoadError(null);
+      const [divs, tms] = await Promise.all([
+        fetchDivisions(),
+        fetchTeams()
+      ]);
+      setActiveDivs(divs);
+      setAllTeams(tms);
+    } catch (err) {
+      console.error('Error loading homepage base data:', err);
+      setLoadError('No se pudieron cargar los datos iniciales. Verificá tu conexión.');
+    }
+  }, []);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [divs, tms] = await Promise.all([
-          fetchDivisions(),
-          fetchTeams()
-        ]);
-        setActiveDivs(divs);
-        setAllTeams(tms);
-      } catch (err) {
-        console.error('Error loading homepage base data:', err);
-      }
-    }
-    loadData();
-  }, []);
+    loadBaseData();
+  }, [loadBaseData]);
 
   useEffect(() => {
     if (!selectedTournamentId || activeDivs.length === 0) return;
@@ -310,7 +315,7 @@ export function HomePage() {
       exit={{ opacity: 0, y: -20 }}
       className="space-y-6 sm:space-y-8"
     >
-      <section className="flex items-center gap-4 sm:gap-6 text-left bg-card/30 border border-border/50 p-4 sm:p-6 md:p-8 rounded-3xl backdrop-blur-sm max-w-4xl mx-auto shadow-sm">
+      <section className="flex items-center gap-4 sm:gap-6 text-left bg-card border border-border/60 p-4 sm:p-6 md:p-8 rounded-3xl max-w-4xl mx-auto shadow-xs">
         <div className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl bg-primary/5 border border-border/50 overflow-hidden shadow-md shrink-0 hover:scale-105 transition-transform duration-300">
           <picture>
             <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
@@ -326,26 +331,22 @@ export function HomePage() {
           </picture>
         </div>
         <div className="space-y-1 sm:space-y-2 md:space-y-3">
-          <h1 className="text-xl sm:text-3xl md:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-foreground to-muted-foreground">
+          <h1 className="text-xl sm:text-3xl md:text-4xl font-display font-black tracking-tight text-foreground">
             Fútbol Marplatense
           </h1>
           <p className="text-xs sm:text-sm md:text-base text-muted-foreground leading-relaxed max-w-[550px]">
             Viví la pasión del fútbol juvenil de la ciudad. Seguí al instante los resultados, estadísticas completas, fixtures y tablas de posiciones de todas las divisiones de la LMF en <strong className="text-primary font-bold">Costa y Gol</strong>.
           </p>
           <div className="flex items-center gap-2 flex-wrap pt-1">
-            <button
-              onClick={openSelector}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 border border-primary/25 text-primary text-xs font-bold transition-all active:scale-95 shadow-2xs"
-            >
+            <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/25 text-primary text-xs font-bold">
               <Trophy className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
               <span>{selectedTournament?.name || 'Torneo Actual'}</span>
-              <ChevronDown className="w-3 h-3 opacity-70" />
-            </button>
+            </span>
 
             {isAdaro && (
               <Link
                 to="/copas"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-bold transition-all active:scale-95 shadow-2xs"
+                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-bold transition-all active:scale-95 shadow-2xs"
               >
                 <Sparkles className="w-3 h-3 text-amber-500" />
                 <span>Playoffs & 4 Copas</span>
@@ -355,13 +356,38 @@ export function HomePage() {
         </div>
       </section>
 
+      {loadError && (
+        <div className="max-w-4xl mx-auto p-6 text-center rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 space-y-2">
+          <ShieldAlert className="w-7 h-7 mx-auto" />
+          <p className="text-xs sm:text-sm font-bold">{loadError}</p>
+          <button
+            type="button"
+            onClick={loadBaseData}
+            className="px-4 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-xs font-extrabold transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
+
       {/* Favorite Teams Banners (Up to 2) */}
       {favoritesStats.length > 0 && (
         <div className="space-y-4 max-w-4xl mx-auto">
-          {favoritesStats.map((favStat, index) => (
+          {favoritesStats.map((favStat, index) => {
+            const favAdaroZone = isAdaro
+              ? ADARO_ZONES.find(z => getAdaroZoneClubs(z.id, allTeams).some(c => c.id === favStat.teamId))
+              : undefined;
+            const targetLink = isAdaro
+              ? (favAdaroZone ? `/2026/zona/${favAdaroZone.id}?modo=division&div=${favStat.currentDivisionId}` : '/2026/zona/adaro-zone-a')
+              : (favStat.divisionSlug ? `/division/${favStat.divisionSlug}` : null);
+            const targetLinkLabel = isAdaro
+              ? (favAdaroZone ? `Ver ${favAdaroZone.name}` : 'Ver Zona')
+              : 'Ver Tabla';
+
+            return (
             <section
               key={favStat.teamId}
-              className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-card border border-amber-500/35 p-4 sm:p-5 rounded-3xl backdrop-blur-md shadow-md relative overflow-hidden space-y-3"
+              className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-card border border-amber-500/35 p-4 sm:p-5 rounded-3xl shadow-sm relative overflow-hidden space-y-3"
             >
               {/* Header Row */}
               <div className="flex items-center justify-between gap-3">
@@ -377,15 +403,16 @@ export function HomePage() {
                   </div>
                   <div className="min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                      <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
                         <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Favorito {favoritesStats.length > 1 ? `#${index + 1}` : ''}
                       </span>
 
                       {divisionsList.length > 0 && (
                         <select
+                          aria-label={`Seleccionar categoría de ${favStat.team.display_name ?? favStat.team.name}`}
                           value={favStat.currentDivisionId || ''}
                           onChange={(e) => setFavoriteDivisionId(favStat.teamId, e.target.value)}
-                          className="text-[10px] font-bold text-foreground bg-muted/80 border border-border/60 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
+                          className="text-[10px] font-bold text-foreground bg-muted border border-border/70 rounded-md px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer"
                         >
                           {divisionsList.map(d => (
                             <option key={d.id} value={d.id}>
@@ -395,7 +422,7 @@ export function HomePage() {
                         </select>
                       )}
                     </div>
-                    <h3 className="font-black text-base sm:text-lg text-foreground tracking-tight truncate">
+                    <h3 className="font-display font-black text-base sm:text-lg text-foreground tracking-tight truncate">
                       {favStat.team.display_name ?? favStat.team.name}
                     </h3>
                   </div>
@@ -403,33 +430,35 @@ export function HomePage() {
 
                 {/* Right Header Controls (Position & Desktop Link & Remove) */}
                 <div className="flex items-center gap-2 shrink-0">
-                  {!isAdaro && favStat.positionRank && (
-                    <div className="bg-amber-500/20 border border-amber-500/40 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-xl flex items-center gap-1 text-xs font-black shadow-2xs">
+                  {favStat.positionRank && (
+                    <div className="bg-amber-500/20 border border-amber-500/40 text-amber-800 dark:text-amber-300 px-2.5 py-1 rounded-xl flex items-center gap-1 text-xs font-black shadow-2xs">
                       <Trophy className="w-3.5 h-3.5 text-amber-500" />
                       <span>P {favStat.positionRank}</span>
                       {favStat.totalPoints !== null && (
-                        <span className="text-[10px] opacity-80 font-bold hidden xs:inline">({favStat.totalPoints} pts)</span>
+                        <span className="text-[10px] font-bold hidden xs:inline">({favStat.totalPoints} pts)</span>
                       )}
                     </div>
                   )}
 
-                  {!isAdaro && favStat.divisionSlug && (
+                  {targetLink && (
                     <Link
-                      to={`/division/${favStat.divisionSlug}`}
+                      to={targetLink}
                       className="px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs hidden sm:flex items-center gap-1.5 transition-all shadow-xs"
                     >
                       <Trophy className="w-3.5 h-3.5" />
-                      <span>Ver Tabla</span>
+                      <span>{targetLinkLabel}</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   )}
 
                   <button
+                    type="button"
                     onClick={() => toggleFavorite(favStat.teamId)}
-                    className="p-2 rounded-2xl bg-muted/50 hover:bg-rose-500/20 text-muted-foreground hover:text-rose-500 transition-all"
+                    className="p-2.5 rounded-2xl bg-muted/60 hover:bg-rose-500/20 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400 transition-all"
                     title="Quitar de favoritos"
+                    aria-label={`Quitar a ${favStat.team.display_name ?? favStat.team.name} de favoritos`}
                   >
-                    <RefreshCw className="w-4 h-4" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -450,7 +479,7 @@ export function HomePage() {
                     <span className="font-bold text-foreground truncate text-[11px] sm:text-xs">
                       {favStat.latestResult.homeName} {favStat.latestResult.homeGoals} - {favStat.latestResult.awayGoals} {favStat.latestResult.awayName}
                     </span>
-                    <span className="text-muted-foreground/70 font-semibold text-[10px] shrink-0">
+                    <span className="text-muted-foreground font-semibold text-[10px] shrink-0">
                       (F{favStat.latestResult.round})
                     </span>
                   </div>
@@ -465,20 +494,25 @@ export function HomePage() {
               </div>
 
               {/* Mobile Direct Button */}
-              {!isAdaro && favStat.divisionSlug && (
+              {targetLink && (
                 <div className="pt-1 sm:hidden">
                   <Link
-                    to={`/division/${favStat.divisionSlug}`}
-                    className="w-full py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
+                    to={targetLink}
+                    className="w-full py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-amber-950 font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs"
                   >
                     <Trophy className="w-3.5 h-3.5" />
-                    <span>Ver Tabla de Posiciones ({formatSlugToTitle(favStat.divisionSlug)})</span>
+                    <span>
+                      {isAdaro
+                        ? `${targetLinkLabel} · ${formatSlugToTitle(favStat.divisionSlug)}`
+                        : `Ver Tabla de Posiciones (${formatSlugToTitle(favStat.divisionSlug)})`}
+                    </span>
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               )}
             </section>
-          ))}
+            );
+          })}
 
           {/* Add 2nd Favorite Prompt Banner */}
           {favoritesStats.length === 1 && (
@@ -578,7 +612,7 @@ export function HomePage() {
       {isAdaro && (
         <div className="space-y-6 max-w-4xl mx-auto">
           {/* Banner Camino a las 4 Copas */}
-          <section className="bg-gradient-to-br from-card/90 via-card/50 to-background border border-border/70 rounded-3xl p-5 sm:p-7 backdrop-blur-xl shadow-sm space-y-4">
+          <section className="bg-gradient-to-br from-card via-card/90 to-background border border-border/70 rounded-3xl p-5 sm:p-7 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center space-x-2">
@@ -587,7 +621,7 @@ export function HomePage() {
                     Formato Oficial 2026
                   </span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-2 mt-0.5">
+                <h2 className="text-xl sm:text-2xl font-display font-black tracking-tight text-foreground flex items-center gap-2 mt-0.5">
                   <Trophy className="w-5 h-5 text-amber-500" />
                   Camino a las 4 Copas
                 </h2>
@@ -610,27 +644,27 @@ export function HomePage() {
               <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-lg">💎</span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-600 dark:text-cyan-400">1º Puesto</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-cyan-700 dark:text-cyan-400">1º Puesto</span>
                 </div>
-                <h3 className="font-bold text-sm text-foreground">Copa Platino</h3>
+                <h3 className="font-display font-bold text-sm text-foreground">Copa Platino</h3>
                 <p className="text-[11px] text-muted-foreground">Los 1º de cada zona (el mejor promedio accede directo a Semifinales)</p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-lg">🥇</span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">2º Puesto</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">2º Puesto</span>
                 </div>
-                <h3 className="font-bold text-sm text-foreground">Copa de Oro</h3>
+                <h3 className="font-display font-bold text-sm text-foreground">Copa de Oro</h3>
                 <p className="text-[11px] text-muted-foreground">Los 2º de cada zona (el mejor promedio accede directo a Semifinales)</p>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-slate-400/10 border border-slate-400/25 space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-lg">🥈</span>
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">3º Puesto</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">3º Puesto</span>
                 </div>
-                <h3 className="font-bold text-sm text-foreground">Copa de Plata</h3>
+                <h3 className="font-display font-bold text-sm text-foreground">Copa de Plata</h3>
                 <p className="text-[11px] text-muted-foreground">Los 3º de cada zona (el mejor promedio accede directo a Semifinales)</p>
               </div>
 
@@ -639,17 +673,17 @@ export function HomePage() {
                   <span className="text-lg">🥉</span>
                   <span className="text-[10px] font-black uppercase tracking-wider text-orange-700 dark:text-orange-400">4º Puesto</span>
                 </div>
-                <h3 className="font-bold text-sm text-foreground">Copa de Bronce</h3>
+                <h3 className="font-display font-bold text-sm text-foreground">Copa de Bronce</h3>
                 <p className="text-[11px] text-muted-foreground">Los 4º de cada zona (el mejor promedio accede directo a Semifinales)</p>
               </div>
             </div>
           </section>
 
-          {/* Strip de las 7 Zonas Oficiales */}
+          {/* Strip de las 7 Zonas Oficiales con buscador rápido de club */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg sm:text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-display font-black tracking-tight text-foreground flex items-center gap-2">
                   <Layers className="w-5 h-5 text-primary" />
                   Las 7 Zonas de Clasificación
                 </h2>
@@ -657,10 +691,30 @@ export function HomePage() {
                   Accedé a la tabla general de cada zona y el fixture de tiras completas
                 </p>
               </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={zoneClubFilter}
+                  onChange={(e) => setZoneClubFilter(e.target.value)}
+                  placeholder="Buscar club en zonas..."
+                  aria-label="Buscar club en las 7 zonas"
+                  className="w-full pl-9 pr-3 py-2 rounded-2xl bg-card border border-border/70 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-              {ADARO_ZONES.map((zone) => {
+              {ADARO_ZONES.filter((zone) => {
+                if (!zoneClubFilter.trim()) return true;
+                const q = zoneClubFilter.toLowerCase().trim();
+                const clubs = getAdaroZoneClubs(zone.id, allTeams);
+                return (
+                  zone.name.toLowerCase().includes(q) ||
+                  clubs.some(c => (c.display_name || c.name).toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
+                );
+              }).map((zone) => {
                 const zoneClubs = getAdaroZoneClubs(zone.id, allTeams);
 
                 return (
@@ -709,7 +763,7 @@ export function HomePage() {
       <CommunityPoll />
 
       {/* Tabla General de Clubes Promo Card */}
-      <section className="bg-gradient-to-r from-primary/15 via-primary/10 to-card border border-primary/30 p-4 sm:p-6 rounded-3xl backdrop-blur-md max-w-4xl mx-auto shadow-sm relative overflow-hidden group">
+      <section className="bg-gradient-to-r from-primary/15 via-primary/10 to-card border border-primary/30 p-4 sm:p-6 rounded-3xl max-w-4xl mx-auto shadow-xs relative overflow-hidden group">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary shrink-0 shadow-inner group-hover:scale-105 transition-transform">

@@ -126,6 +126,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
                 <Link
                   key={item.to}
                   to={item.to}
+                  aria-current={active ? 'page' : undefined}
                   className={`relative px-4 py-1.5 rounded-full text-xs font-semibold tracking-tight transition-colors duration-150 flex items-center space-x-1.5 active:scale-95 ${
                     active
                       ? 'text-primary dark:text-foreground'
@@ -190,10 +191,10 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
               )}
             </button>
 
-            {/* Acceso Admin */}
+            {/* Acceso Admin (en escritorio en el header; en móvil en el pie de página) */}
             <Link
               to="/admin"
-              className="p-2 sm:p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90 flex items-center justify-center"
+              className="hidden sm:flex p-2 sm:p-2.5 rounded-full bg-muted/50 hover:bg-muted border border-border/50 text-muted-foreground hover:text-primary transition-all active:scale-90 items-center justify-center"
               title="Panel de Administración"
               aria-label="Panel de Administración"
             >
@@ -223,6 +224,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
               <Link
                 key={item.to}
                 to={item.to}
+                aria-current={active ? 'page' : undefined}
                 className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-xl text-[10px] font-semibold tracking-tight transition-all active:scale-90 ${
                   active
                     ? 'text-primary dark:text-foreground'

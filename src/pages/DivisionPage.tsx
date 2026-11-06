@@ -463,10 +463,10 @@ export function DivisionPage() {
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
+          <h1 className="text-3xl sm:text-4xl font-display font-extrabold tracking-tight text-foreground">
             {formattedDivisionTitle}
             {getCategoryYear(formattedDivisionTitle, selectedYear) !== null && (
-              <span className="text-xl sm:text-2xl font-semibold text-muted-foreground/70 ml-2">
+              <span className="text-xl sm:text-2xl font-semibold text-muted-foreground ml-2">
                 (Categoría {getCategoryYear(formattedDivisionTitle, selectedYear)})
               </span>
             )}

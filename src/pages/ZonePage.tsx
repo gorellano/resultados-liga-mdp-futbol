@@ -194,26 +194,6 @@ export const ZonePage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Selector Rápido de Zonas A - G con URLs con año ── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none snap-x">
-        {ADARO_ZONES.map((z) => {
-          const isActive = z.id === currentZoneObj.id;
-          return (
-            <button
-              key={z.id}
-              onClick={() => handleSelectZone(z.id)}
-              className={`flex-shrink-0 snap-start px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
-                isActive
-                  ? 'bg-primary text-primary-foreground border-primary shadow-xs ring-2 ring-primary/20'
-                  : 'bg-card hover:bg-muted text-muted-foreground hover:text-foreground border-border/70'
-              }`}
-            >
-              {z.name}
-            </button>
-          );
-        })}
-      </div>
-
       {/* ── Contenido Principal: AdaroZoneView ── */}
       {loading ? (
         <div className="p-12 text-center rounded-2xl bg-card border border-border/70 shadow-xs space-y-3">

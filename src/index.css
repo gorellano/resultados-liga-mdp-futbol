@@ -4,7 +4,7 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  --font-display: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
@@ -32,7 +32,7 @@
     --secondary: #e2e8f0;
     --secondary-foreground: #0f172a;
     --muted: #f1f5f9;
-    --muted-foreground: #64748b;
+    --muted-foreground: #475569; /* Slate 600 for high-contrast WCAG AA outdoor readability */
     --border: #e2e8f0;
     --radius: 1rem;
 
@@ -51,7 +51,7 @@
     --secondary: #162238;
     --secondary-foreground: #f8fafc;
     --muted: #141f36;
-    --muted-foreground: #8fa0ba;
+    --muted-foreground: #94a3b8; /* Slate 400 for crisp dark-mode contrast */
     --border: rgba(255, 255, 255, 0.08);
 
     --surface-0: #080c16;
@@ -77,8 +77,8 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-sans);
-    letter-spacing: -0.02em;
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
   }
 
   /* Numeric tabular alignment for clean scores and standings */
@@ -116,4 +116,11 @@
 
 .animate-soft-pulse {
   animation: softPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-soft-pulse {
+    animation: none !important;
+  }
 }

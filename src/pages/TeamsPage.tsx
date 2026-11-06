@@ -172,7 +172,7 @@ export function TeamsPage() {
     >
       {/* Title section */}
       <div className="text-center space-y-3">
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">
+        <h1 className="text-3xl sm:text-4xl font-display font-black tracking-tight text-foreground">
           Directorio de Equipos
         </h1>
         <p className="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">

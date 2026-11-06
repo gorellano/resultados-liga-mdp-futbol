@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, 
@@ -81,10 +82,22 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
   initialMode = 'general',
   initialDivisionSlug,
 }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Modo de visualización: 'general' (Tira completa para 4 copas) o 'division' (por categoría)
-  const [viewMode, setViewMode] = useState<'general' | 'division'>(initialMode);
+  const [viewMode, setViewModeState] = useState<'general' | 'division'>(() => {
+    const paramMode = searchParams.get('modo');
+    if (paramMode === 'division' || paramMode === 'general') return paramMode;
+    return initialMode;
+  });
+
   // Fecha seleccionada para el fixture de tiras (1 a 6)
-  const [selectedRound, setSelectedRound] = useState<number>(1);
+  const [selectedRound, setSelectedRoundState] = useState<number>(() => {
+    const paramRound = Number(searchParams.get('fecha'));
+    if (paramRound >= 1 && paramRound <= 6) return paramRound;
+    return 1;
+  });
+
   // Acordeones abiertos de tiras (pairKey)
   const [expandedTiras, setExpandedTiras] = useState<Record<string, boolean>>({
     'tira-0': true, // primer acordeón abierto por defecto
@@ -93,7 +106,39 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
   const [expandedClubBreakdown, setExpandedClubBreakdown] = useState<string | null>(null);
 
   // División seleccionada para la sección inferior (Tablas por División)
-  const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
+  const [selectedDivisionId, setSelectedDivisionIdState] = useState<string>(() => {
+    return searchParams.get('div') || '';
+  });
+
+  const setViewMode = useCallback((mode: 'general' | 'division') => {
+    setViewModeState(mode);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (mode === 'general') next.delete('modo');
+      else next.set('modo', mode);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSelectedRound = useCallback((round: number) => {
+    setSelectedRoundState(round);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (round === 1) next.delete('fecha');
+      else next.set('fecha', String(round));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSelectedDivisionId = useCallback((divId: string) => {
+    setSelectedDivisionIdState(divId);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (!divId) next.delete('div');
+      else next.set('div', divId);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Filtrar zonas Adaro
   const adaroZones = useMemo(() => {
@@ -311,11 +356,13 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
             return (
               <button
                 key={zone.id}
+                type="button"
+                aria-pressed={isSelected}
                 onClick={() => onSelectZone(zone.id)}
                 className={`flex-shrink-0 snap-start px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold tracking-tight transition-all active:scale-95 flex items-center space-x-2 border ${
                   isSelected
                     ? 'bg-primary text-primary-foreground border-primary shadow-[0_4px_16px_rgba(16,185,129,0.3)] ring-2 ring-primary/20'
-                    : 'bg-card/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60 shadow-sm'
+                    : 'bg-card/80 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60 shadow-sm'
                 }`}
               >
                 <Layers className={`w-3.5 h-3.5 ${isSelected ? 'text-primary-foreground' : 'text-primary'}`} />
@@ -327,9 +374,11 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
       </div>
 
       {/* ─── Selector de Modo de Visualización (Tiras / Por División) ─────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/60 p-2 sm:p-2.5 rounded-2xl border border-border/70 backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card/80 p-2 sm:p-2.5 rounded-2xl border border-border/70">
         <div className="flex bg-muted/70 p-1 rounded-xl border border-border/50 max-w-md w-full sm:w-auto">
           <button
+            type="button"
+            aria-pressed={viewMode === 'general'}
             onClick={() => setViewMode('general')}
             className={`flex-1 sm:flex-none py-2 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               viewMode === 'general'
@@ -341,6 +390,8 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
             <span>Tiras de Clubes (4 Copas)</span>
           </button>
           <button
+            type="button"
+            aria-pressed={viewMode === 'division'}
             onClick={() => setViewMode('division')}
             className={`flex-1 sm:flex-none py-2 px-4 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               viewMode === 'division'
@@ -365,7 +416,7 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
       {/* ─── 2. Tabla Oficial Acumulada de la Zona (7ª a 14ª) y Fixture de Tiras ─── */}
       {viewMode === 'general' && (
         <>
-          <div className="bg-card/75 border border-border/80 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-xs space-y-4">
+          <div className="bg-card border border-border/80 rounded-3xl p-4 sm:p-6 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1 border-b border-border/50">
               <div>
                 <div className="flex items-center space-x-2">
@@ -584,12 +635,14 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
           </div>
 
           {/* Selector de Fecha (1 a 6) */}
-          <div className="flex items-center gap-1 p-1 bg-card border border-border/70 rounded-2xl self-start sm:self-auto shadow-2xs">
+          <div className="flex items-center gap-1 p-1 bg-card border border-border/70 rounded-2xl self-start sm:self-auto shadow-2xs overflow-x-auto max-w-full">
             {[1, 2, 3, 4, 5, 6].map((num) => (
               <button
                 key={num}
+                type="button"
+                aria-pressed={selectedRound === num}
                 onClick={() => setSelectedRound(num)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 whitespace-nowrap ${
                   selectedRound === num
                     ? 'bg-primary text-primary-foreground shadow-xs font-display font-black'
                     : 'text-muted-foreground hover:text-foreground'
@@ -618,12 +671,14 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
               return (
                 <div
                   key={pairKey}
-                  className="rounded-3xl border border-border/80 bg-card/80 backdrop-blur-xl overflow-hidden shadow-xs transition-all hover:border-border"
+                  className="rounded-3xl border border-border/80 bg-card overflow-hidden shadow-xs transition-all hover:border-border"
                 >
-                  {/* Encabezado de la Tira */}
-                  <div
+                  {/* Encabezado de la Tira (Accesible por teclado) */}
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
                     onClick={() => toggleTira(pairKey)}
-                    className="p-3 sm:p-5 cursor-pointer hover:bg-muted/40 transition-colors flex items-center justify-between gap-2 sm:gap-4 select-none"
+                    className="w-full p-3 sm:p-5 cursor-pointer hover:bg-muted/40 transition-colors flex items-center justify-between gap-2 sm:gap-4 select-none text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                   >
                     <div className="flex items-center space-x-1.5 sm:space-x-4 flex-1 min-w-0">
                       {/* Local */}
@@ -643,17 +698,17 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Marcador Acumulado de la Tira estilo Estadio */}
-                      <div className="px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-muted/80 dark:bg-slate-900 border border-border/70 flex items-center space-x-1 sm:space-x-2 shadow-inner flex-shrink-0">
+                      {/* Marcador Acumulado de la Tira estilo Estadio (siempre muestra 'pts' para distinguir de goles) */}
+                      <div className="px-2 sm:px-3.5 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl bg-muted/80 dark:bg-slate-900 border border-border/70 flex items-center space-x-1 sm:space-x-1.5 shadow-inner flex-shrink-0">
                         <span className="text-xs sm:text-base font-display font-black text-primary">
                           {tira.homeTiraPoints}
                         </span>
-                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase hidden xs:inline">pts</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase">pts</span>
                         <span className="text-xs font-semibold text-muted-foreground">-</span>
                         <span className="text-xs sm:text-base font-display font-black text-primary">
                           {tira.awayTiraPoints}
                         </span>
-                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase hidden xs:inline">pts</span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase">pts</span>
                       </div>
 
                       {/* Visitante */}
@@ -674,7 +729,7 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                       </div>
                     </div>
 
-                    {/* Botón Acordeón */}
+                    {/* Indicador Acordeón */}
                     <div className="flex items-center pl-1 sm:pl-2 text-muted-foreground shrink-0">
                       <span className="text-xs font-bold hidden md:inline mr-2 text-foreground/80">
                         {isExpanded ? `Ocultar ${tira.matches.length} categorías` : `Ver ${tira.matches.length} categorías`}
@@ -685,53 +740,54 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                         <ChevronDown className="w-4 h-4 text-foreground" />
                       )}
                     </div>
-                  </div>
+                  </button>
 
-                  {/* Desglose Tabulado de los Partidos de la Tira */}
+                  {/* Desglose Tabulado de los Partidos de la Tira (100% adaptable en móvil sin desborde horizontal) */}
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="border-t border-border/50 bg-background/50 px-3 sm:px-6 py-2 overflow-x-auto scrollbar-none"
+                        className="border-t border-border/50 bg-background/50 px-2.5 sm:px-6 py-2"
                       >
-                        <div className="min-w-[620px] sm:min-w-0 divide-y divide-border/30">
+                        <div className="divide-y divide-border/30">
                           {tira.matches.map(({ divisionName, match }) => {
                             const isFinished = match.status === 'finished';
                             const divOrder = getDivisionOrder(divisionName);
                             const divYear = getCategoryYear(divisionName, 2026);
                             const divDisplayName = DIVISION_NAMES_MAP[divOrder] || divisionName.replace(' División', '');
+                            const homeTeamObj = match.home_team_id === tira.homeTeam.id ? tira.homeTeam : tira.awayTeam;
+                            const awayTeamObj = match.away_team_id === tira.awayTeam.id ? tira.awayTeam : tira.homeTeam;
 
                             return (
                               <div
                                 key={match.id}
-                                className="py-2.5 grid grid-cols-[auto_1fr_auto] items-center text-xs sm:text-sm hover:bg-muted/30 rounded-xl px-2.5 transition-colors gap-3"
+                                className="py-2.5 grid grid-cols-[auto_1fr_auto] items-center text-xs sm:text-sm hover:bg-muted/30 rounded-xl px-1.5 sm:px-2.5 transition-colors gap-2 sm:gap-3"
                               >
-                                {/* Indicador de División y Categoría (Tabulado con columnas fijas) */}
-                                <div className="flex items-center gap-2 w-[220px] sm:w-[250px] shrink-0">
-                                  <span className="inline-flex items-center justify-center w-8 h-6 rounded-lg bg-primary/10 text-primary border border-primary/20 font-display font-black text-[11px] sm:text-xs shrink-0 whitespace-nowrap shadow-2xs">
+                                {/* Indicador de División y Categoría (Compacto en móvil, completo en desktop) */}
+                                <div className="flex items-center gap-1.5 sm:gap-2 sm:w-[230px] shrink-0">
+                                  <span className="inline-flex items-center justify-center w-7 sm:w-8 h-6 rounded-lg bg-primary/10 text-primary border border-primary/20 font-display font-black text-[11px] sm:text-xs shrink-0 whitespace-nowrap shadow-2xs">
                                     {divOrder <= 17 ? `${divOrder}ª` : ''}
                                   </span>
-                                  <span className="font-extrabold text-foreground text-xs sm:text-sm tracking-tight w-24 sm:w-28 truncate">
+                                  <span className="hidden sm:inline font-extrabold text-foreground text-xs sm:text-sm tracking-tight w-24 truncate">
                                     {divDisplayName}
                                   </span>
                                   {divYear && (
-                                    <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-muted-foreground bg-muted/80 px-2 py-0.5 rounded-full border border-border/60 whitespace-nowrap shrink-0 shadow-2xs">
-                                      Cat. {divYear}
+                                    <span className="inline-flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-muted-foreground bg-muted/80 px-1.5 sm:px-2 py-0.5 rounded-full border border-border/60 whitespace-nowrap shrink-0 shadow-2xs">
+                                      <span className="hidden sm:inline mr-0.5">Cat.</span>{divYear}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Partido Tabulado (Local a la derecha, Caja de goles en centro exacto, Visitante a la izquierda) */}
-                                <div className="flex items-center justify-center gap-2 sm:gap-3 min-w-0 px-2">
+                                <div className="flex items-center justify-center gap-1.5 sm:gap-3 min-w-0 px-1">
                                   <span className="text-right truncate font-bold text-xs sm:text-sm flex-1 text-foreground">
-                                    {match.home_team_id === tira.homeTeam.id
-                                      ? (tira.homeTeam.display_name || tira.homeTeam.name)
-                                      : (tira.awayTeam.display_name || tira.awayTeam.name)}
+                                    <span className="sm:hidden">{getTeamShortName(homeTeamObj)}</span>
+                                    <span className="hidden sm:inline">{homeTeamObj.display_name || homeTeamObj.name}</span>
                                   </span>
 
-                                  <div className="w-14 sm:w-16 py-1 rounded-xl bg-card border border-border/70 font-display font-black text-xs sm:text-sm text-center shrink-0 shadow-xs">
+                                  <div className="w-12 sm:w-16 py-1 rounded-xl bg-card border border-border/70 font-display font-black text-xs sm:text-sm text-center shrink-0 shadow-xs">
                                     {isFinished ? (
                                       <span>{match.home_goals} - {match.away_goals}</span>
                                     ) : (
@@ -740,21 +796,21 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                                   </div>
 
                                   <span className="text-left truncate font-bold text-xs sm:text-sm flex-1 text-foreground">
-                                    {match.away_team_id === tira.awayTeam.id
-                                      ? (tira.awayTeam.display_name || tira.awayTeam.name)
-                                      : (tira.homeTeam.display_name || tira.homeTeam.name)}
+                                    <span className="sm:hidden">{getTeamShortName(awayTeamObj)}</span>
+                                    <span className="hidden sm:inline">{awayTeamObj.display_name || awayTeamObj.name}</span>
                                   </span>
                                 </div>
 
                                 {/* Estado Final / Pendiente */}
-                                <div className="w-16 sm:w-20 text-right shrink-0">
+                                <div className="sm:w-20 text-right shrink-0">
                                   {isFinished ? (
-                                    <span className="inline-flex items-center justify-center text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 sm:px-2.5 py-0.5 rounded-full border border-emerald-500/25 whitespace-nowrap">
+                                    <span className="inline-flex items-center justify-center text-[9px] sm:text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 sm:px-2.5 py-0.5 rounded-full border border-emerald-500/25 whitespace-nowrap">
                                       Final
                                     </span>
                                   ) : (
-                                    <span className="inline-flex items-center justify-center text-[10px] font-semibold text-muted-foreground bg-muted px-2 sm:px-2.5 py-0.5 rounded-full whitespace-nowrap">
-                                      Pendiente
+                                    <span className="inline-flex items-center justify-center text-[9px] sm:text-[10px] font-semibold text-muted-foreground bg-muted px-1.5 sm:px-2.5 py-0.5 rounded-full whitespace-nowrap">
+                                      <span className="sm:hidden">Pend.</span>
+                                      <span className="hidden sm:inline">Pendiente</span>
                                     </span>
                                   )}
                                 </div>
@@ -775,7 +831,8 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
       )}
 
       {/* ─── 4. SECCIÓN: Tablas de Posiciones y Fixture por División (Puntuables y Participativas) ─── */}
-      <section className="bg-card/75 border border-border/80 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-xs space-y-5">
+      {viewMode === 'division' && (
+      <section className="bg-card border border-border/80 rounded-3xl p-4 sm:p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/50">
           <div>
             <div className="flex items-center space-x-2">
@@ -821,6 +878,8 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                 return (
                   <button
                     key={div.id}
+                    type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelectedDivisionId(div.id)}
                     className={`flex-shrink-0 snap-start px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 border whitespace-nowrap ${
                       isSelected
@@ -857,6 +916,8 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                   return (
                     <button
                       key={div.id}
+                      type="button"
+                      aria-pressed={isSelected}
                       onClick={() => setSelectedDivisionId(div.id)}
                       className={`flex-shrink-0 snap-start px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 border whitespace-nowrap ${
                         isSelected
@@ -1007,6 +1068,7 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
           )}
         </div>
       </section>
+      )}
     </div>
   );
 };

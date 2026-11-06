@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { CheckCircle2 } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { CheckCircle2, Mail, Lock } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -150,9 +150,27 @@ function Layout({ children }: { children: React.ReactNode }) {
             >
               <svg xmlns="http://www.react.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/></svg>
             </a>
+            <button
+              type="button"
+              onClick={handleOpenContact}
+              title="Contacto Costa y Gol"
+              aria-label="Abrir formulario de contacto"
+              className="px-3 py-1.5 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-background/80 transition-all active:scale-95 flex items-center gap-1.5 border-l border-border/50 ml-1"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Contacto</span>
+            </button>
+            <Link
+              to="/admin"
+              title="Panel de Administración"
+              aria-label="Panel de Administración"
+              className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-background/80 transition-all active:scale-90 sm:hidden"
+            >
+              <Lock className="w-4 h-4" />
+            </Link>
           </div>
 
-          <p className="text-xs text-muted-foreground/75 text-center sm:text-left order-2 sm:order-1">
+          <p className="text-xs text-muted-foreground text-center sm:text-left order-2 sm:order-1">
             &copy; {new Date().getFullYear()} Costa y Gol. Todos los derechos reservados.
           </p>
         </div>

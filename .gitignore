@@ -78,6 +78,9 @@ PLAN_*.md
 .eslintcache
 .claude/
 .cursor/
+.codex/
+.gemini/
+.impeccable/
 Thumbs.db
 
 

@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Trophy, 
   Swords, 
   Crown, 
   Info, 
-  SlidersHorizontal,
   Layers
 } from 'lucide-react';
 import type { Team, Match, Zone, Division } from '../lib/types';
@@ -64,10 +64,46 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
   zones = [],
   divisions = []
 }) => {
-  const [selectedCup, setSelectedCup] = useState<AdaroCupTier>('platino');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [selectedCup, setSelectedCupState] = useState<AdaroCupTier>(() => {
+    const paramCup = searchParams.get('copa') as AdaroCupTier | null;
+    if (paramCup && ['platino', 'oro', 'plata', 'bronce'].includes(paramCup)) {
+      return paramCup;
+    }
+    return 'platino';
+  });
+
   // Por defecto inicia en 7ª División (ya que los playoffs se disputan y definen por división individual)
-  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<string>(PLAYOFF_DIVISIONS[0].id);
-  const [seedingCriteria, setSeedingCriteria] = useState<SeedingCriteria>('grupos_adaro');
+  const [selectedDivisionFilter, setSelectedDivisionFilterState] = useState<string>(() => {
+    const paramDiv = searchParams.get('div');
+    if (paramDiv && PLAYOFF_DIVISIONS.some(d => d.id === paramDiv)) {
+      return paramDiv;
+    }
+    return PLAYOFF_DIVISIONS[0].id;
+  });
+
+  const [mobileStageTab, setMobileStageTab] = useState<'cuartos' | 'semifinal' | 'final'>('cuartos');
+
+  const setSelectedCup = useCallback((cup: AdaroCupTier) => {
+    setSelectedCupState(cup);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (cup === 'platino') next.delete('copa');
+      else next.set('copa', cup);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setSelectedDivisionFilter = useCallback((divId: string) => {
+    setSelectedDivisionFilterState(divId);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (divId === PLAYOFF_DIVISIONS[0].id) next.delete('div');
+      else next.set('div', divId);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // 1. Obtener la posición de cada club en su respectiva zona (Fase 1 de Grupos Adaro)
   const zoneRankings = useMemo(() => {
@@ -340,7 +376,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* ─── 1. Selector de las 4 Copas ─────────────────────────────────────── */}
-      <div className="bg-card/40 border border-border/60 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-sm space-y-5">
+      <div className="bg-card border border-border/70 rounded-3xl p-4 sm:p-6 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center space-x-2">
@@ -349,7 +385,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
                 Fase Final · LMF 2026
               </h2>
             </div>
-            <h3 className="text-lg sm:text-xl font-black tracking-tight text-foreground flex items-center gap-2 mt-0.5">
+            <h3 className="text-lg sm:text-xl font-display font-black tracking-tight text-foreground flex items-center gap-2 mt-0.5">
               <span>{badge.emoji}</span>
               Playoffs · {badge.label}
             </h3>
@@ -363,11 +399,13 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
               return (
                 <button
                   key={tier}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedCup(tier)}
                   className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-bold tracking-tight transition-all active:scale-95 flex items-center justify-center space-x-1.5 border ${
                     isSelected
                       ? `${b.bgClass} ${b.textClass} ${b.borderClass} ring-2 ring-primary/20 shadow-sm`
-                      : 'bg-card/70 hover:bg-muted text-muted-foreground hover:text-foreground border-border/50'
+                      : 'bg-card/80 hover:bg-muted text-muted-foreground hover:text-foreground border-border/60'
                   }`}
                 >
                   <span>{b.emoji}</span>
@@ -396,11 +434,13 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
               return (
                 <button
                   key={div.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedDivisionFilter(div.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border ${
                     isSelected
                       ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                      : 'bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground border-border/50'
+                      : 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border-border/60'
                   }`}
                 >
                   {div.name} ({div.year})
@@ -427,39 +467,17 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
         </div>
       </div>
 
-      {/* ─── 2. Tabla de Sembrados (1 al 7) con Selector de Criterio ───────── */}
-      <div className="bg-card/30 border border-border/60 rounded-3xl p-4 sm:p-5 space-y-3">
+      {/* ─── 2. Tabla de Sembrados (1 al 7) ───────── */}
+      <div className="bg-card border border-border/60 rounded-3xl p-4 sm:p-5 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
             <Crown className="w-3.5 h-3.5 text-amber-500" />
             Tabla de Sembrados Oficial ({currentSeedList.length} Clubes Clasificados)
           </h4>
 
-          {/* Toggle de Criterio de Siembra (Retrocompatible) */}
-          <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/50 text-[10px] font-bold">
-            <SlidersHorizontal className="w-3 h-3 text-muted-foreground ml-1" />
-            <span className="text-muted-foreground">Criterio:</span>
-            <button
-              onClick={() => setSeedingCriteria('grupos_adaro')}
-              className={`px-2 py-0.5 rounded-lg transition-all ${
-                seedingCriteria === 'grupos_adaro'
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Puntos Fase Grupos
-            </button>
-            <button
-              onClick={() => setSeedingCriteria('promedio_anual')}
-              className={`px-2 py-0.5 rounded-lg transition-all ${
-                seedingCriteria === 'promedio_anual'
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Promedio Anual (1ª Fase)
-            </button>
-          </div>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-muted/60 border border-border/50 text-[10px] font-bold text-muted-foreground self-start sm:self-auto">
+            Criterio Oficial: Promedio y Puntos de Fase Zonal (7ª a 14ª)
+          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
@@ -509,8 +527,8 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
 
       {/* ─── 3. Árbol Visual del Cuadro de Playoffs (Cuartos -> Semis -> Final) ── */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-black tracking-tight text-foreground flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h4 className="text-sm font-display font-black tracking-tight text-foreground flex items-center gap-2">
             <Swords className="w-4 h-4 text-primary" />
             Cuadro de Enfrentamientos Directos · {activeDivision ? activeDivision.name : 'Tiras de Clubes'}
           </h4>
@@ -519,11 +537,37 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
           </span>
         </div>
 
-        <div className="overflow-x-auto pb-6 scrollbar-none">
-          <div className="min-w-[760px] grid grid-cols-3 gap-6">
+        {/* Selector de Instancia en Móvil (evita scroll horizontal forzado en pantallas chicas) */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-muted/60 border border-border/60 rounded-2xl md:hidden">
+          {([
+            { id: 'cuartos', label: 'Cuartos' },
+            { id: 'semifinal', label: 'Semifinales' },
+            { id: 'final', label: 'Gran Final' },
+          ] as const).map((tab) => {
+            const isTabActive = mobileStageTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={isTabActive}
+                onClick={() => setMobileStageTab(tab.id)}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all ${
+                  isTabActive
+                    ? 'bg-primary text-primary-foreground shadow-xs font-display font-black'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="pb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* COLUMNA 1: Cuartos de Final */}
-            <div className="space-y-4">
+            <div className={`space-y-4 ${mobileStageTab === 'cuartos' ? 'block' : 'hidden md:block'}`}>
               <div className="text-center pb-2 border-b border-border/40">
                 <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
                   Cuartos de Final
@@ -539,7 +583,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
             </div>
 
             {/* COLUMNA 2: Semifinales */}
-            <div className="space-y-4">
+            <div className={`space-y-4 ${mobileStageTab === 'semifinal' ? 'block' : 'hidden md:block'}`}>
               <div className="text-center pb-2 border-b border-border/40">
                 <span className="text-xs font-black uppercase tracking-wider text-muted-foreground">
                   Semifinales (A vs D // B vs C)
@@ -547,7 +591,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
                 <p className="text-[10px] text-muted-foreground">En canchas neutrales LMF</p>
               </div>
 
-              <div className="space-y-12 pt-6">
+              <div className="space-y-4 md:space-y-12 md:pt-6">
                 {bracketData.sfMatches.map((m) => (
                   <BracketMatchCard key={m.id} match={m} />
                 ))}
@@ -555,16 +599,16 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
             </div>
 
             {/* COLUMNA 3: Gran Final */}
-            <div className="space-y-4">
+            <div className={`space-y-4 ${mobileStageTab === 'final' ? 'block' : 'hidden md:block'}`}>
               <div className="text-center pb-2 border-b border-border/40">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-500 dark:text-amber-400 flex items-center justify-center gap-1.5">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1.5">
                   <Trophy className="w-3.5 h-3.5" />
                   Gran Final
                 </span>
                 <p className="text-[10px] text-muted-foreground">Por la corona de {badge.name} ({activeDivision ? activeDivision.name : 'Club Campeón'})</p>
               </div>
 
-              <div className="pt-24">
+              <div className="md:pt-24">
                 <BracketMatchCard match={bracketData.finalMatch} isFinal />
               </div>
             </div>
@@ -580,7 +624,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
 const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = ({ match, isFinal = false }) => {
   if (match.isBye) {
     return (
-      <div className="p-3.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 backdrop-blur-md text-xs">
+      <div className="p-3.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 text-xs">
         <div className="flex items-center justify-between text-[10px] font-bold text-cyan-600 dark:text-cyan-400 mb-1">
           <span>LIBRE A SEMIFINALES (Cruce A)</span>
           <span>Sembrado #1</span>
@@ -601,10 +645,10 @@ const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = (
   const championTeam = isHomeWinner ? match.homeTeam : isAwayWinner ? match.awayTeam : null;
 
   return (
-    <div className={`p-3.5 rounded-2xl border backdrop-blur-md text-xs transition-all ${
+    <div className={`p-3.5 rounded-2xl border text-xs transition-all ${
       isFinal 
         ? 'border-amber-500/40 bg-amber-500/5 shadow-md ring-1 ring-amber-500/20' 
-        : 'border-border/60 bg-card/60 shadow-sm'
+        : 'border-border/70 bg-card shadow-xs'
     }`}>
       {/* Equipo Local */}
       <div className={`flex items-center justify-between py-1.5 ${isHomeWinner ? 'font-black text-foreground' : match.homeTeam ? 'font-semibold text-foreground/90' : 'text-muted-foreground italic'}`}>

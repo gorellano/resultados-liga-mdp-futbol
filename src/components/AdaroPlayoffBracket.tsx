@@ -5,8 +5,7 @@ import {
   Crown, 
   Info, 
   SlidersHorizontal,
-  Layers,
-  Sparkles
+  Layers
 } from 'lucide-react';
 import type { Team, Match, Zone, Division } from '../lib/types';
 import { calculateAdaroZoneStandings, CUP_BADGES, type AdaroCupTier } from '../lib/adaroStandings';
@@ -24,6 +23,8 @@ interface PlayoffMatch {
   stage: 'cuartos' | 'semifinal' | 'final';
   homeTeam: Team | null;
   awayTeam: Team | null;
+  homePlaceholder?: string;
+  awayPlaceholder?: string;
   homeSeed?: number;
   awaySeed?: number;
   homeScore?: number;
@@ -64,8 +65,8 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
   divisions = []
 }) => {
   const [selectedCup, setSelectedCup] = useState<AdaroCupTier>('platino');
-  // 'general' = Tira General de Clubes, o un divisionId específico de 7ma a 14ta
-  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<string>('general');
+  // Por defecto inicia en 7ª División (ya que los playoffs se disputan y definen por división individual)
+  const [selectedDivisionFilter, setSelectedDivisionFilter] = useState<string>(PLAYOFF_DIVISIONS[0].id);
   const [seedingCriteria, setSeedingCriteria] = useState<SeedingCriteria>('grupos_adaro');
 
   // 1. Obtener la posición de cada club en su respectiva zona (Fase 1 de Grupos Adaro)
@@ -144,20 +145,72 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
     const seed6 = s[5]?.team || null;
     const seed7 = s[6]?.team || null;
 
-    const divLabel = activeDivision ? `${activeDivision.name} (${activeDivision.year})` : 'Tira General';
+    const divLabel = activeDivision ? `${activeDivision.name} (${activeDivision.year})` : 'Cruces Base por Sembrado';
 
-    // Resultados de prueba simulados con definición por penales en caso de empate
-    // Si se selecciona una división puntual, simula los tanteos de esa categoría
-    const isCategoryMode = selectedDivisionFilter !== 'general';
-    const offset = isCategoryMode 
-      ? PLAYOFF_DIVISIONS.findIndex(d => d.id === selectedDivisionFilter) + 1 
-      : 0;
+    // Buscar partidos reales de playoff (si ya se disputaron y cargaron en la BD para esta división)
+    const targetDivOrder = activeDivision ? PLAYOFF_DIVISIONS.findIndex(d => d.id === activeDivision.id) + 7 : -1;
+    const realPlayoffMatches = matches.filter(m => {
+      if (!m.stage || m.stage === 'regular') return false;
+      if (!activeDivision) return false;
+      if (m.division_id === activeDivision.id) return true;
+      const foundDiv = divisions.find(d => d.id === m.division_id);
+      if (foundDiv && targetDivOrder !== -1) {
+        return foundDiv.sort_order === targetDivOrder - 6;
+      }
+      return false;
+    });
 
-    // Cuartos de Final Oficiales:
+    const findRealMatch = (stage: 'cuartos' | 'semifinal' | 'final', home: Team | null, away: Team | null) => {
+      if (!home || !away) return undefined;
+      return realPlayoffMatches.find(
+        m =>
+          m.stage === stage &&
+          m.status === 'finished' &&
+          m.home_goals !== null &&
+          m.away_goals !== null &&
+          ((m.home_team_id === home.id && m.away_team_id === away.id) ||
+           (m.home_team_id === away.id && m.away_team_id === home.id))
+      );
+    };
+
+    const resolveMatchOutcome = (stage: 'cuartos' | 'semifinal' | 'final', home: Team | null, away: Team | null) => {
+      const real = findRealMatch(stage, home, away);
+      if (!real || !home || !away) {
+        return {
+          homeScore: undefined,
+          awayScore: undefined,
+          homePenalties: undefined,
+          awayPenalties: undefined,
+          winnerTeam: null as Team | null,
+        };
+      }
+      const isDirectOrder = real.home_team_id === home.id;
+      const hs = isDirectOrder ? (real.home_goals ?? undefined) : (real.away_goals ?? undefined);
+      const as = isDirectOrder ? (real.away_goals ?? undefined) : (real.home_goals ?? undefined);
+      const hp = isDirectOrder ? (real.home_penalties ?? undefined) : (real.away_penalties ?? undefined);
+      const ap = isDirectOrder ? (real.away_penalties ?? undefined) : (real.home_penalties ?? undefined);
+
+      let winnerTeam: Team | null = null;
+      if (hs !== undefined && as !== undefined) {
+        if (hs > as) winnerTeam = home;
+        else if (as > hs) winnerTeam = away;
+        else if (hp !== undefined && ap !== undefined && hp !== ap) {
+          winnerTeam = hp > ap ? home : away;
+        }
+      }
+
+      return { homeScore: hs, awayScore: as, homePenalties: hp, awayPenalties: ap, winnerTeam };
+    };
+
+    const qfD = resolveMatchOutcome('cuartos', seed4, seed5);
+    const qfB = resolveMatchOutcome('cuartos', seed2, seed7);
+    const qfC = resolveMatchOutcome('cuartos', seed3, seed6);
+
+    // Cuartos de Final Oficiales (proyectados según la tabla actual de las zonas):
     // A: 1ro libre a Semifinal
+    // D: 4° vs 5°
     // B: 2° vs 7°
     // C: 3° vs 6°
-    // D: 4° vs 5°
     // Locales: 2°, 3° y 4°
     const qfMatches: PlayoffMatch[] = [
       {
@@ -177,11 +230,11 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
         awayTeam: seed5,
         homeSeed: 4,
         awaySeed: 5,
-        homeScore: (offset % 2 === 0) ? 2 : 1,
-        awayScore: (offset % 2 === 0) ? 0 : 1,
-        homePenalties: (offset % 2 !== 0) ? 5 : undefined,
-        awayPenalties: (offset % 2 !== 0) ? 4 : undefined,
-        winnerTeamId: seed4?.id,
+        homeScore: qfD.homeScore,
+        awayScore: qfD.awayScore,
+        homePenalties: qfD.homePenalties,
+        awayPenalties: qfD.awayPenalties,
+        winnerTeamId: qfD.winnerTeam?.id,
         divisionLabel: divLabel
       },
       {
@@ -191,9 +244,11 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
         awayTeam: seed7,
         homeSeed: 2,
         awaySeed: 7,
-        homeScore: 3,
-        awayScore: 1,
-        winnerTeamId: seed2?.id,
+        homeScore: qfB.homeScore,
+        awayScore: qfB.awayScore,
+        homePenalties: qfB.homePenalties,
+        awayPenalties: qfB.awayPenalties,
+        winnerTeamId: qfB.winnerTeam?.id,
         divisionLabel: divLabel
       },
       {
@@ -203,14 +258,21 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
         awayTeam: seed6,
         homeSeed: 3,
         awaySeed: 6,
-        homeScore: 2,
-        awayScore: 2,
-        homePenalties: 4,
-        awayPenalties: 5,
-        winnerTeamId: seed6?.id,
+        homeScore: qfC.homeScore,
+        awayScore: qfC.awayScore,
+        homePenalties: qfC.homePenalties,
+        awayPenalties: qfC.awayPenalties,
+        winnerTeamId: qfC.winnerTeam?.id,
         divisionLabel: divLabel
       },
     ];
+
+    const sf1AwayTeam = qfD.winnerTeam;
+    const sf1 = resolveMatchOutcome('semifinal', seed1, sf1AwayTeam);
+
+    const sf2HomeTeam = qfB.winnerTeam;
+    const sf2AwayTeam = qfC.winnerTeam;
+    const sf2 = resolveMatchOutcome('semifinal', sf2HomeTeam, sf2AwayTeam);
 
     // Semifinales Oficiales: A vs D // B vs C
     // Canchas a designar (neutrales)
@@ -218,42 +280,53 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
       {
         id: `${selectedCup}-sf-1`, // A vs D
         stage: 'semifinal',
-        homeTeam: seed1, // 1º Sembrado (A)
-        awayTeam: seed4, // Ganador de D (4° vs 5°)
+        homeTeam: seed1, // 1º Sembrado (A) avanza directo
+        awayTeam: sf1AwayTeam,
+        awayPlaceholder: 'Ganador Cruce D (#4 vs #5)',
         homeSeed: 1,
-        awaySeed: 4,
-        homeScore: 2,
-        awayScore: 1,
-        winnerTeamId: seed1?.id,
+        awaySeed: sf1AwayTeam ? (sf1AwayTeam.id === seed4?.id ? 4 : 5) : undefined,
+        homeScore: sf1.homeScore,
+        awayScore: sf1.awayScore,
+        homePenalties: sf1.homePenalties,
+        awayPenalties: sf1.awayPenalties,
+        winnerTeamId: sf1.winnerTeam?.id,
         divisionLabel: divLabel
       },
       {
         id: `${selectedCup}-sf-2`, // B vs C
         stage: 'semifinal',
-        homeTeam: seed2, // Ganador de B (2° vs 7°)
-        awayTeam: seed6, // Ganador de C (3° vs 6°)
-        homeSeed: 2,
-        awaySeed: 6,
-        homeScore: 1,
-        awayScore: 1,
-        homePenalties: 6,
-        awayPenalties: 5,
-        winnerTeamId: seed2?.id,
+        homeTeam: sf2HomeTeam,
+        awayTeam: sf2AwayTeam,
+        homePlaceholder: 'Ganador Cruce B (#2 vs #7)',
+        awayPlaceholder: 'Ganador Cruce C (#3 vs #6)',
+        homeSeed: sf2HomeTeam ? (sf2HomeTeam.id === seed2?.id ? 2 : 7) : undefined,
+        awaySeed: sf2AwayTeam ? (sf2AwayTeam.id === seed3?.id ? 3 : 6) : undefined,
+        homeScore: sf2.homeScore,
+        awayScore: sf2.awayScore,
+        homePenalties: sf2.homePenalties,
+        awayPenalties: sf2.awayPenalties,
+        winnerTeamId: sf2.winnerTeam?.id,
         divisionLabel: divLabel
       }
     ];
+
+    const finalHomeTeam = sf1.winnerTeam;
+    const finalAwayTeam = sf2.winnerTeam;
+    const fin = resolveMatchOutcome('final', finalHomeTeam, finalAwayTeam);
 
     // Gran Final Oficial: Ganador SF 1 vs Ganador SF 2
     const finalMatch: PlayoffMatch = {
       id: `${selectedCup}-final`,
       stage: 'final',
-      homeTeam: seed1,
-      awayTeam: seed2,
-      homeSeed: 1,
-      awaySeed: 2,
-      homeScore: 2,
-      awayScore: 0,
-      winnerTeamId: seed1?.id,
+      homeTeam: finalHomeTeam,
+      awayTeam: finalAwayTeam,
+      homePlaceholder: 'Ganador Semifinal 1 (A vs D)',
+      awayPlaceholder: 'Ganador Semifinal 2 (B vs C)',
+      homeScore: fin.homeScore,
+      awayScore: fin.awayScore,
+      homePenalties: fin.homePenalties,
+      awayPenalties: fin.awayPenalties,
+      winnerTeamId: fin.winnerTeam?.id,
       divisionLabel: divLabel
     };
 
@@ -262,7 +335,7 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
       sfMatches,
       finalMatch
     };
-  }, [currentSeedList, selectedCup, selectedDivisionFilter, activeDivision]);
+  }, [currentSeedList, selectedCup, selectedDivisionFilter, activeDivision, matches, divisions]);
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -305,31 +378,19 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
           </div>
         </div>
 
-        {/* ─── 1.1 Selector de Categorías Ganadoras (7ª a 14ª) vs Tira General ─── */}
+        {/* ─── 1.1 Selector de Categorías (7ª a 17ª División) ─── */}
         <div className="pt-2 border-t border-border/40 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-primary" />
-              Nivel de Visualización de Playoffs:
+              Categoría en Disputa (Se define por División):
             </span>
             <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-              {activeDivision ? `Mostrando: ${activeDivision.name}` : 'Mostrando: Tira General de Clubes'}
+              {activeDivision ? `Mostrando: ${activeDivision.name} (${activeDivision.year})` : 'Mostrando: 7ª División'}
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              onClick={() => setSelectedDivisionFilter('general')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
-                selectedDivisionFilter === 'general'
-                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                  : 'bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground border-border/50'
-              }`}
-            >
-              <Sparkles className="w-3 h-3" />
-              <span>Resumen Tiras de Clubes</span>
-            </button>
-
             {PLAYOFF_DIVISIONS.map((div) => {
               const isSelected = selectedDivisionFilter === div.id;
               return (
@@ -534,9 +595,10 @@ const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = (
     );
   }
 
-  const isHomeWinner = match.winnerTeamId === match.homeTeam?.id;
-  const isAwayWinner = match.winnerTeamId === match.awayTeam?.id;
+  const isHomeWinner = Boolean(match.winnerTeamId && match.homeTeam && match.winnerTeamId === match.homeTeam.id);
+  const isAwayWinner = Boolean(match.winnerTeamId && match.awayTeam && match.winnerTeamId === match.awayTeam.id);
   const hasPenalties = match.homePenalties !== undefined && match.awayPenalties !== undefined;
+  const championTeam = isHomeWinner ? match.homeTeam : isAwayWinner ? match.awayTeam : null;
 
   return (
     <div className={`p-3.5 rounded-2xl border backdrop-blur-md text-xs transition-all ${
@@ -545,19 +607,19 @@ const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = (
         : 'border-border/60 bg-card/60 shadow-sm'
     }`}>
       {/* Equipo Local */}
-      <div className={`flex items-center justify-between py-1.5 ${isHomeWinner ? 'font-black text-foreground' : 'text-muted-foreground'}`}>
+      <div className={`flex items-center justify-between py-1.5 ${isHomeWinner ? 'font-black text-foreground' : match.homeTeam ? 'font-semibold text-foreground/90' : 'text-muted-foreground italic'}`}>
         <div className="flex items-center space-x-2 truncate pr-2">
           {match.homeSeed && (
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground not-italic">
               #{match.homeSeed}
             </span>
           )}
           <span className="truncate">
-            {match.homeTeam?.display_name || match.homeTeam?.name || 'Por definir'}
+            {match.homeTeam?.display_name || match.homeTeam?.name || match.homePlaceholder || 'Por definir'}
           </span>
         </div>
 
-        <div className="flex items-center space-x-1.5 flex-shrink-0">
+        <div className="flex items-center space-x-1.5 flex-shrink-0 not-italic">
           {hasPenalties && (
             <span className="text-[11px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
               ({match.homePenalties} pen)
@@ -574,19 +636,19 @@ const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = (
       <div className="h-px bg-border/40 my-1" />
 
       {/* Equipo Visitante */}
-      <div className={`flex items-center justify-between py-1.5 ${isAwayWinner ? 'font-black text-foreground' : 'text-muted-foreground'}`}>
+      <div className={`flex items-center justify-between py-1.5 ${isAwayWinner ? 'font-black text-foreground' : match.awayTeam ? 'font-semibold text-foreground/90' : 'text-muted-foreground italic'}`}>
         <div className="flex items-center space-x-2 truncate pr-2">
           {match.awaySeed && (
-            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-muted text-muted-foreground not-italic">
               #{match.awaySeed}
             </span>
           )}
           <span className="truncate">
-            {match.awayTeam?.display_name || match.awayTeam?.name || 'Por definir'}
+            {match.awayTeam?.display_name || match.awayTeam?.name || match.awayPlaceholder || 'Por definir'}
           </span>
         </div>
 
-        <div className="flex items-center space-x-1.5 flex-shrink-0">
+        <div className="flex items-center space-x-1.5 flex-shrink-0 not-italic">
           {hasPenalties && (
             <span className="text-[11px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
               ({match.awayPenalties} pen)
@@ -611,10 +673,10 @@ const BracketMatchCard: React.FC<{ match: PlayoffMatch; isFinal?: boolean }> = (
         </div>
       )}
 
-      {isFinal && isHomeWinner && match.homeTeam && (
+      {isFinal && championTeam && (
         <div className="mt-2 pt-2 border-t border-amber-500/30 flex items-center justify-center gap-1.5 text-[11px] font-black text-amber-500 dark:text-amber-400">
           <Crown className="w-3.5 h-3.5" />
-          <span>¡Campeón: {match.homeTeam.display_name || match.homeTeam.name}!</span>
+          <span>¡Campeón: {championTeam.display_name || championTeam.name}!</span>
         </div>
       )}
     </div>

@@ -182,15 +182,16 @@ export function TeamsPage() {
 
       {/* Search Bar */}
       <div className="relative max-w-md mx-auto">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground/60">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground">
           <Search className="w-5 h-5" />
         </div>
         <input
           type="text"
+          aria-label="Buscar club en el directorio"
           placeholder="Buscar club..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 bg-card border border-border/80 rounded-2xl text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300 shadow-sm"
+          className="w-full pl-11 pr-4 py-3 bg-card border border-border/80 rounded-2xl text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300 shadow-sm"
         />
       </div>
 
@@ -213,7 +214,7 @@ export function TeamsPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3 }}
-                className="bg-card/70 backdrop-blur-md border border-border/60 rounded-3xl p-6 flex flex-col justify-between hover:shadow-xl hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative"
+                className="bg-card border border-border/70 rounded-3xl p-6 flex flex-col justify-between hover:shadow-lg hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 group overflow-hidden relative shadow-xs"
               >
                 {/* Subtle top banner accent */}
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary/30 via-primary to-primary/30 opacity-80 group-hover:opacity-100 transition-opacity" />
@@ -226,15 +227,15 @@ export function TeamsPage() {
                         {team.logo_url ? (
                           <img src={team.logo_url} alt={team.name} className="w-full h-full object-contain" />
                         ) : (
-                          <Shield className="w-8 h-8 text-muted-foreground/50" />
+                          <Shield className="w-8 h-8 text-muted-foreground" />
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight tracking-tight truncate" title={team.display_name ?? team.name}>
+                        <h3 className="font-display font-extrabold text-lg text-foreground group-hover:text-primary transition-colors duration-300 leading-tight tracking-tight truncate" title={team.display_name ?? team.name}>
                           {team.display_name ?? team.name}
                         </h3>
                         {team.display_name && (
-                          <span className="text-xs text-muted-foreground/80 font-semibold block mt-0.5 truncate">
+                          <span className="text-xs text-muted-foreground font-semibold block mt-0.5 truncate">
                             {team.name}
                           </span>
                         )}
@@ -242,16 +243,19 @@ export function TeamsPage() {
                     </div>
 
                     <button
+                      type="button"
+                      aria-pressed={isFavorite(team.id)}
+                      aria-label={isFavorite(team.id) ? `Quitar a ${team.display_name ?? team.name} de favoritos` : `Marcar a ${team.display_name ?? team.name} como favorito`}
                       onClick={() => toggleFavorite(team.id)}
                       className={cn(
                         "p-2.5 rounded-2xl transition-all shrink-0 ml-2 touch-manipulation border",
                         isFavorite(team.id)
                           ? "bg-amber-500/20 border-amber-500/40 text-amber-500 shadow-xs"
-                          : "bg-muted/40 hover:bg-muted border-border/40 text-amber-500/50 hover:text-amber-500"
+                          : "bg-muted/50 hover:bg-muted border-border/60 text-amber-500/60 hover:text-amber-500"
                       )}
                       title={isFavorite(team.id) ? "Quitar de mi equipo favorito" : "Marcar como mi equipo favorito ⭐️"}
                     >
-                      <Star className={cn("w-5 h-5", isFavorite(team.id) ? "fill-amber-400 text-amber-500" : "text-amber-500/50")} />
+                      <Star className={cn("w-5 h-5", isFavorite(team.id) ? "fill-amber-400 text-amber-500" : "text-amber-500/60")} />
                     </button>
                   </div>
 
@@ -259,14 +263,14 @@ export function TeamsPage() {
                   <div className="min-h-[52px] border-t border-border/40 pt-3.5 pb-2 text-xs text-muted-foreground space-y-1">
                     {villa ? (
                       <>
-                        <p className="font-extrabold text-foreground/90 flex items-center gap-1">
+                        <p className="font-extrabold text-foreground flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                           {villa.stadiumName}
                         </p>
-                        <p className="line-clamp-2 leading-relaxed text-muted-foreground/80 pl-4">{villa.address}</p>
+                        <p className="line-clamp-2 leading-relaxed text-muted-foreground pl-4">{villa.address}</p>
                       </>
                     ) : (
-                      <p className="italic text-muted-foreground/40 text-center py-1">Detalle de villa deportiva no disponible</p>
+                      <p className="italic text-muted-foreground text-center py-1">Detalle de villa deportiva no disponible</p>
                     )}
                   </div>
                 </div>

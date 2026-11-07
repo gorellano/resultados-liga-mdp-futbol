@@ -151,18 +151,20 @@ export function CampeonesPage() {
             <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
           )}
           <select
+            aria-label="Seleccionar año del campeonato"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
+            className="bg-background border border-border/70 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
           >
             {availableYears.map(yr => (
               <option key={yr} value={yr}>Año {yr}</option>
             ))}
           </select>
           <select
+            aria-label="Seleccionar torneo"
             value={selectedTournament}
             onChange={(e) => setSelectedTournament(e.target.value)}
-            className="bg-background border border-border/50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
+            className="bg-background border border-border/70 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold shadow-xs"
           >
             {availableTournaments.map(t => (
               <option key={t.id} value={t.id}>{t.name}</option>
@@ -177,14 +179,14 @@ export function CampeonesPage() {
           <span>Cargando campeones del torneo...</span>
         </div>
       ) : champions.length === 0 ? (
-        <div className="text-center py-16 px-6 border border-amber-500/20 rounded-3xl bg-gradient-to-b from-amber-500/5 via-card/40 to-card/20 backdrop-blur-md relative overflow-hidden max-w-xl mx-auto shadow-md">
+        <div className="text-center py-16 px-6 border border-amber-500/25 rounded-3xl bg-gradient-to-b from-amber-500/5 via-card to-card relative overflow-hidden max-w-xl mx-auto shadow-sm">
           <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-500 shadow-inner">
             <Trophy className="w-10 h-10 fill-amber-500/20 animate-soft-pulse" />
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-extrabold border border-amber-500/25 mb-3 uppercase tracking-wider">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-extrabold border border-amber-500/25 mb-3 uppercase tracking-wider">
             {badgeText}
           </span>
-          <h3 className="font-extrabold text-xl text-foreground tracking-tight">¡La copa está en disputa!</h3>
+          <h3 className="font-display font-extrabold text-xl text-foreground tracking-tight">¡La copa está en disputa!</h3>
           <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2 leading-relaxed font-medium">
             Los equipos están dando todo en la cancha. Al finalizar el campeonato, aquí se consagrarán los campeones de cada división.
           </p>
@@ -198,7 +200,7 @@ export function CampeonesPage() {
             if (!campChamp && !promChamp) return null;
 
             return (
-              <div key={division.id} className="bg-card/70 backdrop-blur-md border border-border/60 rounded-3xl shadow-lg p-5 flex flex-col justify-between hover:border-amber-500/40 hover:shadow-amber-500/5 transition-all duration-300 relative overflow-hidden group">
+              <div key={division.id} className="bg-card border border-border/70 rounded-3xl shadow-sm p-5 flex flex-col justify-between hover:border-amber-500/40 hover:shadow-md transition-all duration-300 relative overflow-hidden group">
                 {/* Top gold accent line */}
                 <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600" />
 

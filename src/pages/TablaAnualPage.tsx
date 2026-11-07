@@ -316,8 +316,9 @@ export function TablaAnualPage() {
             {tournaments.length > 0 && (
               <div className="flex items-center gap-1.5 bg-muted/60 border border-border/70 rounded-xl px-3 py-1.5">
                 <Filter className="w-4 h-4 text-primary shrink-0" />
-                <span className="text-xs font-semibold text-muted-foreground">Torneo:</span>
+                <label htmlFor="tabla-anual-tournament-select" className="text-xs font-semibold text-muted-foreground">Torneo:</label>
                 <select
+                  id="tabla-anual-tournament-select"
                   value={selectedTournamentId}
                   onChange={(e) => {
                     const newId = e.target.value;
@@ -340,6 +341,7 @@ export function TablaAnualPage() {
             {/* Toggle Estadísticas Extendidas (PJ, PG, PE, PP, DIF) */}
             <button
               type="button"
+              aria-pressed={showExtendedStats}
               onClick={() => setShowExtendedStats(!showExtendedStats)}
               className="text-xs font-semibold text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl border border-border/70 bg-muted/40 hover:bg-muted/80 transition-colors"
             >
@@ -352,6 +354,7 @@ export function TablaAnualPage() {
             <Search className="w-4 h-4 text-muted-foreground absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
+              aria-label="Buscar club en la tabla general"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar club..."
@@ -364,15 +367,15 @@ export function TablaAnualPage() {
       {/* ── Tabla General ── */}
       <section className="bg-card border border-border/70 rounded-2xl overflow-hidden shadow-xs">
         {loading ? (
-          <div className="p-12 text-center text-slate-500 dark:text-slate-400 text-sm font-medium flex items-center justify-center gap-2">
+          <div className="p-12 text-center text-muted-foreground text-sm font-medium flex items-center justify-center gap-2">
             <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span>Calculando posiciones de la tabla general...</span>
           </div>
         ) : filteredStandings.length === 0 ? (
           <div className="p-12 text-center space-y-2">
-            <Info className="w-8 h-8 text-slate-400 mx-auto" />
-            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-base">No se encontraron resultados</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+            <Info className="w-8 h-8 text-muted-foreground mx-auto" />
+            <h3 className="font-bold text-foreground text-base">No se encontraron resultados</h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
               {searchQuery
                 ? `No hay clubes que coincidan con "${searchQuery}".`
                 : `Aún no hay partidos finalizados cargados para el torneo seleccionado.`}
@@ -382,7 +385,7 @@ export function TablaAnualPage() {
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 dark:bg-slate-900/80 border-b border-border/70 text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                <tr className="bg-muted/50 border-b border-border/70 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                   <th className="py-3 px-3 text-center w-12 sticky left-0 bg-card z-20 border-r border-border/40">
                     Pos
                   </th>
@@ -404,11 +407,11 @@ export function TablaAnualPage() {
                   {/* Estadísticas extendidas */}
                   {showExtendedStats && (
                     <>
-                      <th className="py-3 px-2 text-center text-slate-500 min-w-[36px]">PJ</th>
+                      <th className="py-3 px-2 text-center text-muted-foreground min-w-[36px]">PJ</th>
                       <th className="py-3 px-2 text-center text-emerald-600 dark:text-emerald-400 min-w-[36px]">PG</th>
                       <th className="py-3 px-2 text-center text-amber-600 dark:text-amber-400 min-w-[36px]">PE</th>
                       <th className="py-3 px-2 text-center text-rose-600 dark:text-rose-400 min-w-[36px]">PP</th>
-                      <th className="py-3 px-2 text-center text-slate-600 dark:text-slate-300 min-w-[40px]">DIF</th>
+                      <th className="py-3 px-2 text-center text-foreground min-w-[40px]">DIF</th>
                     </>
                   )}
 
@@ -471,7 +474,7 @@ export function TablaAnualPage() {
                           <td
                             key={div.id}
                             className={`py-2.5 px-2 text-center font-semibold text-xs ${
-                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/35'
+                              pts > 0 ? 'text-foreground' : 'text-muted-foreground/65'
                             }`}
                           >
                             {pts}

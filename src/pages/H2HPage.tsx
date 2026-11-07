@@ -7,8 +7,10 @@ import type { Division, Team, Match } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { calculateStandings } from '../lib/standings';
 import { ClubLogo } from '../components/ClubLogo';
+import { useTournament } from '../context/TournamentContext';
 
 export function H2HPage() {
+  const { selectedTournamentId, selectedTournament } = useTournament();
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -45,14 +47,18 @@ export function H2HPage() {
     loadData();
   }, []);
 
-  // Cargar partidos de la división seleccionada (optimizado a una sola query)
+  // Cargar partidos de la división seleccionada respetando el torneo activo del contexto
   useEffect(() => {
+    let isMounted = true;
     async function loadMatches() {
       if (!selectedDivisionId) return;
       try {
-        const tourns = await fetchTournaments();
-        if (tourns.length === 0) return;
-        const tournamentId = tourns[0].id;
+        let tournamentId = selectedTournamentId;
+        if (!tournamentId) {
+          const tourns = await fetchTournaments();
+          if (tourns.length === 0) return;
+          tournamentId = tourns[0].id;
+        }
 
         let divMatches = await fetchTournamentDivisionMatches(tournamentId, selectedDivisionId);
 
@@ -61,13 +67,14 @@ export function H2HPage() {
           divMatches = allM.filter(m => m.division_id === selectedDivisionId);
         }
 
-        setMatches(divMatches);
+        if (isMounted) setMatches(divMatches);
       } catch (err) {
         console.error('Error cargando partidos de división para H2H:', err);
       }
     }
     loadMatches();
-  }, [selectedDivisionId]);
+    return () => { isMounted = false; };
+  }, [selectedDivisionId, selectedTournamentId]);
 
   const youthDivisions = useMemo(() => {
     return divisions.filter(d => !isExcludedDivision(d.name));
@@ -115,7 +122,7 @@ export function H2HPage() {
       className="space-y-8 max-w-4xl mx-auto"
     >
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card/40 border border-border/50 p-6 rounded-3xl backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border/70 p-6 rounded-3xl shadow-xs">
         <div>
           <Link
             to="/equipos"
@@ -124,29 +131,30 @@ export function H2HPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             Volver a Equipos
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-foreground flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-display font-black tracking-tight text-foreground flex items-center gap-2.5">
             <Swords className="w-7 h-7 text-primary shrink-0" />
-            Modo versus
+            Modo Versus
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Analizá el historial de duelos directos, victorias y estadísticas entre dos equipos.
+            Analizá el historial de duelos directos, victorias y estadísticas entre dos equipos{selectedTournament ? ` en ${selectedTournament.name}` : ''}.
           </p>
         </div>
       </div>
 
       {/* Selector de División y Equipos */}
-      <div className="bg-card/60 border border-border/60 rounded-3xl p-5 sm:p-6 shadow-md backdrop-blur-md space-y-4">
+      <div className="bg-card border border-border/70 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* División */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">División / Categoría</label>
+            <label htmlFor="h2h-division-select" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">División / Categoría</label>
             <select
+              id="h2h-division-select"
               value={selectedDivisionId}
               onChange={(e) => setSelectedDivisionId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
+              className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {youthDivisions.map(d => (
-                <option key={d.id} value={d.id} className="bg-slate-900 text-slate-100 py-1.5 font-medium">
+                <option key={d.id} value={d.id} className="bg-card text-foreground py-1.5 font-medium">
                   {d.name}
                 </option>
               ))}
@@ -155,14 +163,15 @@ export function H2HPage() {
 
           {/* Equipo A */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-primary uppercase tracking-wider">Equipo 1</label>
+            <label htmlFor="h2h-team-a-select" className="text-xs font-bold text-primary uppercase tracking-wider">Equipo 1</label>
             <select
+              id="h2h-team-a-select"
               value={teamAId}
               onChange={(e) => setTeamAId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
+              className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {sortedTeams.map(t => (
-                <option key={t.id} value={t.id} disabled={t.id === teamBId} className="bg-slate-900 text-slate-100 py-1.5 font-medium disabled:opacity-40">
+                <option key={t.id} value={t.id} disabled={t.id === teamBId} className="bg-card text-foreground py-1.5 font-medium disabled:opacity-40">
                   {t.display_name ?? t.name}
                 </option>
               ))}
@@ -171,14 +180,15 @@ export function H2HPage() {
 
           {/* Equipo B */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-primary uppercase tracking-wider">Equipo 2</label>
+            <label htmlFor="h2h-team-b-select" className="text-xs font-bold text-primary uppercase tracking-wider">Equipo 2</label>
             <select
+              id="h2h-team-b-select"
               value={teamBId}
               onChange={(e) => setTeamBId(e.target.value)}
-              className="w-full bg-background border border-border/60 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
+              className="w-full bg-background border border-border/70 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold text-foreground cursor-pointer shadow-xs"
             >
               {sortedTeams.map(t => (
-                <option key={t.id} value={t.id} disabled={t.id === teamAId} className="bg-slate-900 text-slate-100 py-1.5 font-medium disabled:opacity-40">
+                <option key={t.id} value={t.id} disabled={t.id === teamAId} className="bg-card text-foreground py-1.5 font-medium disabled:opacity-40">
                   {t.display_name ?? t.name}
                 </option>
               ))}
@@ -198,7 +208,7 @@ export function H2HPage() {
       ) : (
         <div className="space-y-6">
           {/* Card Principal VS */}
-          <div className="bg-gradient-to-b from-card/80 via-card/40 to-card/20 border border-border/60 rounded-3xl p-6 sm:p-8 shadow-xl text-center backdrop-blur-md relative overflow-hidden">
+          <div className="bg-card border border-border/70 rounded-3xl p-6 sm:p-8 shadow-sm text-center relative overflow-hidden">
             <div className="grid grid-cols-3 items-center">
               {/* Equipo A */}
               <div className="flex flex-col items-center gap-2">
@@ -324,14 +334,14 @@ export function H2HPage() {
                   const awayName = isAHome ? (teamB.display_name ?? teamB.name) : (teamA.display_name ?? teamA.name);
 
                   return (
-                    <div key={m.id} className="flex items-center justify-between p-4 bg-muted/30 border border-border/40 rounded-2xl text-xs sm:text-sm">
-                      <span className="text-muted-foreground font-semibold">Fecha {m.round_number}</span>
-                      <div className="flex items-center gap-3 font-extrabold">
-                        <span>{homeName}</span>
-                        <span className="px-3 py-1 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-xs">
+                    <div key={m.id} className="flex items-center justify-between gap-2 p-3.5 sm:p-4 bg-muted/30 border border-border/50 rounded-2xl text-xs sm:text-sm">
+                      <span className="text-muted-foreground font-semibold shrink-0">Fecha {m.round_number}</span>
+                      <div className="flex items-center justify-end gap-2 sm:gap-3 font-extrabold min-w-0 flex-1">
+                        <span className="truncate text-right">{homeName}</span>
+                        <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-primary text-primary-foreground font-display font-black text-xs sm:text-sm shadow-xs shrink-0">
                           {m.home_goals} - {m.away_goals}
                         </span>
-                        <span>{awayName}</span>
+                        <span className="truncate text-left">{awayName}</span>
                       </div>
                     </div>
                   );

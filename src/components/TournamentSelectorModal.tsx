@@ -43,6 +43,9 @@ export const TournamentSelectorModal: React.FC = () => {
 
         {/* Modal Sheet */}
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tournament-modal-title"
           initial={{ opacity: 0, y: 40, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 30, scale: 0.96 }}
@@ -60,7 +63,7 @@ export const TournamentSelectorModal: React.FC = () => {
                 <Trophy className="w-5 h-5 text-amber-500 dark:text-amber-400" />
               </div>
               <div>
-                <h3 className="text-lg font-black tracking-tight text-foreground">
+                <h3 id="tournament-modal-title" className="text-lg font-display font-black tracking-tight text-foreground">
                   Seleccionar Torneo
                 </h3>
                 <p className="text-xs text-muted-foreground font-medium">
@@ -69,6 +72,7 @@ export const TournamentSelectorModal: React.FC = () => {
               </div>
             </div>
             <button
+              type="button"
               onClick={closeSelector}
               className="p-2 rounded-full hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors active:scale-90"
               aria-label="Cerrar modal"
@@ -96,10 +100,12 @@ export const TournamentSelectorModal: React.FC = () => {
               const isAdaro = tourn.id === ADARO_TOURNAMENT_ID || tourn.name.toLowerCase().includes('adaro');
 
               return (
-                <div
+                <button
                   key={tourn.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => handleSelect(tourn)}
-                  className={`group relative p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] ${
+                  className={`w-full text-left group relative p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                     isSelected
                       ? 'bg-primary/5 dark:bg-primary/10 border-primary/60 shadow-[0_4px_20px_-4px_rgba(16,185,129,0.25)] ring-1 ring-primary/40'
                       : 'bg-card/50 hover:bg-muted/50 border-border/60 hover:border-border shadow-sm'
@@ -179,11 +185,11 @@ export const TournamentSelectorModal: React.FC = () => {
                           <CheckCircle2 className="w-5 h-5 text-primary" />
                         </div>
                       ) : (
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                       )}
                     </div>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

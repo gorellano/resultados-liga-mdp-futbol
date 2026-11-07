@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mail, Send, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
@@ -17,19 +17,26 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleClose = () => {
-    // Reset fields on close
-    handleCancel();
-    onClose();
-  };
-
-  const handleCancel = () => {
-    // Solo limpia los campos, no cierra el modal
+  const handleCancel = useCallback(() => {
     setEmail('');
     setTitle('');
     setBody('');
     setError(null);
-  };
+  }, []);
+
+  const handleClose = useCallback(() => {
+    handleCancel();
+    onClose();
+  }, [handleCancel, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClose();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, handleClose]);
 
   // Función de desinfección (sanitización) contra XSS para remover etiquetas HTML y código script malicioso
   const sanitizeInput = (str: string): string => {
@@ -110,21 +117,26 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
             className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
           />
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-modal-title"
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className="fixed left-[50%] top-[50%] z-50 w-full max-w-lg translate-x-[-50%] translate-y-[-50%] p-4"
           >
-            <div className="bg-card border border-border/50 shadow-2xl rounded-2xl overflow-hidden flex flex-col">
+            <div className="bg-card border border-border/70 shadow-2xl rounded-2xl overflow-hidden flex flex-col">
               <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-muted/30">
                 <div className="flex items-center gap-2">
                   <div className="p-2 bg-primary/10 rounded-lg">
                     <Mail className="w-5 h-5 text-primary" />
                   </div>
-                  <h2 className="text-xl font-bold">Contacto</h2>
+                  <h2 id="contact-modal-title" className="text-xl font-display font-bold">Contacto</h2>
                 </div>
                 <button
+                  type="button"
                   onClick={handleClose}
+                  aria-label="Cerrar modal de contacto"
                   className="p-2 hover:bg-muted rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />
@@ -196,7 +208,7 @@ export function ContactModal({ isOpen, onClose, onSuccess }: ContactModalProps) 
                 <div className="flex items-center justify-end gap-3 mt-4">
                   <button
                     type="button"
-                    onClick={handleCancel}
+                    onClick={handleClose}
                     className="px-5 py-2.5 text-sm font-medium hover:bg-muted rounded-xl transition-colors"
                   >
                     Cancelar

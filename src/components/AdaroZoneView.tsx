@@ -508,11 +508,19 @@ export const AdaroZoneView: React.FC<AdaroZoneViewProps> = ({
                               )}
                             </div>
                             <div className="min-w-0">
-                              <span className="font-extrabold text-foreground block truncate text-xs sm:text-sm">
-                                <span className="sm:hidden">{getTeamShortName(row.team)}</span>
-                                <span className="hidden sm:inline">{row.team.display_name || row.team.name}</span>
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-extrabold text-foreground block truncate text-xs sm:text-sm">
+                                  <span className="sm:hidden">{getTeamShortName(row.team)}</span>
+                                  <span className="hidden sm:inline">{row.team.display_name || row.team.name}</span>
+                                </span>
+                                <span className={`md:hidden inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold border ${badge.bgClass} ${badge.textClass} ${badge.borderClass}`}>
+                                  <span>{badge.emoji}</span>
+                                  <span>{badge.name}</span>
+                                </span>
+                              </div>
                               <button
+                                type="button"
+                                aria-expanded={isBreakdownOpen}
                                 onClick={() => setExpandedClubBreakdown(isBreakdownOpen ? null : row.team.id)}
                                 className="text-[10px] text-primary hover:text-primary/80 flex items-center gap-1 font-semibold transition-colors mt-0.5 whitespace-nowrap"
                               >

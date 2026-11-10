@@ -36,6 +36,7 @@ import {
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
 import { ALL_MOCK_TEAMS } from '../lib/mockAdaroData';
+import { getDivisionOrder } from '../lib/adaroStandings';
 
 const SponsorsSettings = lazy(() =>
   import('./SponsorsSettings').then(m => ({ default: m.SponsorsSettings }))
@@ -274,14 +275,19 @@ export function AdminDashboard() {
           })
         ]);
         setTournaments(tourns);
-        const validDivs = divs.filter(d => !isExcludedDivision(d.name));
+        const validDivs = divs
+          .filter(d => !isExcludedDivision(d.name))
+          .sort((a, b) => getDivisionOrder(a.name) - getDivisionOrder(b.name));
         setDivisions(validDivs);
         setZones(zns);
         setTeams(tms);
         setMessages(msgs);
 
         if (tourns.length > 0) setSelectedTournamentId(tourns[0].id);
-        if (validDivs.length > 0) setSelectedDivisionId(validDivs[0].id);
+        if (validDivs.length > 0) {
+          const septima = validDivs.find(d => getDivisionOrder(d.name) === 7) || validDivs[0];
+          setSelectedDivisionId(septima.id);
+        }
         if (zns.length > 0) setSelectedZoneId(zns[0].id);
       } catch (err) {
         console.error('Error loading admin dashboard base data:', err);

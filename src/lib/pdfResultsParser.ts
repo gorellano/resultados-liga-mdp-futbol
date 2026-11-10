@@ -66,18 +66,21 @@ export const TEAM_ALIAS_MAP: Record<string, string> = {
   "ALMAGRO FLORIDA": "Almagro Florida",
 };
 
-// Mapeo de nombres de divisiones a número de división
+// Mapeo de nombres de divisiones a número de división (ordenados de 17ª a 7ª para evitar que "DECIMOSEPTIMA" coincida con "SEPTIMA")
 export const DIVISION_NAME_MAP: Record<string, number> = {
-  "SEPTIMA DIVISION": 7,
-  "OCTAVA DIVISION": 8,
-  "NOVENA DIVISION": 9,
-  "DECIMA DIVISION": 10,
-  "DECIMOPRIMERA DIVISION": 11,
-  "DECIMOSEGUNDA DIVISION": 12,
-  "DECIMOTERCERA DIVISION": 13,
-  "DECIMOCUARTA DIVISION": 14,
-  "DECIMOQUINTA DIVISION": 15,
+  "DECIMOSEPTIMA DIVISION": 17,
   "DECIMOSEXTA DIVISION": 16,
+  "DECIMOQUINTA DIVISION": 15,
+  "DECIMOCUARTA DIVISION": 14,
+  "DECIMOTERCERA DIVISION": 13,
+  "DECIMOSEGUNDA DIVISION": 12,
+  "DUODECIMA DIVISION": 12,
+  "DECIMOPRIMERA DIVISION": 11,
+  "UNDECIMA DIVISION": 11,
+  "DECIMA DIVISION": 10,
+  "NOVENA DIVISION": 9,
+  "OCTAVA DIVISION": 8,
+  "SEPTIMA DIVISION": 7,
 };
 
 /**
@@ -173,6 +176,9 @@ export function parseBoletinPdfText(fullTextPages: string[]): ParsePdfSummary {
       }
     }
   }
+
+  // Ordenar resultados por división de 7ª a 17ª para que Séptima División aparezca siempre primero
+  results.sort((a, b) => a.divisionNumber - b.divisionNumber);
 
   const finishedCount = results.filter(r => r.status === 'finished' && !r.isNoShow).length;
   const postponedCount = results.filter(r => r.isPostponed).length;

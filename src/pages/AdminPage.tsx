@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Save, CheckCircle2 } from 'lucide-react';
 import { cn } from '../App';
 import { authenticateUser, fetchTournaments, fetchDivisions, fetchZones, fetchTeams, fetchMatches, saveMatchResult, isExcludedDivision } from '../lib/db';
+import { getDivisionOrder } from '../lib/adaroStandings';
 import { loadAuth, clearAuth } from '../lib/auth';
 import type { AuthUser } from '../lib/auth';
 import type { Team, Match, Tournament, Division, Zone } from '../lib/types';
@@ -48,14 +49,17 @@ export function AdminPage() {
         fetchZones(),
         fetchTeams()
       ]);
+      const sortedDivs = divs
+        .filter(d => !isExcludedDivision(d.name))
+        .sort((a, b) => getDivisionOrder(a.name) - getDivisionOrder(b.name));
       setTournaments(tourns);
-      setDivisions(divs);
+      setDivisions(sortedDivs);
       setZones(zns);
       setTeams(tms);
 
       if (tourns.length > 0) setSelectedTournament(tourns[0].id);
-      if (divs.length > 0) {
-        const defaultDiv = divs.find(d => !isExcludedDivision(d.name)) || divs[0];
+      if (sortedDivs.length > 0) {
+        const defaultDiv = sortedDivs.find(d => getDivisionOrder(d.name) === 7) || sortedDivs[0];
         setSelectedDivision(defaultDiv.id);
       }
       if (zns.length > 0) setSelectedZone(zns[0].id);

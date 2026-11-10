@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Shield, Swords, Trophy, Calendar } from 'lucide-react';
+import { X, Shield, Swords, Trophy, Calendar, Clock } from 'lucide-react';
 import type { Team, Match, Standing } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { cn } from '../App';
@@ -85,7 +85,7 @@ export function H2HModal({
                     <Shield className="w-8 h-8 text-muted-foreground" />
                   )}
                 </div>
-                <span className="font-extrabold text-sm sm:text-base leading-tight max-w-[110px] truncate" title={teamA.name}>
+                <span className="font-extrabold text-sm sm:text-base leading-tight max-w-[160px] sm:max-w-[200px] truncate" title={teamA.name}>
                   {teamA.display_name ?? teamA.name}
                 </span>
                 <span className="text-2xl sm:text-3xl font-black text-primary">{stats.winsA}</span>
@@ -114,7 +114,7 @@ export function H2HModal({
                     <Shield className="w-8 h-8 text-muted-foreground" />
                   )}
                 </div>
-                <span className="font-extrabold text-sm sm:text-base leading-tight max-w-[110px] truncate" title={teamB.name}>
+                <span className="font-extrabold text-sm sm:text-base leading-tight max-w-[160px] sm:max-w-[200px] truncate" title={teamB.name}>
                   {teamB.display_name ?? teamB.name}
                 </span>
                 <span className="text-2xl sm:text-3xl font-black text-primary">{stats.winsB}</span>
@@ -205,6 +205,35 @@ export function H2HModal({
                 </div>
               )}
             </div>
+
+            {/* Próximos partidos a jugarse */}
+            {stats.upcomingMatches.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-primary" /> Próximos Partidos a Jugarse
+                </h4>
+                <div className="space-y-2">
+                  {stats.upcomingMatches.map(m => {
+                    const isAHome = m.home_team_id === teamA.id;
+                    const homeName = isAHome ? (teamA.display_name ?? teamA.name) : (teamB.display_name ?? teamB.name);
+                    const awayName = isAHome ? (teamB.display_name ?? teamB.name) : (teamA.display_name ?? teamA.name);
+
+                    return (
+                      <div key={m.id} className="flex items-center justify-between p-3 bg-muted/20 border border-border/40 rounded-xl text-xs sm:text-sm">
+                        <span className="text-muted-foreground font-semibold w-16">Fecha {m.round_number}</span>
+                        <div className="flex items-center gap-2 flex-1 justify-center font-bold">
+                          <span className="text-foreground">{homeName}</span>
+                          <span className="px-2 py-0.5 rounded bg-muted border border-border/60 text-muted-foreground font-bold text-[11px] uppercase">
+                            {m.status === 'postponed' ? 'Postergado' : 'Programado'}
+                          </span>
+                          <span className="text-foreground">{awayName}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

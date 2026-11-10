@@ -17,6 +17,7 @@ import {
   getAdaroDivisionIndex,
   getAdaroZoneIndex
 } from './mockAdaroData';
+import { getDivisionOrder } from './adaroStandings';
 import { saveAuth } from './auth';
 
 // In-memory copies of mock matches to persist edits during the mock session
@@ -334,14 +335,28 @@ export async function fetchDivisions(): Promise<Division[]> {
       const valid = (data || []).filter(d => !isExcludedDivision(d.name));
       if (valid.length > 0) {
         // Garantizar que la 17ma division exista en la lista sin duplicar
-        const has17 = valid.some(d => {
-          const norm = d.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return norm.includes('17') || norm.includes('decimoseptima');
-        });
+        const has17 = valid.some(d => getDivisionOrder(d.name) === 17);
         if (!has17) {
           valid.push({ id: '11111111-0001-0001-0001-000000000011', name: '17ma División', sort_order: 11 });
         }
-        return valid;
+
+        // Normalizar sort_order y ordenar estrictamente de Séptima (7ª) a Decimoséptima (17ª)
+        const normalized = valid.map(d => {
+          const order = getDivisionOrder(d.name);
+          return {
+            ...d,
+            sort_order: order >= 7 && order <= 17 ? order - 6 : d.sort_order,
+          };
+        });
+
+        normalized.sort((a, b) => {
+          const orderA = getDivisionOrder(a.name);
+          const orderB = getDivisionOrder(b.name);
+          if (orderA !== orderB) return orderA - orderB;
+          return (a.sort_order ?? 99) - (b.sort_order ?? 99);
+        });
+
+        return normalized;
       }
       return mockDivisions;
     } catch (err) {
@@ -714,6 +729,126 @@ export async function fetchTournamentDivisionMatches(tournamentId: string, divis
       return allMatches;
     }
     return [];
+  });
+}
+
+/**
+ * Obtiene todos los partidos históricos y programados de una división a través de TODOS los torneos juveniles.
+ * Ideal para el Modo Versus (H2H) sin depender de un único torneo seleccionado.
+ */
+export async function fetchDivisionMatchesAcrossAllTournaments(
+  divisionId: string
+): Promise<{ matches: Match[]; tournamentNames: Record<string, string> }> {
+  const cacheKey = `matches_all_tournaments_div_${divisionId}`;
+  return withCache(cacheKey, 2 * 60 * 1000, async () => {
+    const [tourns, teams, divs, zns] = await Promise.all([
+      fetchTournaments(),
+      fetchTeams(),
+      fetchDivisions(),
+      fetchZones(),
+    ]);
+
+    const tournamentNames: Record<string, string> = {
+      [ADARO_TOURNAMENT_ID]: ADARO_TOURNAMENT.name,
+    };
+
+    const adaroTourn = tourns.find(
+      t =>
+        t.id === ADARO_TOURNAMENT_ID ||
+        t.name.toLowerCase().includes('adaro') ||
+        t.name.toLowerCase().includes('chamaco')
+    );
+    const canonicalAdaroId = adaroTourn ? adaroTourn.id : ADARO_TOURNAMENT_ID;
+    tournamentNames[canonicalAdaroId] = adaroTourn
+      ? `${adaroTourn.name}${adaroTourn.year ? ` ${adaroTourn.year}` : ''}`
+      : ADARO_TOURNAMENT.name;
+
+    tourns.forEach(t => {
+      tournamentNames[t.id] = `${t.name}${t.year && !t.name.includes(String(t.year)) ? ` ${t.year}` : ''}`;
+    });
+
+    const combinedMatches: Match[] = [];
+
+    if (isSupabaseActive()) {
+      try {
+        const [{ data: dbTourns }, { data: dbMatches, error: matchErr }] = await Promise.all([
+          supabase.from('tournaments').select('id, name, year'),
+          supabase
+            .from('matches')
+            .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage')
+            .eq('division_id', divisionId),
+        ]);
+
+        const excludedTournamentIds = new Set<string>();
+        (dbTourns || []).forEach(t => {
+          const lower = (t.name || '').toLowerCase();
+          if (
+            lower.includes('cacho') ||
+            lower.includes('mendez') ||
+            lower.includes('méndez') ||
+            lower.includes('joaquin') ||
+            lower.includes('joaquín') ||
+            lower.includes('reyes')
+          ) {
+            excludedTournamentIds.add(t.id);
+          } else {
+            tournamentNames[t.id] = `${t.name}${t.year && !t.name.includes(String(t.year)) ? ` ${t.year}` : ''}`;
+          }
+        });
+
+        if (!matchErr && dbMatches && dbMatches.length > 0) {
+          dbMatches.forEach(m => {
+            if (excludedTournamentIds.has(m.tournament_id)) return;
+            const tName = (tournamentNames[m.tournament_id] || '').toLowerCase();
+            const isAdaroMatch =
+              m.tournament_id === ADARO_TOURNAMENT_ID ||
+              m.tournament_id === canonicalAdaroId ||
+              tName.includes('adaro') ||
+              tName.includes('chamaco');
+            combinedMatches.push({
+              ...m,
+              tournament_id: isAdaroMatch ? canonicalAdaroId : m.tournament_id,
+              status: m.status as 'scheduled' | 'finished' | 'postponed',
+            });
+          });
+        }
+      } catch (err) {
+        console.warn('Supabase fetchDivisionMatchesAcrossAllTournaments failed, using fallbacks:', err);
+      }
+    }
+
+    // Asegurar que las 6 fechas oficiales del Torneo Chamaco Adaro (incluidos los próximos partidos a jugarse) estén presentes
+    const adaroPool = getOrGenerateAdaroMatches(teams, divs, zns);
+    const targetDivIdx = getAdaroDivisionIndex(divisionId, divs);
+    const adaroDivMatches = adaroPool
+      .filter(m => {
+        if (m.division_id === divisionId) return true;
+        if (targetDivIdx !== -1) {
+          return getAdaroDivisionIndex(m.division_id, divs) === targetDivIdx;
+        }
+        return false;
+      })
+      .map(m => ({
+        ...m,
+        division_id: divisionId,
+        tournament_id: canonicalAdaroId,
+      }));
+    combinedMatches.push(...adaroDivMatches);
+
+    // En modo offline / mock, incluir también los partidos de torneos anteriores en memoria
+    if (!isSupabaseActive()) {
+      MOCK_TOURNAMENTS.forEach(t => {
+        tournamentNames[t.id] = `${t.name}${t.year && !t.name.includes(String(t.year)) ? ` ${t.year}` : ''}`;
+      });
+      memoryMatchesCamp.forEach(m => {
+        combinedMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000001' });
+      });
+      memoryMatchesProm.forEach(m => {
+        combinedMatches.push({ ...m, division_id: divisionId, zone_id: '22222222-0001-0001-0001-000000000002' });
+      });
+    }
+
+    return { matches: combinedMatches, tournamentNames };
   });
 }
 
@@ -1270,11 +1405,11 @@ export async function saveBatchParsedMatchResults(
       return found ? found.id : null;
     };
 
-    // Mapeo auxiliar de división por número
+    // Mapeo auxiliar de división por número (7ª a 17ª)
     const findDivisionId = (divNum: number): string | null => {
       const found = divisions.find(d => 
-        d.sort_order === (divNum - 6) || 
-        d.name.includes(`${divNum}`)
+        getDivisionOrder(d.name) === divNum ||
+        d.sort_order === (divNum - 6)
       );
       return found ? found.id : null;
     };

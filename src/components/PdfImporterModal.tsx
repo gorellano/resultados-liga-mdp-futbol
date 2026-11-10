@@ -356,8 +356,8 @@ export const PdfImporterModal: React.FC<PdfImporterModalProps> = ({
                       onChange={(e) => setFilterDivision(e.target.value)}
                       className="bg-transparent text-white font-medium focus:outline-none"
                     >
-                      <option value="all" className="bg-slate-900">Todas (7ª a 16ª)</option>
-                      {[7,8,9,10,11,12,13,14,15,16].map(d => (
+                      <option value="all" className="bg-slate-900">Todas (7ª a 17ª)</option>
+                      {[7,8,9,10,11,12,13,14,15,16,17].map(d => (
                         <option key={d} value={d.toString()} className="bg-slate-900">{d}ª División</option>
                       ))}
                     </select>

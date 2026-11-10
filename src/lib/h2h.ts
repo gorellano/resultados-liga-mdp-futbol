@@ -8,6 +8,7 @@ export interface H2HStats {
   goalsA: number;
   goalsB: number;
   h2hMatches: Match[];
+  upcomingMatches: Match[];
   standingA?: Standing | null;
   standingB?: Standing | null;
   dominantTeamId?: string | null;
@@ -19,11 +20,30 @@ export function calculateH2HStats(
   allMatches: Match[],
   standings: Standing[] = []
 ): H2HStats {
-  const h2hMatches = allMatches.filter(m => 
-    m.status === 'finished' &&
-    ((m.home_team_id === teamAId && m.away_team_id === teamBId) ||
-     (m.home_team_id === teamBId && m.away_team_id === teamAId))
-  ).sort((a, b) => (b.round_number ?? 0) - (a.round_number ?? 0));
+  const betweenTeams = allMatches.filter(m =>
+    (m.home_team_id === teamAId && m.away_team_id === teamBId) ||
+    (m.home_team_id === teamBId && m.away_team_id === teamAId)
+  );
+
+  // Deduplicar por torneo + fecha + local + visitante (priorizando 'finished' si hubiera fallback mock + DB)
+  const dedupedMap = new Map<string, Match>();
+  betweenTeams.forEach(m => {
+    const key = `${m.tournament_id || 'default'}_r${m.round_number ?? 0}_${m.home_team_id}_${m.away_team_id}`;
+    const existing = dedupedMap.get(key);
+    if (!existing || (existing.status !== 'finished' && m.status === 'finished')) {
+      dedupedMap.set(key, m);
+    }
+  });
+
+  const uniqueMatches = Array.from(dedupedMap.values());
+
+  const h2hMatches = uniqueMatches
+    .filter(m => m.status === 'finished')
+    .sort((a, b) => (b.round_number ?? 0) - (a.round_number ?? 0));
+
+  const upcomingMatches = uniqueMatches
+    .filter(m => m.status === 'scheduled' || m.status === 'postponed')
+    .sort((a, b) => (a.round_number ?? 0) - (b.round_number ?? 0));
 
   let winsA = 0;
   let winsB = 0;
@@ -66,6 +86,7 @@ export function calculateH2HStats(
     goalsA,
     goalsB,
     h2hMatches,
+    upcomingMatches,
     standingA,
     standingB,
     dominantTeamId

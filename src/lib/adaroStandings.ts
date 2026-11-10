@@ -233,6 +233,17 @@ export function getDivisionOrder(name: string): number {
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
+  // Reconocer IDs canónicos mock (11111111-0001-0001-0001-000000000001 -> 7, ..., 0011 -> 17)
+  const mockMatch = norm.match(/^11111111-0001-0001-0001-0000000000(0[1-9]|1[01])$/);
+  if (mockMatch) {
+    return 6 + parseInt(mockMatch[1], 10);
+  }
+
+  // Si es un UUID genérico de base de datos, no intentar adivinar por dígitos hexadecimales
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(norm)) {
+    return 99;
+  }
+
   // Excluir pre-décimas/formativas
   if (norm.includes('pre-decima') || norm.includes('predecima')) {
     if (norm.includes('2018') || norm.includes('15')) return 15;
@@ -241,17 +252,31 @@ export function getDivisionOrder(name: string): number {
     return 15;
   }
 
-  if (norm.includes('decimoseptima') || norm.includes('decima septima') || norm.includes('17')) return 17;
-  if (norm.includes('decimosexta') || norm.includes('decima sexta') || norm.includes('16')) return 16;
-  if (norm.includes('decimoquinta') || norm.includes('decima quinta') || norm.includes('15')) return 15;
-  if (norm.includes('decimocuarta') || norm.includes('decima cuarta') || norm.includes('14')) return 14;
-  if (norm.includes('decimotercera') || norm.includes('decima tercera') || norm.includes('13')) return 13;
-  if (norm.includes('duodecima') || norm.includes('decimosegunda') || norm.includes('decima segunda') || norm.includes('12')) return 12;
-  if (norm.includes('undecima') || norm.includes('decimoprimera') || norm.includes('decima primera') || norm.includes('11')) return 11;
-  if (norm.includes('decima') || norm.includes('10')) return 10;
-  if (norm.includes('novena') || norm.includes('9')) return 9;
-  if (norm.includes('octava') || norm.includes('8')) return 8;
-  if (norm.includes('septima') || norm.includes('7')) return 7;
+  // 1. Priorizar nombres ordinales en texto (de 17ª a 7ª para que 'decimoseptima' se evalúe antes que 'septima')
+  if (norm.includes('decimoseptima') || norm.includes('decima septima')) return 17;
+  if (norm.includes('decimosexta') || norm.includes('decima sexta')) return 16;
+  if (norm.includes('decimoquinta') || norm.includes('decima quinta')) return 15;
+  if (norm.includes('decimocuarta') || norm.includes('decima cuarta')) return 14;
+  if (norm.includes('decimotercera') || norm.includes('decima tercera')) return 13;
+  if (norm.includes('duodecima') || norm.includes('decimosegunda') || norm.includes('decima segunda')) return 12;
+  if (norm.includes('undecima') || norm.includes('decimoprimera') || norm.includes('decima primera')) return 11;
+  if (norm.includes('decima')) return 10;
+  if (norm.includes('novena')) return 9;
+  if (norm.includes('octava')) return 8;
+  if (norm.includes('septima')) return 7;
+
+  // 2. Números de división explícitos (7ma, 7ª, 7, ..., 17ma, 17ª, 17) evitando años como 2010..2020
+  if (/\b17(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 17;
+  if (/\b16(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 16;
+  if (/\b15(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 15;
+  if (/\b14(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 14;
+  if (/\b13(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 13;
+  if (/\b12(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 12;
+  if (/\b11(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 11;
+  if (/\b10(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 10;
+  if (/\b9(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 9;
+  if (/\b8(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 8;
+  if (/\b7(ma|va|na|ra|ta|a|º|°)?\b/.test(norm)) return 7;
 
   return 99;
 }
@@ -299,7 +324,8 @@ export function groupZoneMatchesIntoTiras(
     }
 
     const tira = tiraMap.get(pairKey)!;
-    const divName = divsMap.get(match.division_id) || 'División';
+    const fallbackOrder = getDivisionOrder(match.division_id);
+    const divName = divsMap.get(match.division_id) || (fallbackOrder >= 7 && fallbackOrder <= 17 ? `${DIVISION_NAMES_MAP[fallbackOrder]} División` : 'División');
     if (isExcludedDivision(divName)) return;
 
     tira.matches.push({

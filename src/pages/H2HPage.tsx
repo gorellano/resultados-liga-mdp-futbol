@@ -1,11 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Swords, Trophy, Calendar, ArrowLeft } from 'lucide-react';
+import { Swords, Trophy, Calendar, ArrowLeft, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { fetchDivisions, fetchTeams, fetchTournaments, fetchTournamentDivisionMatches, fetchAllTournamentMatches, isExcludedDivision } from '../lib/db';
+import {
+  fetchDivisions,
+  fetchTeams,
+  fetchTournaments,
+  fetchTournamentDivisionMatches,
+  fetchAllTournamentMatches,
+  fetchDivisionMatchesAcrossAllTournaments,
+  isExcludedDivision
+} from '../lib/db';
 import type { Division, Team, Match } from '../lib/types';
 import { calculateH2HStats } from '../lib/h2h';
 import { calculateStandings } from '../lib/standings';
+import { getDivisionOrder } from '../lib/adaroStandings';
 import { ClubLogo } from '../components/ClubLogo';
 import { useTournament } from '../context/TournamentContext';
 
@@ -13,7 +22,9 @@ export function H2HPage() {
   const { selectedTournamentId, selectedTournament } = useTournament();
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [historyMatches, setHistoryMatches] = useState<Match[]>([]);
+  const [currentTournMatches, setCurrentTournMatches] = useState<Match[]>([]);
+  const [tournamentNames, setTournamentNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
@@ -28,11 +39,15 @@ export function H2HPage() {
           fetchDivisions(),
           fetchTeams()
         ]);
-        setDivisions(divs);
+        const validDivs = divs
+          .filter(d => !isExcludedDivision(d.name))
+          .sort((a, b) => getDivisionOrder(a.name) - getDivisionOrder(b.name));
+        setDivisions(validDivs);
         setTeams(tms);
 
-        if (divs.length > 0) {
-          setSelectedDivisionId(divs[0].id);
+        if (validDivs.length > 0) {
+          const septima = validDivs.find(d => getDivisionOrder(d.name) === 7);
+          setSelectedDivisionId(septima ? septima.id : validDivs[0].id);
         }
         if (tms.length >= 2) {
           setTeamAId(tms[0].id);
@@ -47,10 +62,29 @@ export function H2HPage() {
     loadData();
   }, []);
 
-  // Cargar partidos de la división seleccionada respetando el torneo activo del contexto
+  // Cargar historial completo de partidos de la división (todos los torneos + próximos a jugarse)
   useEffect(() => {
     let isMounted = true;
-    async function loadMatches() {
+    async function loadAllHistoryMatches() {
+      if (!selectedDivisionId) return;
+      try {
+        const { matches: allDivMatches, tournamentNames: tNames } = await fetchDivisionMatchesAcrossAllTournaments(selectedDivisionId);
+        if (isMounted) {
+          setHistoryMatches(allDivMatches);
+          setTournamentNames(tNames);
+        }
+      } catch (err) {
+        console.error('Error cargando historial completo para H2H:', err);
+      }
+    }
+    loadAllHistoryMatches();
+    return () => { isMounted = false; };
+  }, [selectedDivisionId]);
+
+  // Cargar partidos del torneo activo para las estadísticas de la tabla actual
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCurrentTournamentMatches() {
       if (!selectedDivisionId) return;
       try {
         let tournamentId = selectedTournamentId;
@@ -67,17 +101,19 @@ export function H2HPage() {
           divMatches = allM.filter(m => m.division_id === selectedDivisionId);
         }
 
-        if (isMounted) setMatches(divMatches);
+        if (isMounted) setCurrentTournMatches(divMatches);
       } catch (err) {
-        console.error('Error cargando partidos de división para H2H:', err);
+        console.error('Error cargando partidos de división para tabla actual en H2H:', err);
       }
     }
-    loadMatches();
+    loadCurrentTournamentMatches();
     return () => { isMounted = false; };
   }, [selectedDivisionId, selectedTournamentId]);
 
   const youthDivisions = useMemo(() => {
-    return divisions.filter(d => !isExcludedDivision(d.name));
+    return [...divisions]
+      .filter(d => !isExcludedDivision(d.name))
+      .sort((a, b) => getDivisionOrder(a.name) - getDivisionOrder(b.name));
   }, [divisions]);
 
   const sortedTeams = useMemo(() => {
@@ -102,13 +138,13 @@ export function H2HPage() {
   const teamB = useMemo(() => teams.find(t => t.id === teamBId) || null, [teams, teamBId]);
 
   const standings = useMemo(() => {
-    return calculateStandings(matches, teams);
-  }, [matches, teams]);
+    return calculateStandings(currentTournMatches, teams);
+  }, [currentTournMatches, teams]);
 
   const stats = useMemo(() => {
     if (!teamAId || !teamBId) return null;
-    return calculateH2HStats(teamAId, teamBId, matches, standings);
-  }, [teamAId, teamBId, matches, standings]);
+    return calculateH2HStats(teamAId, teamBId, historyMatches, standings);
+  }, [teamAId, teamBId, historyMatches, standings]);
 
   const totalWins = stats ? stats.winsA + stats.winsB : 0;
   const pctA = totalWins > 0 && stats ? Math.round((stats.winsA / totalWins) * 100) : 50;
@@ -136,7 +172,7 @@ export function H2HPage() {
             Modo Versus
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Analizá el historial de duelos directos, victorias y estadísticas entre dos equipos{selectedTournament ? ` en ${selectedTournament.name}` : ''}.
+            Analizá el historial completo de duelos directos, resultados de torneos anteriores y próximos partidos a jugarse entre dos equipos.
           </p>
         </div>
       </div>
@@ -221,7 +257,7 @@ export function H2HPage() {
                     priority={true}
                   />
                 </div>
-                <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-foreground truncate max-w-[130px]" title={teamA.name}>
+                <h3 className="font-extrabold text-sm sm:text-lg tracking-tight text-foreground truncate max-w-[160px] sm:max-w-[240px]" title={teamA.name}>
                   {teamA.display_name ?? teamA.name}
                 </h3>
                 <div className="flex flex-col items-center">
@@ -236,7 +272,7 @@ export function H2HPage() {
                   VS
                 </div>
                 <span className="text-xs sm:text-sm font-bold text-muted-foreground">
-                  {stats.matchesPlayed} partidos disputados
+                  {stats.matchesPlayed} {stats.matchesPlayed === 1 ? 'partido disputado' : 'partidos disputados'}
                 </span>
                 <span className="px-3 py-1 rounded-full bg-muted text-muted-foreground font-extrabold text-xs">
                   {stats.draws} {stats.draws === 1 ? 'empate' : 'empates'}
@@ -254,7 +290,7 @@ export function H2HPage() {
                     priority={true}
                   />
                 </div>
-                <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-foreground truncate max-w-[130px]" title={teamB.name}>
+                <h3 className="font-extrabold text-sm sm:text-lg tracking-tight text-foreground truncate max-w-[160px] sm:max-w-[240px]" title={teamB.name}>
                   {teamB.display_name ?? teamB.name}
                 </h3>
                 <div className="flex flex-col items-center">
@@ -282,7 +318,7 @@ export function H2HPage() {
           {/* Comparativa de Tabla Actual */}
           <div className="bg-card/70 border border-border/60 rounded-3xl p-6 shadow-md space-y-4">
             <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-500" /> Estadísticas en la Tabla Actual
+              <Trophy className="w-5 h-5 text-amber-500" /> Estadísticas en la Tabla Actual{selectedTournament ? ` (${selectedTournament.name})` : ''}
             </h3>
 
             <div className="grid grid-cols-3 gap-2 items-center text-center text-xs sm:text-sm font-semibold divide-y sm:divide-y-0 divide-border/40">
@@ -332,16 +368,62 @@ export function H2HPage() {
                   const isAHome = m.home_team_id === teamA.id;
                   const homeName = isAHome ? (teamA.display_name ?? teamA.name) : (teamB.display_name ?? teamB.name);
                   const awayName = isAHome ? (teamB.display_name ?? teamB.name) : (teamA.display_name ?? teamA.name);
+                  const tName = (m.tournament_id && tournamentNames[m.tournament_id]) || 'Torneo LMF';
 
                   return (
-                    <div key={m.id} className="flex items-center justify-between gap-2 p-3.5 sm:p-4 bg-muted/30 border border-border/50 rounded-2xl text-xs sm:text-sm">
-                      <span className="text-muted-foreground font-semibold shrink-0">Fecha {m.round_number}</span>
-                      <div className="flex items-center justify-end gap-2 sm:gap-3 font-extrabold min-w-0 flex-1">
-                        <span className="truncate text-right">{homeName}</span>
-                        <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-primary text-primary-foreground font-display font-black text-xs sm:text-sm shadow-xs shrink-0">
+                    <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 sm:p-4 bg-muted/30 border border-border/50 rounded-2xl text-xs sm:text-sm">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[11px] tracking-tight">
+                          {tName}
+                        </span>
+                        <span className="text-muted-foreground font-semibold">Fecha {m.round_number}</span>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 font-extrabold min-w-0 flex-1">
+                        <span className="truncate text-right flex-1 sm:flex-initial">{homeName}</span>
+                        <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-primary text-primary-foreground font-display font-black text-xs sm:text-sm shadow-xs shrink-0 tabular-nums">
                           {m.home_goals} - {m.away_goals}
                         </span>
-                        <span className="truncate text-left">{awayName}</span>
+                        <span className="truncate text-left flex-1 sm:flex-initial">{awayName}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Próximos Partidos a Jugarse */}
+          <div className="bg-card/70 border border-border/60 rounded-3xl p-6 shadow-md space-y-4">
+            <h3 className="font-extrabold text-base text-foreground flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" /> Próximos Partidos a Jugarse
+            </h3>
+
+            {stats.upcomingMatches.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border/60 rounded-2xl">
+                No hay cruces programados próximamente entre estos equipos en esta división.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {stats.upcomingMatches.map(m => {
+                  const isAHome = m.home_team_id === teamA.id;
+                  const homeName = isAHome ? (teamA.display_name ?? teamA.name) : (teamB.display_name ?? teamB.name);
+                  const awayName = isAHome ? (teamB.display_name ?? teamB.name) : (teamA.display_name ?? teamA.name);
+                  const tName = (m.tournament_id && tournamentNames[m.tournament_id]) || 'Torneo LMF';
+
+                  return (
+                    <div key={m.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 sm:p-4 bg-muted/20 border border-border/50 rounded-2xl text-xs sm:text-sm">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-[11px] tracking-tight">
+                          {tName}
+                        </span>
+                        <span className="text-muted-foreground font-semibold">Fecha {m.round_number}</span>
+                      </div>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 font-extrabold min-w-0 flex-1">
+                        <span className="truncate text-right flex-1 sm:flex-initial">{homeName}</span>
+                        <span className="px-2.5 sm:px-3 py-1 rounded-xl bg-muted border border-border/70 text-muted-foreground font-bold text-[11px] sm:text-xs shrink-0 uppercase tracking-wider">
+                          {m.status === 'postponed' ? 'Postergado' : 'VS · Programado'}
+                        </span>
+                        <span className="truncate text-left flex-1 sm:flex-initial">{awayName}</span>
                       </div>
                     </div>
                   );

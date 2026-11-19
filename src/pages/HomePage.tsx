@@ -762,6 +762,8 @@ export function HomePage() {
 
       <CommunityPoll />
 
+      <SponsorBanner />
+
       {/* Tabla General de Clubes Promo Card */}
       <section className="bg-gradient-to-r from-primary/15 via-primary/10 to-card border border-primary/30 p-4 sm:p-6 rounded-3xl max-w-4xl mx-auto shadow-xs relative overflow-hidden group">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -796,8 +798,6 @@ export function HomePage() {
           </Link>
         </div>
       </section>
-
-      <SponsorBanner />
     </motion.div>
   );
 }

@@ -60,15 +60,15 @@ export function SponsorBanner() {
   const currentSponsor = sponsors[currentIndex];
 
   const content = (
-    <div className="relative w-full aspect-[40/9] sm:aspect-auto sm:h-36 md:h-44 bg-[#091d38] rounded-2xl overflow-hidden border border-border/60 shadow-sm group flex items-center justify-center">
+    <div className="relative w-full aspect-[1792/240] sm:aspect-auto sm:h-[118px] bg-[#091d38] rounded-3xl overflow-hidden border border-border/60 shadow-xs group flex items-center justify-center">
       <img 
         src={currentSponsor.image_url} 
         alt={currentSponsor.name} 
-        className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
+        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.015]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
       {currentSponsor.link_url && (
-         <div className="absolute bottom-2.5 right-2.5 bg-background/90 backdrop-blur text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xs">
+         <div className="absolute bottom-2.5 right-3 bg-background/90 backdrop-blur text-xs font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xs">
            Contactar / Visitar <ExternalLink className="w-3 h-3" />
          </div>
       )}
@@ -76,8 +76,7 @@ export function SponsorBanner() {
   );
 
   return (
-    <div className="w-full max-w-4xl mx-auto my-6 px-4">
-       <div className="text-xs text-muted-foreground uppercase tracking-widest mb-2 font-semibold">Sponsor Oficial</div>
+    <div className="w-full max-w-4xl mx-auto">
        <AnimatePresence mode="wait">
           <motion.div
             key={currentSponsor.id}

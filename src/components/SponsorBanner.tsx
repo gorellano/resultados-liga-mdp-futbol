@@ -60,16 +60,16 @@ export function SponsorBanner() {
   const currentSponsor = sponsors[currentIndex];
 
   const content = (
-    <div className="relative w-full h-32 md:h-40 bg-muted/30 rounded-xl overflow-hidden border border-border/50 group flex items-center justify-center">
+    <div className="relative w-full aspect-[40/9] sm:aspect-auto sm:h-36 md:h-44 bg-[#091d38] rounded-2xl overflow-hidden border border-border/60 shadow-sm group flex items-center justify-center">
       <img 
         src={currentSponsor.image_url} 
         alt={currentSponsor.name} 
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-[1.02]"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
       {currentSponsor.link_url && (
-         <div className="absolute bottom-2 right-2 bg-background/80 backdrop-blur text-xs px-2 py-1 rounded-md flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-           Visitar sitio <ExternalLink className="w-3 h-3" />
+         <div className="absolute bottom-2.5 right-2.5 bg-background/90 backdrop-blur text-xs font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xs">
+           Contactar / Visitar <ExternalLink className="w-3 h-3" />
          </div>
       )}
     </div>

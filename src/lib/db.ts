@@ -31,9 +31,12 @@ function getOrGenerateAdaroMatches(teams?: Team[], divs?: Division[], zns?: Zone
 
   if (memoryMatchesAdaro.length === 0 || (!adaroInitializedWithReal && hasRealTeams)) {
     const existingEdits = new Map<string, { home_goals: number | null; away_goals: number | null; status: any; match_date?: string | null }>();
+    const existingPlayoffs: Match[] = [];
     if (memoryMatchesAdaro.length > 0) {
       memoryMatchesAdaro.forEach(m => {
-        if (m.home_goals !== null || m.away_goals !== null || m.status === 'finished') {
+        if (m.stage && m.stage !== 'regular') {
+          existingPlayoffs.push(m);
+        } else if (m.home_goals !== null || m.away_goals !== null || m.status === 'finished') {
           existingEdits.set(`${m.round_number}-${m.home_team_id}-${m.away_team_id}`, {
             home_goals: m.home_goals,
             away_goals: m.away_goals,
@@ -59,6 +62,10 @@ function getOrGenerateAdaroMatches(teams?: Team[], divs?: Division[], zns?: Zone
           if (edit.match_date) m.match_date = edit.match_date;
         }
       });
+    }
+
+    if (existingPlayoffs.length > 0) {
+      memoryMatchesAdaro.push(...existingPlayoffs);
     }
   }
   return memoryMatchesAdaro;
@@ -571,6 +578,24 @@ export async function fetchAllTournamentMatches(tournamentId: string): Promise<M
           }
 
           if (allMatches.length > 0) {
+            if (isAdaro) {
+              const regularCount = allMatches.filter(m => !m.stage || m.stage === 'regular').length;
+              if (regularCount < 50) {
+                const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
+                const fallbackPool = getOrGenerateAdaroMatches(teams, divs, zns);
+                const dbKeys = new Set(
+                  allMatches.map(m => `${m.stage || 'regular'}_${m.division_id}_${m.round_number}_${m.home_team_id}_${m.away_team_id}`)
+                );
+                const merged = [...allMatches];
+                fallbackPool.forEach(fm => {
+                  const key = `${fm.stage || 'regular'}_${fm.division_id}_${fm.round_number}_${fm.home_team_id}_${fm.away_team_id}`;
+                  if (!dbKeys.has(key)) {
+                    merged.push(fm);
+                  }
+                });
+                return merged;
+              }
+            }
             return allMatches;
           }
         }
@@ -691,10 +716,38 @@ export async function fetchTournamentDivisionMatches(tournamentId: string, divis
 
         if (error) throw error;
         if (data && data.length > 0) {
-          return data.map(m => ({
+          const mapped = data.map(m => ({
             ...m,
             status: m.status as 'scheduled' | 'finished' | 'postponed'
           }));
+          const isAdaroTourn = tournamentId === ADARO_TOURNAMENT_ID || tournamentId.toLowerCase().includes('adaro');
+          const regularCount = mapped.filter(m => !m.stage || m.stage === 'regular').length;
+          if (isAdaroTourn && regularCount < 20) {
+            const [teams, divs, zns] = await Promise.all([fetchTeams(), fetchDivisions(), fetchZones()]);
+            const matchesPool = getOrGenerateAdaroMatches(teams, divs, zns);
+            const targetDivIdx = getAdaroDivisionIndex(divisionId, divs);
+            const fallbackDivMatches = matchesPool
+              .filter(m => {
+                if (m.division_id === divisionId) return true;
+                if (targetDivIdx !== -1) {
+                  return getAdaroDivisionIndex(m.division_id, divs) === targetDivIdx;
+                }
+                return false;
+              })
+              .map(m => ({ ...m, division_id: divisionId }));
+            const dbKeys = new Set(
+              mapped.map(m => `${m.stage || 'regular'}_${m.round_number}_${m.home_team_id}_${m.away_team_id}`)
+            );
+            const merged: Match[] = [...mapped];
+            fallbackDivMatches.forEach(fm => {
+              const key = `${fm.stage || 'regular'}_${fm.round_number}_${fm.home_team_id}_${fm.away_team_id}`;
+              if (!dbKeys.has(key)) {
+                merged.push(fm);
+              }
+            });
+            return merged;
+          }
+          return mapped;
         }
       } catch (err) {
         console.warn('Supabase fetchTournamentDivisionMatches query failed, trying fallback:', err);
@@ -919,6 +972,155 @@ export async function saveMatchResult(
     console.error('Supabase saveMatchResult failed:', err);
     return false;
   }
+}
+
+/**
+ * Crea o actualiza un partido de Playoffs (Cuartos, Semifinal o Final) para una división específica,
+ * soportando definición por penales en caso de empate.
+ */
+export async function savePlayoffMatchResult(params: {
+  existingMatchId?: string | null;
+  tournamentId: string;
+  divisionId: string;
+  stage: 'cuartos' | 'semifinal' | 'final';
+  homeTeamId: string;
+  awayTeamId: string;
+  homeGoals: number | null;
+  awayGoals: number | null;
+  homePenalties: number | null;
+  awayPenalties: number | null;
+  status: 'scheduled' | 'finished' | 'postponed';
+  matchDate?: string | null;
+}): Promise<Match | null> {
+  const roundNumber = params.stage === 'cuartos' ? 7 : params.stage === 'semifinal' ? 8 : 9;
+  const isUuid = (val?: string | null) =>
+    Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+  const updateInMemory = (savedMatch: Match) => {
+    const idx = memoryMatchesAdaro.findIndex(
+      m =>
+        (params.existingMatchId && m.id === params.existingMatchId) ||
+        (m.stage === params.stage &&
+          m.division_id === params.divisionId &&
+          ((m.home_team_id === params.homeTeamId && m.away_team_id === params.awayTeamId) ||
+           (m.home_team_id === params.awayTeamId && m.away_team_id === params.homeTeamId)))
+    );
+    if (idx !== -1) {
+      memoryMatchesAdaro[idx] = { ...memoryMatchesAdaro[idx], ...savedMatch };
+    } else {
+      memoryMatchesAdaro.push(savedMatch);
+    }
+    invalidateDbCache('matches');
+  };
+
+  if (isSupabaseActive()) {
+    try {
+      let targetTournId = params.tournamentId;
+      if (!isUuid(targetTournId)) {
+        const { data: dbTourns } = await supabase
+          .from('tournaments')
+          .select('id')
+          .or('name.ilike.%adaro%,name.ilike.%chamaco%')
+          .limit(1);
+        if (dbTourns && dbTourns[0]) {
+          targetTournId = dbTourns[0].id;
+        }
+      }
+
+      if (isUuid(targetTournId) && isUuid(params.divisionId)) {
+        let targetRowId: string | null = isUuid(params.existingMatchId) ? (params.existingMatchId as string) : null;
+
+        if (!targetRowId) {
+          const { data: existingRows } = await supabase
+            .from('matches')
+            .select('id, home_team_id, away_team_id')
+            .eq('tournament_id', targetTournId)
+            .eq('division_id', params.divisionId)
+            .eq('stage', params.stage);
+
+          const found = (existingRows || []).find(
+            r =>
+              (r.home_team_id === params.homeTeamId && r.away_team_id === params.awayTeamId) ||
+              (r.home_team_id === params.awayTeamId && r.away_team_id === params.homeTeamId)
+          );
+          if (found) {
+            targetRowId = found.id;
+          }
+        }
+
+        const payload = {
+          tournament_id: targetTournId,
+          division_id: params.divisionId,
+          zone_id: null as any,
+          round_number: roundNumber,
+          home_team_id: params.homeTeamId,
+          away_team_id: params.awayTeamId,
+          home_goals: params.homeGoals,
+          away_goals: params.awayGoals,
+          home_penalties: params.homePenalties,
+          away_penalties: params.awayPenalties,
+          status: params.status,
+          stage: params.stage,
+          ...(params.matchDate !== undefined ? { match_date: params.matchDate } : {})
+        };
+
+        if (targetRowId) {
+          const { data, error } = await supabase
+            .from('matches')
+            .update(payload)
+            .eq('id', targetRowId)
+            .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage');
+
+          if (error) throw error;
+          if (data && data[0]) {
+            const saved: Match = {
+              ...data[0],
+              status: data[0].status as 'scheduled' | 'finished' | 'postponed'
+            };
+            updateInMemory(saved);
+            return saved;
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('matches')
+            .insert([payload])
+            .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage');
+
+          if (error) throw error;
+          if (data && data[0]) {
+            const saved: Match = {
+              ...data[0],
+              status: data[0].status as 'scheduled' | 'finished' | 'postponed'
+            };
+            updateInMemory(saved);
+            return saved;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase savePlayoffMatchResult failed, falling back to session memory:', err);
+    }
+  }
+
+  // Fallback en memoria de sesión
+  const fallbackMatch: Match = {
+    id: params.existingMatchId || `adaro-playoff-${params.stage}-${params.divisionId}-${params.homeTeamId}-${params.awayTeamId}`,
+    tournament_id: params.tournamentId,
+    division_id: params.divisionId,
+    zone_id: '',
+    round_number: roundNumber,
+    home_team_id: params.homeTeamId,
+    away_team_id: params.awayTeamId,
+    home_goals: params.homeGoals,
+    away_goals: params.awayGoals,
+    home_penalties: params.homePenalties,
+    away_penalties: params.awayPenalties,
+    status: params.status,
+    stage: params.stage,
+    match_date: params.matchDate || null
+  };
+  updateInMemory(fallbackMatch);
+  return fallbackMatch;
 }
 
 /**

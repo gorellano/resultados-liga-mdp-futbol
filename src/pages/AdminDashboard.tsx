@@ -5,7 +5,7 @@ import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
   Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare,
-  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard
+  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard, Swords, Crown
 } from 'lucide-react';
 import { cn } from '../App';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
@@ -15,6 +15,7 @@ import {
   fetchZones, 
   fetchTeams, 
   saveMatchResult,
+  savePlayoffMatchResult,
   createTeam,
   createTournament,
   fetchUsers,
@@ -26,6 +27,7 @@ import {
   createMatches,
   deleteMatchesByFilter,
   fetchTournamentDivisionMatches,
+  fetchAllTournamentMatches,
   isSupabaseActive,
   fetchContactMessages,
   markContactMessageAsRead,
@@ -35,8 +37,19 @@ import {
 } from '../lib/db';
 import type { Team, Match, Tournament, Division, Zone, User, ContactMessage } from '../lib/types';
 import { supabase } from '../lib/supabase';
-import { ALL_MOCK_TEAMS } from '../lib/mockAdaroData';
-import { getDivisionOrder } from '../lib/adaroStandings';
+import {
+  ALL_MOCK_TEAMS,
+  ADARO_ZONES,
+  ADARO_PUNTUABLE_DIVISION_IDS,
+  resolveAdaroZoneIds,
+  resolveAdaroPuntuableDivisionIds
+} from '../lib/mockAdaroData';
+import {
+  getDivisionOrder,
+  calculateAdaroZoneStandings,
+  CUP_BADGES,
+  type AdaroCupTier
+} from '../lib/adaroStandings';
 
 const SponsorsSettings = lazy(() =>
   import('./SponsorsSettings').then(m => ({ default: m.SponsorsSettings }))
@@ -121,6 +134,30 @@ export function AdminDashboard() {
   const [selectedDivisionId, setSelectedDivisionId] = useState<string>('');
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [selectedRound, setSelectedRound] = useState<number>(1);
+
+  // Estados para Carga de Resultados de Playoffs (4 Copas por División)
+  const [resultsPhaseMode, setResultsPhaseMode] = useState<'zones' | 'playoffs'>('zones');
+  const [selectedPlayoffCup, setSelectedPlayoffCup] = useState<AdaroCupTier>('platino');
+  const [selectedPlayoffStage, setSelectedPlayoffStage] = useState<'cuartos' | 'semifinal' | 'final'>('cuartos');
+  const [fullTournamentMatches, setFullTournamentMatches] = useState<Match[]>([]);
+  const [editingPenalties, setEditingPenalties] = useState<Record<string, { homePenalties: string; awayPenalties: string }>>({});
+  const [playoffSlotErrors, setPlayoffSlotErrors] = useState<Record<string, string>>({});
+
+  const isAdaroTournamentSelected = useMemo(() => {
+    const selectedTourn = tournaments.find(t => t.id === selectedTournamentId);
+    return Boolean(
+      selectedTourn?.format === 'copas_multinivel' ||
+      selectedTournamentId === 'adaro-2026' ||
+      selectedTourn?.name?.toLowerCase().includes('adaro') ||
+      selectedTourn?.name?.toLowerCase().includes('chamaco')
+    );
+  }, [tournaments, selectedTournamentId]);
+
+  useEffect(() => {
+    if (!isAdaroTournamentSelected && resultsPhaseMode === 'playoffs') {
+      setResultsPhaseMode('zones');
+    }
+  }, [isAdaroTournamentSelected, resultsPhaseMode]);
 
   const availableZonesForDivision = useMemo(() => {
     const selectedTourn = tournaments.find(t => t.id === selectedTournamentId);
@@ -420,6 +457,24 @@ export function AdminDashboard() {
     loadAllMatches();
   }, [selectedTournamentId, selectedDivisionId]);
 
+  // Cargar todos los partidos del torneo (todas las zonas y divisiones puntuables) para calcular los sembrados de las 4 Copas en tiempo real
+  useEffect(() => {
+    if (!selectedTournamentId || !isAdaroTournamentSelected) return;
+    let isMounted = true;
+    async function loadFullTournMatches() {
+      try {
+        const allM = await fetchAllTournamentMatches(selectedTournamentId);
+        if (isMounted) {
+          setFullTournamentMatches(allM);
+        }
+      } catch (err) {
+        console.error('Error loading full tournament matches for playoffs:', err);
+      }
+    }
+    loadFullTournMatches();
+    return () => { isMounted = false; };
+  }, [selectedTournamentId, isAdaroTournamentSelected]);
+
   // Establecer horario por defecto cuando cambia la división
   useEffect(() => {
     if (selectedDivisionId && divisions.length > 0) {
@@ -467,15 +522,217 @@ export function AdminDashboard() {
       setLastAutoSelectedZone(key);
     }
   }, [allMatches, selectedZoneId, selectedDivisionId, lastAutoSelectedZone, zones]);
-  // Filtrar partidos locales del tab activo con coincidencia flexible por zona
+  // Filtrar partidos locales del tab activo con coincidencia flexible por zona (solo fase regular)
   const matches = allMatches.filter(m => {
+    if (m.stage && m.stage !== 'regular') return false;
     if (m.zone_id === selectedZoneId) return true;
     const mZ = zones.find(z => z.id === m.zone_id);
     const tZ = zones.find(z => z.id === selectedZoneId);
-    const mName = (mZ?.name || m.zone_id).toLowerCase().trim();
-    const tName = (tZ?.name || selectedZoneId).toLowerCase().trim();
+    const mName = (mZ?.name || m.zone_id || '').toLowerCase().trim();
+    const tName = (tZ?.name || selectedZoneId || '').toLowerCase().trim();
     return mName !== '' && mName === tName;
   });
+
+  // Ranking dinámico en tiempo real de las 4 Copas (Platino, Oro, Plata, Bronce) según los resultados de Fase 1
+  const playoffZoneRankings = useMemo(() => {
+    const results: Record<AdaroCupTier, Array<{ team: Team; zoneName: string; pts: number; avg: number; dg: number; gf: number }>> = {
+      platino: [],
+      oro: [],
+      plata: [],
+      bronce: []
+    };
+    if (!isAdaroTournamentSelected || fullTournamentMatches.length === 0 || teams.length === 0) {
+      return results;
+    }
+
+    const zoneIdMap = resolveAdaroZoneIds(zones);
+    const puntuableIds = resolveAdaroPuntuableDivisionIds(divisions);
+    const allPuntuableIds = Array.from(new Set([...puntuableIds, ...ADARO_PUNTUABLE_DIVISION_IDS]));
+
+    ADARO_ZONES.forEach(zone => {
+      const zoneUuid = zoneIdMap[zone.id] || zone.id;
+      const zoneMatches = fullTournamentMatches.filter(m =>
+        (!m.stage || m.stage === 'regular') &&
+        (m.zone_id === zone.id ||
+          m.zone_id === zoneUuid ||
+          (zones.length > 0 && zones.find(z => z.id === m.zone_id)?.name.toLowerCase().trim() === zone.name.toLowerCase().trim()))
+      );
+      const teamIdSet = new Set<string>();
+      zoneMatches.forEach(m => {
+        teamIdSet.add(m.home_team_id);
+        teamIdSet.add(m.away_team_id);
+      });
+      const zTeams = teams.filter(t => teamIdSet.has(t.id));
+
+      const standings = calculateAdaroZoneStandings(
+        zoneMatches,
+        zTeams,
+        allPuntuableIds,
+        divisions
+      );
+
+      standings.forEach(s => {
+        results[s.cupTier].push({
+          team: s.team,
+          zoneName: zone.name,
+          pts: s.points,
+          avg: s.average,
+          dg: s.goalDifference,
+          gf: s.goalsFor,
+        });
+      });
+    });
+
+    Object.keys(results).forEach(tier => {
+      results[tier as AdaroCupTier].sort((a, b) => {
+        if (b.avg !== a.avg) return b.avg - a.avg;
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        if (b.dg !== a.dg) return b.dg - a.dg;
+        return b.gf - a.gf;
+      });
+    });
+
+    return results;
+  }, [isAdaroTournamentSelected, fullTournamentMatches, teams, zones, divisions]);
+
+  interface AdminPlayoffSlot {
+    slotKey: string;
+    cruceLabel: string;
+    stage: 'cuartos' | 'semifinal' | 'final';
+    homeTeam: Team | null;
+    awayTeam: Team | null;
+    homeSeed?: number;
+    awaySeed?: number;
+    homePlaceholder?: string;
+    awayPlaceholder?: string;
+    realMatch?: Match;
+    winnerTeam: Team | null;
+  }
+
+  // Cruces de Playoffs de la Copa y División seleccionadas (cada división avanza sus propios ganadores)
+  const playoffBracketForDivision = useMemo(() => {
+    const seeds = playoffZoneRankings[selectedPlayoffCup] || [];
+    const seed1 = seeds[0]?.team || null;
+    const seed2 = seeds[1]?.team || null;
+    const seed3 = seeds[2]?.team || null;
+    const seed4 = seeds[3]?.team || null;
+    const seed5 = seeds[4]?.team || null;
+    const seed6 = seeds[5]?.team || null;
+    const seed7 = seeds[6]?.team || null;
+
+    const selectedDivObj = divisions.find(d => d.id === selectedDivisionId);
+    const targetDivOrder = selectedDivObj ? getDivisionOrder(selectedDivObj.name) : getDivisionOrder(selectedDivisionId);
+
+    const combinedPool = [...allMatches, ...fullTournamentMatches];
+    const divPlayoffMatches = combinedPool.filter(m => {
+      if (!m.stage || m.stage === 'regular') return false;
+      if (m.division_id === selectedDivisionId) return true;
+      if (targetDivOrder !== 99 && getDivisionOrder(m.division_id) === targetDivOrder) return true;
+      const foundDiv = divisions.find(d => d.id === m.division_id);
+      return Boolean(foundDiv && getDivisionOrder(foundDiv.name) === targetDivOrder);
+    });
+
+    const findRealPlayoffMatch = (stage: 'cuartos' | 'semifinal' | 'final', home: Team | null, away: Team | null): Match | undefined => {
+      if (!home || !away) return undefined;
+      return divPlayoffMatches.find(
+        m =>
+          m.stage === stage &&
+          ((m.home_team_id === home.id && m.away_team_id === away.id) ||
+           (m.home_team_id === away.id && m.away_team_id === home.id))
+      );
+    };
+
+    const resolveSlot = (
+      cruceCode: string,
+      cruceLabel: string,
+      stage: 'cuartos' | 'semifinal' | 'final',
+      home: Team | null,
+      away: Team | null,
+      homeSeed?: number,
+      awaySeed?: number,
+      homePlaceholder?: string,
+      awayPlaceholder?: string
+    ): AdminPlayoffSlot => {
+      const real = findRealPlayoffMatch(stage, home, away);
+      let winnerTeam: Team | null = null;
+
+      if (real && real.status === 'finished' && home && away && real.home_goals !== null && real.away_goals !== null) {
+        const isDirect = real.home_team_id === home.id;
+        const hg = isDirect ? real.home_goals : real.away_goals;
+        const ag = isDirect ? real.away_goals : real.home_goals;
+        const hp = isDirect ? (real.home_penalties ?? null) : (real.away_penalties ?? null);
+        const ap = isDirect ? (real.away_penalties ?? null) : (real.home_penalties ?? null);
+
+        if (hg > ag) winnerTeam = home;
+        else if (ag > hg) winnerTeam = away;
+        else if (hp !== null && ap !== null && hp !== ap) {
+          winnerTeam = hp > ap ? home : away;
+        }
+      }
+
+      return {
+        slotKey: `${selectedPlayoffCup}_${selectedDivisionId}_${stage}_${cruceCode}`,
+        cruceLabel,
+        stage,
+        homeTeam: home,
+        awayTeam: away,
+        homeSeed,
+        awaySeed,
+        homePlaceholder,
+        awayPlaceholder,
+        realMatch: real,
+        winnerTeam
+      };
+    };
+
+    const qfD = resolveSlot('qf-d', 'Cruce D · Cuartos de Final (#4 vs #5)', 'cuartos', seed4, seed5, 4, 5);
+    const qfB = resolveSlot('qf-b', 'Cruce B · Cuartos de Final (#2 vs #7)', 'cuartos', seed2, seed7, 2, 7);
+    const qfC = resolveSlot('qf-c', 'Cruce C · Cuartos de Final (#3 vs #6)', 'cuartos', seed3, seed6, 3, 6);
+
+    const sf1 = resolveSlot(
+      'sf-1',
+      'Semifinal 1 · Cruce A (#1 Libre) vs Ganador Cruce D',
+      'semifinal',
+      seed1,
+      qfD.winnerTeam,
+      1,
+      qfD.winnerTeam ? (qfD.winnerTeam.id === seed4?.id ? 4 : 5) : undefined,
+      'Sembrado #1',
+      'Pendiente: Ganador Cruce D (#4 vs #5) en esta división'
+    );
+
+    const sf2 = resolveSlot(
+      'sf-2',
+      'Semifinal 2 · Ganador Cruce B vs Ganador Cruce C',
+      'semifinal',
+      qfB.winnerTeam,
+      qfC.winnerTeam,
+      qfB.winnerTeam ? (qfB.winnerTeam.id === seed2?.id ? 2 : 7) : undefined,
+      qfC.winnerTeam ? (qfC.winnerTeam.id === seed3?.id ? 3 : 6) : undefined,
+      'Pendiente: Ganador Cruce B (#2 vs #7) en esta división',
+      'Pendiente: Ganador Cruce C (#3 vs #6) en esta división'
+    );
+
+    const finalSlot = resolveSlot(
+      'final-1',
+      `Gran Final · ${CUP_BADGES[selectedPlayoffCup].label}`,
+      'final',
+      sf1.winnerTeam,
+      sf2.winnerTeam,
+      sf1.winnerTeam ? sf1.homeSeed || sf1.awaySeed : undefined,
+      sf2.winnerTeam ? sf2.homeSeed || sf2.awaySeed : undefined,
+      'Pendiente: Ganador Semifinal 1 (A vs D) en esta división',
+      'Pendiente: Ganador Semifinal 2 (B vs C) en esta división'
+    );
+
+    return {
+      seeds,
+      seed1,
+      cuartos: [qfD, qfB, qfC],
+      semifinal: [sf1, sf2],
+      final: [finalSlot]
+    };
+  }, [playoffZoneRankings, selectedPlayoffCup, selectedDivisionId, divisions, allMatches, fullTournamentMatches]);
 
   const resolveTeam = (teamId: string): Team | undefined => {
     if (!teamId) return undefined;
@@ -501,6 +758,8 @@ export function AdminDashboard() {
   useEffect(() => {
     const initialEdits: Record<string, { homeGoals: string; awayGoals: string }> = {};
     const initialTimes: Record<string, string> = {};
+    const initialPens: Record<string, { homePenalties: string; awayPenalties: string }> = {};
+
     matches.forEach(m => {
       initialEdits[m.id] = {
         homeGoals: m.home_goals !== null ? m.home_goals.toString() : '',
@@ -519,9 +778,54 @@ export function AdminDashboard() {
         initialTimes[m.id] = '';
       }
     });
+
+    // Sincronizar también los slots de Playoffs para la copa y división seleccionadas
+    const allPlayoffSlots = [
+      ...playoffBracketForDivision.cuartos,
+      ...playoffBracketForDivision.semifinal,
+      ...playoffBracketForDivision.final
+    ];
+
+    allPlayoffSlots.forEach(slot => {
+      const real = slot.realMatch;
+      if (real && slot.homeTeam && slot.awayTeam) {
+        const isDirect = real.home_team_id === slot.homeTeam.id;
+        const hg = isDirect ? real.home_goals : real.away_goals;
+        const ag = isDirect ? real.away_goals : real.home_goals;
+        const hp = isDirect ? (real.home_penalties ?? null) : (real.away_penalties ?? null);
+        const ap = isDirect ? (real.away_penalties ?? null) : (real.home_penalties ?? null);
+
+        initialEdits[slot.slotKey] = {
+          homeGoals: hg !== null && hg !== undefined ? hg.toString() : '',
+          awayGoals: ag !== null && ag !== undefined ? ag.toString() : ''
+        };
+        initialPens[slot.slotKey] = {
+          homePenalties: hp !== null && hp !== undefined ? hp.toString() : '',
+          awayPenalties: ap !== null && ap !== undefined ? ap.toString() : ''
+        };
+        if (real.match_date) {
+          try {
+            const d = new Date(real.match_date);
+            const hh = String(d.getHours()).padStart(2, '0');
+            const mm = String(d.getMinutes()).padStart(2, '0');
+            initialTimes[slot.slotKey] = `${hh}:${mm}`;
+          } catch {
+            initialTimes[slot.slotKey] = '';
+          }
+        } else {
+          initialTimes[slot.slotKey] = '';
+        }
+      } else {
+        initialEdits[slot.slotKey] = { homeGoals: '', awayGoals: '' };
+        initialPens[slot.slotKey] = { homePenalties: '', awayPenalties: '' };
+        initialTimes[slot.slotKey] = '';
+      }
+    });
+
     setEditingResults(initialEdits);
     setEditingTimes(initialTimes);
-  }, [allMatches, selectedDivisionId, selectedZoneId]);
+    setEditingPenalties(initialPens);
+  }, [allMatches, selectedDivisionId, selectedZoneId, playoffBracketForDivision]);
 
   // Cargar usuarios cuando se entra a la pestaña usuarios
   const loadUsersData = async () => {
@@ -645,7 +949,7 @@ export function AdminDashboard() {
         }).then(undefined, err => console.error('Error auto-sending push:', err));
       }
 
-      // Actualizar la lista local de partidos para reflejar el estado
+      // Actualizar la lista local de partidos para reflejar el estado y recalcular copas/sembrados en tiempo real
       setAllMatches(prev => prev.map(m => m.id === matchId ? { 
         ...m, 
         home_goals: homeGoals, 
@@ -653,8 +957,145 @@ export function AdminDashboard() {
         status,
         match_date: matchDate
       } : m));
+      setFullTournamentMatches(prev => prev.map(m => m.id === matchId ? {
+        ...m,
+        home_goals: homeGoals,
+        away_goals: awayGoals,
+        status,
+        match_date: matchDate
+      } : m));
     } else {
       setSavingStatus(prev => ({ ...prev, [matchId]: 'error' }));
+    }
+  };
+
+  const handlePenaltyChange = (slotKey: string, side: 'home' | 'away', val: string) => {
+    if (val !== '' && (!/^\d+$/.test(val) || parseInt(val) < 0 || parseInt(val) > 99)) return;
+    setEditingPenalties(prev => ({
+      ...prev,
+      [slotKey]: {
+        homePenalties: prev[slotKey]?.homePenalties ?? '',
+        awayPenalties: prev[slotKey]?.awayPenalties ?? '',
+        [`${side}Penalties`]: val
+      }
+    }));
+    setPlayoffSlotErrors(prev => {
+      const next = { ...prev };
+      delete next[slotKey];
+      return next;
+    });
+    setSavingStatus(prev => ({ ...prev, [slotKey]: 'idle' }));
+  };
+
+  const handleSavePlayoffSlot = async (slot: AdminPlayoffSlot) => {
+    if (!slot.homeTeam || !slot.awayTeam) return;
+    const { slotKey } = slot;
+    const edit = editingResults[slotKey] || { homeGoals: '', awayGoals: '' };
+    const penEdit = editingPenalties[slotKey] || { homePenalties: '', awayPenalties: '' };
+
+    const homeVal = edit.homeGoals.trim();
+    const awayVal = edit.awayGoals.trim();
+    const homeGoals = homeVal === '' ? null : parseInt(homeVal);
+    const awayGoals = awayVal === '' ? null : parseInt(awayVal);
+
+    if ((homeGoals !== null && awayGoals === null) || (homeGoals === null && awayGoals !== null)) {
+      setPlayoffSlotErrors(prev => ({
+        ...prev,
+        [slotKey]: 'Completá los goles de ambos equipos (o dejá ambos vacíos para programado).'
+      }));
+      return;
+    }
+
+    let homePenalties: number | null = null;
+    let awayPenalties: number | null = null;
+
+    if (homeGoals !== null && awayGoals !== null && homeGoals === awayGoals) {
+      const hpVal = penEdit.homePenalties.trim();
+      const apVal = penEdit.awayPenalties.trim();
+      if (hpVal === '' || apVal === '') {
+        setPlayoffSlotErrors(prev => ({
+          ...prev,
+          [slotKey]: 'Al haber empate en tiempo reglamentario, debés cargar el resultado de los penales para definir qué equipo avanza en esta categoría.'
+        }));
+        return;
+      }
+      homePenalties = parseInt(hpVal);
+      awayPenalties = parseInt(apVal);
+      if (homePenalties === awayPenalties) {
+        setPlayoffSlotErrors(prev => ({
+          ...prev,
+          [slotKey]: 'La definición por penales no puede terminar empatada. Ingresá el ganador de la tanda.'
+        }));
+        return;
+      }
+    }
+
+    setPlayoffSlotErrors(prev => {
+      const next = { ...prev };
+      delete next[slotKey];
+      return next;
+    });
+    setSavingStatus(prev => ({ ...prev, [slotKey]: 'saving' }));
+
+    const status: 'scheduled' | 'finished' = (homeGoals !== null && awayGoals !== null) ? 'finished' : 'scheduled';
+    const matchTime = editingTimes[slotKey] || '15:00';
+    const matchDate = `2026-01-01T${matchTime}:00-03:00`;
+
+    const saved = await savePlayoffMatchResult({
+      existingMatchId: slot.realMatch?.id,
+      tournamentId: selectedTournamentId,
+      divisionId: selectedDivisionId,
+      stage: slot.stage,
+      homeTeamId: slot.homeTeam.id,
+      awayTeamId: slot.awayTeam.id,
+      homeGoals,
+      awayGoals,
+      homePenalties,
+      awayPenalties,
+      status,
+      matchDate
+    });
+
+    if (saved) {
+      setSavingStatus(prev => ({ ...prev, [slotKey]: 'saved' }));
+
+      if (status === 'finished' && homeGoals !== null && awayGoals !== null && sendNotificationsFlag) {
+        const isEdit = slot.realMatch?.status === 'finished';
+        const penSuffix = (homePenalties !== null && awayPenalties !== null) ? ` (${homePenalties}-${awayPenalties} pen.)` : '';
+        supabase.functions.invoke('notify-subscribers', {
+          body: {
+            match_id: saved.id,
+            home_team_id: slot.homeTeam.id,
+            away_team_id: slot.awayTeam.id,
+            home_name: slot.homeTeam.display_name || slot.homeTeam.name,
+            away_name: slot.awayTeam.display_name || slot.awayTeam.name,
+            result: `${homeGoals} - ${awayGoals}${penSuffix}`,
+            is_edit: isEdit,
+            title: isEdit ? notifTitleEdit : notifTitleNew,
+            division_id: selectedDivisionId
+          }
+        }).then(undefined, err => console.error('Error auto-sending playoff push:', err));
+      }
+
+      const upsertList = (list: Match[]) => {
+        const idx = list.findIndex(
+          m =>
+            m.id === saved.id ||
+            (m.stage === saved.stage &&
+              m.division_id === saved.division_id &&
+              ((m.home_team_id === saved.home_team_id && m.away_team_id === saved.away_team_id) ||
+               (m.home_team_id === saved.away_team_id && m.away_team_id === saved.home_team_id)))
+        );
+        if (idx !== -1) {
+          return list.map((m, i) => (i === idx ? saved : m));
+        }
+        return [...list, saved];
+      };
+
+      setAllMatches(upsertList);
+      setFullTournamentMatches(upsertList);
+    } else {
+      setSavingStatus(prev => ({ ...prev, [slotKey]: 'error' }));
     }
   };
 
@@ -2002,219 +2443,719 @@ export function AdminDashboard() {
                     <div>
                       <h2 className="text-2xl font-bold">Carga de Resultados</h2>
                       <p className="text-muted-foreground text-sm mt-1">
-                        Actualizá los resultados de los partidos. Podés editar partidos finalizados si hubo pifies.
+                        {resultsPhaseMode === 'playoffs' && isAdaroTournamentSelected
+                          ? 'Cargá los resultados de Cuartos, Semifinales y Final de las 4 Copas por cada división individual.'
+                          : 'Actualizá los resultados de los partidos. Podés editar partidos finalizados si hubo pifies.'}
                       </p>
                     </div>
+
+                    {/* Interruptor Fase de Zonas vs Playoffs 4 Copas */}
+                    {isAdaroTournamentSelected && (
+                      <div className="inline-flex bg-muted/50 p-1.5 rounded-2xl border border-border/60 self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setResultsPhaseMode('zones')}
+                          className={cn(
+                            "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                            resultsPhaseMode === 'zones'
+                              ? "bg-background text-primary shadow-xs font-black"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          <span>Fase de Zonas (Fechas 1-6)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setResultsPhaseMode('playoffs')}
+                          className={cn(
+                            "px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+                            resultsPhaseMode === 'playoffs'
+                              ? "bg-primary text-primary-foreground shadow-xs font-black"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                          <span>Playoffs · 4 Copas</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-wrap gap-3 mb-6 bg-muted/20 p-4 rounded-2xl border border-border/50">
-                    {/* Torneo */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Torneo</label>
-                      <select
-                        value={selectedTournamentId}
-                        onChange={(e) => setSelectedTournamentId(e.target.value)}
-                        className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-                      >
-                        {tournaments.map(t => (
-                          <option key={t.id} value={t.id}>{t.name} {t.year}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* División */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">División</label>
-                      <select
-                        value={selectedDivisionId}
-                        onChange={(e) => setSelectedDivisionId(e.target.value)}
-                        className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-                      >
-                        {divisions.map(d => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Zona */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Zona</label>
-                      <select
-                        value={selectedZoneId}
-                        onChange={(e) => setSelectedZoneId(e.target.value)}
-                        className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-                      >
-                        {availableZonesForDivision.map(z => (
-                          <option key={z.id} value={z.id}>{z.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Fecha */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Fecha</label>
-                      <select
-                        value={selectedRound}
-                        onChange={(e) => setSelectedRound(Number(e.target.value))}
-                        className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-                      >
-                        {Array.from(new Set(matches.map(m => m.round_number))).sort((a, b) => a - b).map(r => (
-                          <option key={r} value={r}>Fecha {r}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                   {loading ? (
-                    <div className="space-y-3 animate-pulse">
-                      {Array.from({ length: 4 }).map((_, idx) => (
-                        <div key={idx} className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
-                          <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[35%]">
-                            <div className="h-4 bg-muted rounded w-28"></div>
-                            <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
+                  {resultsPhaseMode === 'playoffs' && isAdaroTournamentSelected ? (
+                    <div className="space-y-6">
+                      {/* Filtros principales (Misma estructura que Zonas: Torneo -> División -> Copa -> Instancia) */}
+                      <div className="bg-muted/20 p-4 rounded-2xl border border-border/50 space-y-4">
+                        <div className="flex flex-wrap gap-3">
+                          {/* Torneo */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Torneo</label>
+                            <select
+                              value={selectedTournamentId}
+                              onChange={(e) => setSelectedTournamentId(e.target.value)}
+                              className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                            >
+                              {tournaments.map(t => (
+                                <option key={t.id} value={t.id}>{t.name} {t.year}</option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="flex items-center gap-2 justify-center w-full sm:w-[30%]">
-                            <div className="w-12 h-10 bg-muted rounded-xl"></div>
-                            <div className="w-4 h-4 bg-muted rounded"></div>
-                            <div className="w-12 h-10 bg-muted rounded-xl"></div>
+
+                          {/* División */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">División / Categoría</label>
+                            <select
+                              value={selectedDivisionId}
+                              onChange={(e) => setSelectedDivisionId(e.target.value)}
+                              className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                            >
+                              {divisions.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[35%]">
-                            <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
-                            <div className="h-4 bg-muted rounded w-28"></div>
+
+                          {/* Copa (en lugar de Zona) */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Copa</label>
+                            <select
+                              value={selectedPlayoffCup}
+                              onChange={(e) => setSelectedPlayoffCup(e.target.value as AdaroCupTier)}
+                              className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                            >
+                              {(['platino', 'oro', 'plata', 'bronce'] as AdaroCupTier[]).map(tier => (
+                                <option key={tier} value={tier}>
+                                  {CUP_BADGES[tier].emoji} {CUP_BADGES[tier].label}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <div className="w-24 h-10 bg-muted rounded-xl shrink-0"></div>
+
+                          {/* Instancia (en lugar de Fecha) */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Instancia / Ronda</label>
+                            <select
+                              value={selectedPlayoffStage}
+                              onChange={(e) => setSelectedPlayoffStage(e.target.value as 'cuartos' | 'semifinal' | 'final')}
+                              className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm font-semibold"
+                            >
+                              <option value="cuartos">Cuartos de Final</option>
+                              <option value="semifinal">Semifinales</option>
+                              <option value="final">Gran Final</option>
+                            </select>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : matches.filter(m => m.round_number === selectedRound).length === 0 ? (
-                    <div className="text-center py-12 border border-dashed border-border rounded-2xl bg-muted/10">
-                      <p className="text-muted-foreground text-sm font-medium">No se encontraron partidos para la combinación y fecha seleccionadas.</p>
+
+                        {/* Atajos rápidos de Copa, Instancia y División */}
+                        <div className="pt-3 border-t border-border/40 flex flex-col gap-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            {/* Botones de las 4 Copas */}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {(['platino', 'oro', 'plata', 'bronce'] as AdaroCupTier[]).map(tier => {
+                                const b = CUP_BADGES[tier];
+                                const isSel = selectedPlayoffCup === tier;
+                                return (
+                                  <button
+                                    key={tier}
+                                    type="button"
+                                    onClick={() => setSelectedPlayoffCup(tier)}
+                                    className={cn(
+                                      "px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer",
+                                      isSel
+                                        ? `${b.bgClass} ${b.textClass} ${b.borderClass} ring-2 ring-primary/20 shadow-xs`
+                                        : "bg-background hover:bg-muted text-muted-foreground border-border/60"
+                                    )}
+                                  >
+                                    <span>{b.emoji}</span>
+                                    <span>{b.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Botones de Instancia */}
+                            <div className="inline-flex bg-background p-1 rounded-xl border border-border/60">
+                              {([
+                                { id: 'cuartos', label: 'Cuartos de Final' },
+                                { id: 'semifinal', label: 'Semifinales' },
+                                { id: 'final', label: 'Gran Final' }
+                              ] as const).map(st => (
+                                <button
+                                  key={st.id}
+                                  type="button"
+                                  onClick={() => setSelectedPlayoffStage(st.id)}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                                    selectedPlayoffStage === st.id
+                                      ? "bg-primary text-primary-foreground shadow-xs font-black"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  {st.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Barra rápida de Divisiones (7ª a 17ª) */}
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                            {divisions.map(div => {
+                              const isSel = selectedDivisionId === div.id;
+                              const order = getDivisionOrder(div.name);
+                              const shortLabel = order >= 7 && order <= 17 ? `${order}ª Div` : div.name;
+                              return (
+                                <button
+                                  key={div.id}
+                                  type="button"
+                                  onClick={() => setSelectedDivisionId(div.id)}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer",
+                                    isSel
+                                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                      : "bg-background hover:bg-muted text-muted-foreground border-border/60"
+                                  )}
+                                >
+                                  {shortLabel}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Resumen de Sembrados Dinámicos de la Copa */}
+                      <div className="bg-background border border-border/60 rounded-2xl p-4 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Crown className="w-4 h-4 text-amber-500" />
+                            <h3 className="text-xs font-extrabold uppercase tracking-wider text-foreground">
+                              Sembrados en {CUP_BADGES[selectedPlayoffCup].label} · Se actualizan automáticamente al cargar Fase de Zonas
+                            </h3>
+                          </div>
+                          <span className="text-[11px] font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full self-start sm:self-auto">
+                            Categoría activa: {divisions.find(d => d.id === selectedDivisionId)?.name || '7ª División'}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                          {playoffBracketForDivision.seeds.map((item, idx) => {
+                            const seedNum = idx + 1;
+                            const isBye = seedNum === 1;
+                            return (
+                              <div
+                                key={item.team.id}
+                                className={cn(
+                                  "p-2.5 rounded-xl border text-xs",
+                                  isBye
+                                    ? "bg-cyan-500/10 border-cyan-500/30"
+                                    : "bg-muted/20 border-border/50"
+                                )}
+                              >
+                                <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                                  <span className={cn(
+                                    "px-1.5 py-0.5 rounded-md font-black",
+                                    isBye ? "bg-cyan-500 text-white" : "bg-muted text-muted-foreground"
+                                  )}>
+                                    #{seedNum}
+                                  </span>
+                                  <span className="text-muted-foreground">{item.zoneName}</span>
+                                </div>
+                                <p className="font-bold truncate text-foreground" title={item.team.name}>
+                                  {item.team.display_name || item.team.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {item.pts} pts ({item.avg.toFixed(2).replace('.', ',')})
+                                </p>
+                                {isBye && (
+                                  <span className="inline-block mt-1 text-[9px] font-black uppercase text-cyan-600 dark:text-cyan-400">
+                                    Libre a Semis (A)
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Aviso de Sembrado #1 Libre en Cuartos */}
+                      {selectedPlayoffStage === 'cuartos' && playoffBracketForDivision.seed1 && (
+                        <div className="p-3.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <span className="px-2 py-0.5 rounded-lg bg-cyan-500 text-white font-black text-[10px] uppercase">
+                              Cruce A · Libre
+                            </span>
+                            <span className="font-bold text-foreground">
+                              #1 {playoffBracketForDivision.seed1.display_name || playoffBracketForDivision.seed1.name}
+                            </span>
+                            <span className="text-muted-foreground">
+                              avanza directo a Semifinales en todas las categorías (espera al ganador del Cruce D #4 vs #5).
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Lista de Partidos de la Instancia, Copa y División seleccionadas */}
+                      <div className="space-y-4">
+                        {playoffBracketForDivision[selectedPlayoffStage].map(slot => {
+                          const { slotKey, homeTeam, awayTeam, realMatch, winnerTeam } = slot;
+                          const edit = editingResults[slotKey] || { homeGoals: '', awayGoals: '' };
+                          const penEdit = editingPenalties[slotKey] || { homePenalties: '', awayPenalties: '' };
+                          const statusState = savingStatus[slotKey] || 'idle';
+                          const slotError = playoffSlotErrors[slotKey];
+
+                          const isTiedInRegulation =
+                            edit.homeGoals.trim() !== '' &&
+                            edit.awayGoals.trim() !== '' &&
+                            parseInt(edit.homeGoals.trim()) === parseInt(edit.awayGoals.trim());
+
+                          const isFinished = realMatch?.status === 'finished';
+
+                          return (
+                            <div
+                              key={slotKey}
+                              className={cn(
+                                "bg-background border rounded-2xl p-4 sm:p-5 space-y-4 transition-all",
+                                slot.stage === 'final'
+                                  ? "border-amber-500/40 shadow-md"
+                                  : "border-border/60 hover:border-primary/30"
+                              )}
+                            >
+                              {/* Encabezado del Cruce */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border/40">
+                                <div className="flex items-center gap-2">
+                                  <Swords className="w-4 h-4 text-primary" />
+                                  <span className="text-xs font-extrabold uppercase tracking-wider text-foreground">
+                                    {slot.cruceLabel}
+                                  </span>
+                                  <span className="text-[11px] font-semibold text-muted-foreground">
+                                    · {divisions.find(d => d.id === selectedDivisionId)?.name}
+                                  </span>
+                                </div>
+
+                                {winnerTeam ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 text-xs font-black">
+                                    <Check className="w-3.5 h-3.5" />
+                                    {slot.stage === 'final'
+                                      ? `👑 Campeón en esta división: ${winnerTeam.display_name || winnerTeam.name}`
+                                      : `Avanza en esta división: ${winnerTeam.display_name || winnerTeam.name}`}
+                                  </span>
+                                ) : (
+                                  <span className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-xs font-bold",
+                                    isFinished
+                                      ? "bg-green-500/10 text-green-600 border border-green-500/20"
+                                      : "bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20"
+                                  )}>
+                                    {isFinished ? 'Finalizado' : 'Pendiente de definición'}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Si aún no están definidos ambos equipos en Semifinal o Final para esta división */}
+                              {(!homeTeam || !awayTeam) ? (
+                                <div className="p-4 rounded-xl bg-muted/30 border border-dashed border-border/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                                  <div className="space-y-1">
+                                    <p className="font-bold text-foreground">
+                                      Cruce pendiente de resultados previos en {divisions.find(d => d.id === selectedDivisionId)?.name}
+                                    </p>
+                                    <p className="text-muted-foreground">
+                                      Local: <strong className="text-foreground">{homeTeam ? (homeTeam.display_name || homeTeam.name) : slot.homePlaceholder}</strong>
+                                      {'  ·  '}
+                                      Visitante: <strong className="text-foreground">{awayTeam ? (awayTeam.display_name || awayTeam.name) : slot.awayPlaceholder}</strong>
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedPlayoffStage(slot.stage === 'final' ? 'semifinal' : 'cuartos')}
+                                    className="px-3.5 py-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-bold text-xs shrink-0 cursor-pointer"
+                                  >
+                                    Ir a {slot.stage === 'final' ? 'Semifinales' : 'Cuartos de Final'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  {/* Fila principal de carga de goles (mismo layout que Fase de Zonas) */}
+                                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    {/* Equipo Local */}
+                                    <div className="flex-1 flex justify-end items-center gap-2.5 w-full sm:w-[28%] min-w-0">
+                                      {slot.homeSeed && (
+                                        <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-black text-[10px] shrink-0">
+                                          #{slot.homeSeed}
+                                        </span>
+                                      )}
+                                      <span className="font-bold text-sm text-right truncate" title={homeTeam.display_name ?? homeTeam.name}>
+                                        {homeTeam.display_name ?? homeTeam.name}
+                                      </span>
+                                      <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
+                                        {homeTeam.logo_url
+                                          ? <img src={homeTeam.logo_url} className="w-6 h-6 object-contain" alt={homeTeam.name} />
+                                          : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                                      </div>
+                                    </div>
+
+                                    {/* Goles Tiempo Reglamentario */}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="–"
+                                        aria-label={`Goles de ${homeTeam.display_name ?? homeTeam.name}`}
+                                        value={edit.homeGoals}
+                                        onChange={(e) => handleGoalChange(slotKey, 'home', e.target.value)}
+                                        className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                                      />
+                                      <span className="text-muted-foreground font-bold text-lg">–</span>
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="–"
+                                        aria-label={`Goles de ${awayTeam.display_name ?? awayTeam.name}`}
+                                        value={edit.awayGoals}
+                                        onChange={(e) => handleGoalChange(slotKey, 'away', e.target.value)}
+                                        className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                                      />
+                                    </div>
+
+                                    {/* Horario */}
+                                    <div className="flex flex-col items-center gap-1 shrink-0 px-2 w-[84px]">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
+                                      <input
+                                        type="time"
+                                        value={editingTimes[slotKey] || ''}
+                                        onChange={(e) => handleTimeChange(slotKey, e.target.value)}
+                                        className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
+                                      />
+                                    </div>
+
+                                    {/* Equipo Visitante */}
+                                    <div className="flex-1 flex justify-start items-center gap-2.5 w-full sm:w-[28%] min-w-0">
+                                      <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
+                                        {awayTeam.logo_url
+                                          ? <img src={awayTeam.logo_url} className="w-6 h-6 object-contain" alt={awayTeam.name} />
+                                          : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                                      </div>
+                                      <span className="font-bold text-sm truncate" title={awayTeam.display_name ?? awayTeam.name}>
+                                        {awayTeam.display_name ?? awayTeam.name}
+                                      </span>
+                                      {slot.awaySeed && (
+                                        <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-black text-[10px] shrink-0">
+                                          #{slot.awaySeed}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Botones de Acción */}
+                                    <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                                      {realMatch && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSendPushNotification(realMatch.id)}
+                                          disabled={statusState === 'saving' || realMatch.status !== 'finished'}
+                                          className={cn(
+                                            "p-2.5 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center shrink-0",
+                                            realMatch.status === 'finished'
+                                              ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20"
+                                              : "bg-muted text-muted-foreground border-border/50 cursor-not-allowed"
+                                          )}
+                                          title={realMatch.status === 'finished' ? "Notificar a los suscriptores" : "Sólo finalizados"}
+                                        >
+                                          <BellRing className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSavePlayoffSlot(slot)}
+                                        disabled={statusState === 'saving'}
+                                        className={cn(
+                                          "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-w-[95px] cursor-pointer",
+                                          statusState === 'saved'
+                                            ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                            : statusState === 'error'
+                                            ? "bg-red-500/10 text-red-600 border-red-500/20"
+                                            : "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
+                                        )}
+                                      >
+                                        {statusState === 'saving' && (
+                                          <motion.span
+                                            animate={{ rotate: 360 }}
+                                            transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                                            className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block shrink-0"
+                                          />
+                                        )}
+                                        <span className="truncate">
+                                          {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
+                                        </span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Bloque de Definición por Penales (visible automáticamente cuando hay empate en tiempo reglamentario) */}
+                                  {isTiedInRegulation && (
+                                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                      <div className="text-xs">
+                                        <span className="font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                          ⚽ Definición por Penales ({divisions.find(d => d.id === selectedDivisionId)?.name})
+                                        </span>
+                                        <p className="text-muted-foreground text-[11px] mt-0.5">
+                                          Empate en tiempo reglamentario. Ingresá el resultado de los penales para definir qué equipo clasifica en esta categoría.
+                                        </p>
+                                      </div>
+
+                                      <div className="flex items-center gap-2.5 shrink-0">
+                                        <span className="text-xs font-bold text-foreground truncate max-w-[110px]">
+                                          {homeTeam.display_name ?? homeTeam.name}
+                                        </span>
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="Pen"
+                                          aria-label={`Penales de ${homeTeam.display_name ?? homeTeam.name}`}
+                                          value={penEdit.homePenalties}
+                                          onChange={(e) => handlePenaltyChange(slotKey, 'home', e.target.value)}
+                                          className="w-12 h-10 text-center bg-background border border-amber-500/40 rounded-xl text-base font-black text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40 outline-none"
+                                        />
+                                        <span className="font-bold text-muted-foreground">–</span>
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="Pen"
+                                          aria-label={`Penales de ${awayTeam.display_name ?? awayTeam.name}`}
+                                          value={penEdit.awayPenalties}
+                                          onChange={(e) => handlePenaltyChange(slotKey, 'away', e.target.value)}
+                                          className="w-12 h-10 text-center bg-background border border-amber-500/40 rounded-xl text-base font-black text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40 outline-none"
+                                        />
+                                        <span className="text-xs font-bold text-foreground truncate max-w-[110px]">
+                                          {awayTeam.display_name ?? awayTeam.name}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {slotError && (
+                                    <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-semibold flex items-center gap-2">
+                                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                                      <span>{slotError}</span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ) : (
-                    <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-3">
-                      {matches.filter(m => m.round_number === selectedRound).map(match => {
-                        const home = resolveTeam(match.home_team_id);
-                        const away = resolveTeam(match.away_team_id);
-                        if (!home || !away) return null;
-
-                        const edit = editingResults[match.id] || { homeGoals: '', awayGoals: '' };
-                        const statusState = savingStatus[match.id] || 'idle';
-
-                        return (
-                          <motion.div
-                            key={match.id}
-                            variants={itemVariants}
-                            className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 hover:border-primary/20 transition-colors"
+                    <>
+                      <div className="flex flex-wrap gap-3 mb-6 bg-muted/20 p-4 rounded-2xl border border-border/50">
+                        {/* Torneo */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Torneo</label>
+                          <select
+                            value={selectedTournamentId}
+                            onChange={(e) => setSelectedTournamentId(e.target.value)}
+                            className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
                           >
-                            {/* Local Team */}
-                            <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[28%] min-w-0">
-                              <span className="font-semibold text-sm text-right truncate max-w-[120px] sm:max-w-none" title={home.display_name ?? home.name}>
-                                {home.display_name ?? home.name}
-                              </span>
-                              <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
-                                {home.logo_url 
-                                  ? <img src={home.logo_url} className="w-6 h-6 object-contain" alt={home.name} />
-                                  : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                            {tournaments.map(t => (
+                              <option key={t.id} value={t.id}>{t.name} {t.year}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* División */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">División</label>
+                          <select
+                            value={selectedDivisionId}
+                            onChange={(e) => setSelectedDivisionId(e.target.value)}
+                            className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                          >
+                            {divisions.map(d => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Zona */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Zona</label>
+                          <select
+                            value={selectedZoneId}
+                            onChange={(e) => setSelectedZoneId(e.target.value)}
+                            className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                          >
+                            {availableZonesForDivision.map(z => (
+                              <option key={z.id} value={z.id}>{z.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Fecha */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-bold text-muted-foreground ml-1 uppercase">Fecha</label>
+                          <select
+                            value={selectedRound}
+                            onChange={(e) => setSelectedRound(Number(e.target.value))}
+                            className="bg-background border border-border/50 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                          >
+                            {Array.from(new Set(matches.map(m => m.round_number))).sort((a, b) => a - b).map(r => (
+                              <option key={r} value={r}>Fecha {r}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {loading ? (
+                        <div className="space-y-3 animate-pulse">
+                          {Array.from({ length: 4 }).map((_, idx) => (
+                            <div key={idx} className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+                              <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[35%]">
+                                <div className="h-4 bg-muted rounded w-28"></div>
+                                <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
                               </div>
-                            </div>
-
-                            {/* Goals Inputs */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <input
-                                type="text"
-                                placeholder="–"
-                                value={edit.homeGoals}
-                                onChange={(e) => handleGoalChange(match.id, 'home', e.target.value)}
-                                className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
-                              />
-                              <span className="text-muted-foreground font-bold text-lg">–</span>
-                              <input
-                                type="text"
-                                placeholder="–"
-                                value={edit.awayGoals}
-                                onChange={(e) => handleGoalChange(match.id, 'away', e.target.value)}
-                                className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
-                              />
-                            </div>
-
-                            {/* Horario de Partido */}
-                            <div className="flex flex-col items-center gap-1 shrink-0 px-2 w-[80px]">
-                              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
-                              <input
-                                type="time"
-                                value={editingTimes[match.id] || ''}
-                                onChange={(e) => handleTimeChange(match.id, e.target.value)}
-                                className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
-                              />
-                            </div>
-
-                            {/* Visitor Team */}
-                            <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[28%] min-w-0">
-                              <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
-                                {away.logo_url 
-                                  ? <img src={away.logo_url} className="w-6 h-6 object-contain" alt={away.name} />
-                                  : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                              <div className="flex items-center gap-2 justify-center w-full sm:w-[30%]">
+                                <div className="w-12 h-10 bg-muted rounded-xl"></div>
+                                <div className="w-4 h-4 bg-muted rounded"></div>
+                                <div className="w-12 h-10 bg-muted rounded-xl"></div>
                               </div>
-                              <span className="font-semibold text-sm truncate max-w-[120px] sm:max-w-none" title={away.display_name ?? away.name}>
-                                {away.display_name ?? away.name}
-                              </span>
+                              <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[35%]">
+                                <div className="w-9 h-9 bg-muted rounded-full shrink-0"></div>
+                                <div className="h-4 bg-muted rounded w-28"></div>
+                              </div>
+                              <div className="w-24 h-10 bg-muted rounded-xl shrink-0"></div>
                             </div>
+                          ))}
+                        </div>
+                      ) : matches.filter(m => m.round_number === selectedRound).length === 0 ? (
+                        <div className="text-center py-12 border border-dashed border-border rounded-2xl bg-muted/10">
+                          <p className="text-muted-foreground text-sm font-medium">No se encontraron partidos para la combinación y fecha seleccionadas.</p>
+                        </div>
+                      ) : (
+                        <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-3">
+                          {matches.filter(m => m.round_number === selectedRound).map(match => {
+                            const home = resolveTeam(match.home_team_id);
+                            const away = resolveTeam(match.away_team_id);
+                            if (!home || !away) return null;
 
-                            {/* Status Badge */}
-                            <div className="flex items-center w-full sm:w-[12%] justify-center sm:justify-start shrink-0">
-                              <span className={cn(
-                                "px-2.5 py-1 rounded-full text-xs font-bold w-full text-center sm:text-left",
-                                match.status === 'finished' 
-                                  ? "bg-green-500/10 text-green-600 border border-green-500/20"
-                                  : "bg-slate-500/10 text-slate-600 border border-slate-500/20"
-                              )}>
-                                {match.status === 'finished' ? 'Finalizado' : 'Programado'}
-                              </span>
-                            </div>
+                            const edit = editingResults[match.id] || { homeGoals: '', awayGoals: '' };
+                            const statusState = savingStatus[match.id] || 'idle';
 
-                            {/* Buttons */}
-                            <div className="flex gap-2 w-full sm:w-[15%] shrink-0 mt-2 sm:mt-0 justify-end">
-                              <button
-                                onClick={() => handleSendPushNotification(match.id)}
-                                disabled={statusState === 'saving' || match.status !== 'finished'}
-                                className={cn(
-                                  "p-2.5 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center shrink-0",
-                                  match.status === 'finished' 
-                                    ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20"
-                                    : "bg-muted text-muted-foreground border-border/50 cursor-not-allowed"
-                                )}
-                                title={match.status === 'finished' ? "Notificar a los suscriptores" : "Sólo finalizados"}
+                            return (
+                              <motion.div
+                                key={match.id}
+                                variants={itemVariants}
+                                className="bg-background border border-border/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4 hover:border-primary/20 transition-colors"
                               >
-                                <BellRing className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleSaveSingleMatch(match.id)}
-                                disabled={statusState === 'saving'}
-                                className={cn(
-                                  "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-w-[85px]",
-                                  statusState === 'saved' 
-                                    ? "bg-green-500/10 text-green-600 border-green-500/20"
-                                    : statusState === 'error'
-                                    ? "bg-red-500/10 text-red-600 border-red-500/20"
-                                    : "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
-                                )}
-                              >
-                                {statusState === 'saving' && (
-                                  <motion.span
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                                    className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block shrink-0"
+                                {/* Local Team */}
+                                <div className="flex-1 flex justify-end items-center gap-3 w-full sm:w-[28%] min-w-0">
+                                  <span className="font-semibold text-sm text-right truncate max-w-[120px] sm:max-w-none" title={home.display_name ?? home.name}>
+                                    {home.display_name ?? home.name}
+                                  </span>
+                                  <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {home.logo_url 
+                                      ? <img src={home.logo_url} className="w-6 h-6 object-contain" alt={home.name} />
+                                      : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                                  </div>
+                                </div>
+
+                                {/* Goals Inputs */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <input
+                                    type="text"
+                                    placeholder="–"
+                                    value={edit.homeGoals}
+                                    onChange={(e) => handleGoalChange(match.id, 'home', e.target.value)}
+                                    className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
                                   />
-                                )}
-                                <span className="truncate">
-                                  {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
-                                </span>
-                              </button>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </motion.div>
+                                  <span className="text-muted-foreground font-bold text-lg">–</span>
+                                  <input
+                                    type="text"
+                                    placeholder="–"
+                                    value={edit.awayGoals}
+                                    onChange={(e) => handleGoalChange(match.id, 'away', e.target.value)}
+                                    className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                                  />
+                                </div>
+
+                                {/* Horario de Partido */}
+                                <div className="flex flex-col items-center gap-1 shrink-0 px-2 w-[80px]">
+                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
+                                  <input
+                                    type="time"
+                                    value={editingTimes[match.id] || ''}
+                                    onChange={(e) => handleTimeChange(match.id, e.target.value)}
+                                    className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
+                                  />
+                                </div>
+
+                                {/* Visitor Team */}
+                                <div className="flex-1 flex justify-start items-center gap-3 w-full sm:w-[28%] min-w-0">
+                                  <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
+                                    {away.logo_url 
+                                      ? <img src={away.logo_url} className="w-6 h-6 object-contain" alt={away.name} />
+                                      : <ImageIcon className="w-4 h-4 text-muted-foreground" />}
+                                  </div>
+                                  <span className="font-semibold text-sm truncate max-w-[120px] sm:max-w-none" title={away.display_name ?? away.name}>
+                                    {away.display_name ?? away.name}
+                                  </span>
+                                </div>
+
+                                {/* Status Badge */}
+                                <div className="flex items-center w-full sm:w-[12%] justify-center sm:justify-start shrink-0">
+                                  <span className={cn(
+                                    "px-2.5 py-1 rounded-full text-xs font-bold w-full text-center sm:text-left",
+                                    match.status === 'finished' 
+                                      ? "bg-green-500/10 text-green-600 border border-green-500/20"
+                                      : "bg-slate-500/10 text-slate-600 border border-slate-500/20"
+                                  )}>
+                                    {match.status === 'finished' ? 'Finalizado' : 'Programado'}
+                                  </span>
+                                </div>
+
+                                {/* Buttons */}
+                                <div className="flex gap-2 w-full sm:w-[15%] shrink-0 mt-2 sm:mt-0 justify-end">
+                                  <button
+                                    onClick={() => handleSendPushNotification(match.id)}
+                                    disabled={statusState === 'saving' || match.status !== 'finished'}
+                                    className={cn(
+                                      "p-2.5 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center shrink-0",
+                                      match.status === 'finished' 
+                                        ? "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border-amber-500/20"
+                                        : "bg-muted text-muted-foreground border-border/50 cursor-not-allowed"
+                                    )}
+                                    title={match.status === 'finished' ? "Notificar a los suscriptores" : "Sólo finalizados"}
+                                  >
+                                    <BellRing className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleSaveSingleMatch(match.id)}
+                                    disabled={statusState === 'saving'}
+                                    className={cn(
+                                      "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-w-[85px]",
+                                      statusState === 'saved' 
+                                        ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                        : statusState === 'error'
+                                        ? "bg-red-500/10 text-red-600 border-red-500/20"
+                                        : "bg-primary/10 text-primary hover:bg-primary/20 border-primary/20"
+                                    )}
+                                  >
+                                    {statusState === 'saving' && (
+                                      <motion.span
+                                        animate={{ rotate: 360 }}
+                                        transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                                        className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full inline-block shrink-0"
+                                      />
+                                    )}
+                                    <span className="truncate">
+                                      {statusState === 'saved' ? 'Guardado' : statusState === 'saving' ? 'Guardando' : 'Guardar'}
+                                    </span>
+                                  </button>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </>
                   )}
                 </div>
               )}

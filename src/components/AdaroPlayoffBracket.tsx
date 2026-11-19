@@ -8,7 +8,7 @@ import {
   Layers
 } from 'lucide-react';
 import type { Team, Match, Zone, Division } from '../lib/types';
-import { calculateAdaroZoneStandings, CUP_BADGES, type AdaroCupTier } from '../lib/adaroStandings';
+import { calculateAdaroZoneStandings, CUP_BADGES, getDivisionOrder, type AdaroCupTier } from '../lib/adaroStandings';
 import { ADARO_ZONES, ADARO_PUNTUABLE_DIVISION_IDS, resolveAdaroZoneIds, resolveAdaroPuntuableDivisionIds } from '../lib/mockAdaroData';
 
 interface AdaroPlayoffBracketProps {
@@ -121,9 +121,10 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
     ADARO_ZONES.forEach(zone => {
       const zoneUuid = zoneIdMap[zone.id] || zone.id;
       const zoneMatches = matches.filter(m => 
-        m.zone_id === zone.id || 
-        m.zone_id === zoneUuid ||
-        (zones.length > 0 && zones.find(z => z.id === m.zone_id)?.name.toLowerCase().trim() === zone.name.toLowerCase().trim())
+        (!m.stage || m.stage === 'regular') &&
+        (m.zone_id === zone.id || 
+         m.zone_id === zoneUuid ||
+         (zones.length > 0 && zones.find(z => z.id === m.zone_id)?.name.toLowerCase().trim() === zone.name.toLowerCase().trim()))
       );
       const teamIdSet = new Set<string>();
       zoneMatches.forEach(m => {
@@ -189,9 +190,10 @@ export const AdaroPlayoffBracket: React.FC<AdaroPlayoffBracketProps> = ({
       if (!m.stage || m.stage === 'regular') return false;
       if (!activeDivision) return false;
       if (m.division_id === activeDivision.id) return true;
+      if (targetDivOrder !== -1 && getDivisionOrder(m.division_id) === targetDivOrder) return true;
       const foundDiv = divisions.find(d => d.id === m.division_id);
       if (foundDiv && targetDivOrder !== -1) {
-        return foundDiv.sort_order === targetDivOrder - 6;
+        return getDivisionOrder(foundDiv.name) === targetDivOrder || foundDiv.sort_order === targetDivOrder - 6;
       }
       return false;
     });

@@ -1081,10 +1081,23 @@ export async function savePlayoffMatchResult(params: {
             return saved;
           }
         } else {
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from('matches')
             .insert([payload])
             .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage');
+
+          // Fallback si en la BD aún no se ejecutó ALTER COLUMN zone_id DROP NOT NULL
+          if (error && (error.code === '23502' || String(error.message || '').includes('zone_id'))) {
+            const { data: anyZone } = await supabase.from('zones').select('id').limit(1);
+            if (anyZone && anyZone[0]) {
+              const retryRes = await supabase
+                .from('matches')
+                .insert([{ ...payload, zone_id: anyZone[0].id }])
+                .select('id, tournament_id, division_id, zone_id, round_number, home_team_id, away_team_id, home_goals, away_goals, status, match_date, home_penalties, away_penalties, stage');
+              data = retryRes.data;
+              error = retryRes.error;
+            }
+          }
 
           if (error) throw error;
           if (data && data[0]) {

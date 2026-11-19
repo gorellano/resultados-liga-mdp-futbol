@@ -17,7 +17,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: undefined
       },
-      includeAssets: ['favicon.svg', 'logo_costa_y_gol.png', 'logo_costa_y_gol.avif'],
+      includeAssets: ['favicon.svg', 'favicon-round.png', 'logo_costa_y_gol.png', 'logo_costa_y_gol.avif'],
       manifest: {
         name: 'Costa y Gol',
         short_name: 'Costa y Gol',

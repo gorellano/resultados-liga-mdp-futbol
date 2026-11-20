@@ -11,9 +11,11 @@ import {
   Moon, 
   Lock, 
   Home,
-  ChevronDown
+  ChevronDown,
+  Newspaper
 } from 'lucide-react';
 import { useTournament } from '../context/TournamentContext';
+import { fetchNewsPosts, getUnreadNewsCount } from '../lib/news';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -36,6 +38,7 @@ const NAV_ITEMS = [
   { to: '/h2h', label: 'Versus', icon: Swords },
   { to: '/campeones', label: 'Campeones', icon: Trophy },
   { to: '/equipos', label: 'Equipos', icon: Shirt },
+  { to: '/noticias', label: 'Noticias', icon: Newspaper },
 ];
 
 export const Navbar: React.FC<NavbarProps> = React.memo(({
@@ -45,7 +48,32 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
 }) => {
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [unreadNewsCount, setUnreadNewsCount] = useState(0);
   const { isAdaro, selectedTournament, openSelector } = useTournament();
+  const isDecember = new Date().getMonth() === 11;
+
+  useEffect(() => {
+    let isMounted = true;
+    const syncUnreadCount = async () => {
+      try {
+        const posts = await fetchNewsPosts();
+        if (isMounted) {
+          setUnreadNewsCount(getUnreadNewsCount(posts));
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    syncUnreadCount();
+    window.addEventListener('costaygol-news-updated', syncUnreadCount);
+    window.addEventListener('storage', syncUnreadCount);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('costaygol-news-updated', syncUnreadCount);
+      window.removeEventListener('storage', syncUnreadCount);
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     let ticking = false;
@@ -96,16 +124,26 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
             className="flex items-center space-x-2 sm:space-x-3 group focus:outline-none transition-transform active:scale-95 shrink-0"
           >
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden border border-border/50 bg-primary/5 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-200 shrink-0">
-              <picture>
-                <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
+              {isDecember ? (
                 <img
-                  src="/logo_costa_y_gol.png"
+                  src="/logo_costa_y_gol_navidad.png"
                   alt="Costa y Gol"
                   className="w-full h-full object-cover"
                   loading="eager"
                   decoding="async"
                 />
-              </picture>
+              ) : (
+                <picture>
+                  <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
+                  <img
+                    src="/logo_costa_y_gol.png"
+                    alt="Costa y Gol"
+                    className="w-full h-full object-cover"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </picture>
+              )}
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-black text-base sm:text-xl tracking-tight text-foreground leading-none whitespace-nowrap">
@@ -143,6 +181,14 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
                   )}
                   <Icon className="w-4 h-4 opacity-80" />
                   <span>{item.label}</span>
+                  {item.to === '/noticias' && unreadNewsCount > 0 && (
+                    <span
+                      aria-label={`${unreadNewsCount} noticias sin leer`}
+                      className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#ff3b30] text-white font-black text-[10px] leading-none flex items-center justify-center shadow-xs"
+                    >
+                      {unreadNewsCount > 9 ? '9+' : unreadNewsCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -216,7 +262,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
             : 'inset 0 1px 0 0 rgba(255, 255, 255, 0.6), 0 8px 24px rgba(0, 0, 0, 0.1)',
         }}
       >
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           {NAV_ITEMS.map((item) => {
             const active = isCurrentActive(item.to, item.exact);
             const Icon = item.icon;
@@ -239,7 +285,17 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
                     style={{ zIndex: -1 }}
                   />
                 )}
-                <Icon className={`w-4 h-4 mb-0.5 ${active ? 'scale-110' : 'opacity-70'}`} />
+                <div className="relative">
+                  <Icon className={`w-4 h-4 mb-0.5 ${active ? 'scale-110' : 'opacity-70'}`} />
+                  {item.to === '/noticias' && unreadNewsCount > 0 && (
+                    <span
+                      aria-label={`${unreadNewsCount} noticias sin leer`}
+                      className="absolute -top-1.5 -right-2.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#ff3b30] text-white font-black text-[9px] leading-none flex items-center justify-center shadow-xs ring-2 ring-background"
+                    >
+                      {unreadNewsCount > 9 ? '9+' : unreadNewsCount}
+                    </span>
+                  )}
+                </div>
                 <span className="truncate">{item.label}</span>
               </Link>
             );

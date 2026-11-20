@@ -19,6 +19,7 @@ const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m
 const ContactModal = lazy(() => import('./components/ContactModal').then(m => ({ default: m.ContactModal })));
 const TournamentSelectorModal = lazy(() => import('./components/TournamentSelectorModal').then(m => ({ default: m.TournamentSelectorModal })));
 const ZonePage = lazy(() => import('./pages/ZonePage').then(m => ({ default: m.ZonePage })));
+const NoticiasPage = lazy(() => import('./pages/NoticiasPage').then(m => ({ default: m.NoticiasPage })));
 import { TournamentProvider } from './context/TournamentContext';
 
 export function cn(...inputs: ClassValue[]) {
@@ -197,6 +198,7 @@ function App() {
               <Route path="/equipos" element={<TeamsPage />} />
               <Route path="/campeones" element={<CampeonesPage />} />
               <Route path="/h2h" element={<H2HPage />} />
+              <Route path="/noticias" element={<NoticiasPage />} />
               <Route path="/admin" element={<AdminLogin />} />
               <Route path="/admin/dashboard" element={<AdminDashboard />} />
               <Route path="/admin/*" element={<AdminPage />} />

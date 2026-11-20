@@ -5,10 +5,17 @@ import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
   Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare,
-  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard, Swords, Crown
+  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard, Swords, Crown, Newspaper, Pin
 } from 'lucide-react';
 import { cn } from '../App';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
+import {
+  fetchNewsPosts,
+  saveNewsPosts,
+  NEWS_CATEGORY_META,
+  type NewsPost,
+  type NewsCategory
+} from '../lib/news';
 import { 
   fetchTournaments, 
   fetchDivisions, 
@@ -111,7 +118,17 @@ const TEAMS_PROMOCION_NAMES = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ username: string; role: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings' | 'champions' | 'social_generator'>('teams');
+  const [activeTab, setActiveTab] = useState<'teams' | 'tournaments' | 'fixture_config' | 'fixture' | 'users' | 'messages' | 'settings' | 'champions' | 'social_generator' | 'news'>('teams');
+
+  // Estados de Noticias / Avisos
+  const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [savingNews, setSavingNews] = useState(false);
+  const [newPostTitle, setNewPostTitle] = useState('');
+  const [newPostCategory, setNewPostCategory] = useState<NewsCategory>('playoffs');
+  const [newPostBody, setNewPostBody] = useState('');
+  const [newPostPinned, setNewPostPinned] = useState(false);
+  const [newsFormError, setNewsFormError] = useState('');
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -847,7 +864,70 @@ export function AdminDashboard() {
     if (activeTab === 'messages') {
       loadMessages();
     }
+    if (activeTab === 'news') {
+      loadNewsData();
+    }
   }, [activeTab]);
+
+  const loadNewsData = async () => {
+    setLoadingNews(true);
+    try {
+      const posts = await fetchNewsPosts();
+      setNewsPosts(posts);
+    } catch (err) {
+      console.error('Error cargando noticias en admin:', err);
+    } finally {
+      setLoadingNews(false);
+    }
+  };
+
+  const handleCreateNewsPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPostTitle.trim() || !newPostBody.trim()) {
+      setNewsFormError('Completá el título y el contenido de la nota.');
+      return;
+    }
+    setSavingNews(true);
+    setNewsFormError('');
+    try {
+      const newPost: NewsPost = {
+        id: `news-${Date.now()}`,
+        title: newPostTitle.trim(),
+        category: newPostCategory,
+        body: newPostBody.trim(),
+        is_pinned: newPostPinned,
+        created_at: new Date().toISOString()
+      };
+      const updated = [newPost, ...newsPosts];
+      const ok = await saveNewsPosts(updated);
+      if (ok) {
+        setNewsPosts(updated);
+        setNewPostTitle('');
+        setNewPostBody('');
+        setNewPostPinned(false);
+      } else {
+        setNewsFormError('No se pudo guardar la noticia en la base de datos.');
+      }
+    } catch (err) {
+      console.error('Error creando noticia:', err);
+      setNewsFormError('Error al publicar la noticia.');
+    } finally {
+      setSavingNews(false);
+    }
+  };
+
+  const handleTogglePinNewsPost = async (postId: string) => {
+    const updated = newsPosts.map(p => (p.id === postId ? { ...p, is_pinned: !p.is_pinned } : p));
+    setNewsPosts(updated);
+    await saveNewsPosts(updated);
+  };
+
+  const handleDeleteNewsPost = async (postId: string) => {
+    if (!confirm('¿Estás seguro de que querés eliminar esta noticia?')) return;
+    const updated = newsPosts.filter(p => p.id !== postId);
+    setNewsPosts(updated);
+    await saveNewsPosts(updated);
+  };
 
   const loadMessages = async () => {
     setLoadingMessages(true);
@@ -1676,6 +1756,7 @@ export function AdminDashboard() {
     { id: 'tournaments' as const, label: 'Torneos y Años',        icon: Trophy   },
     ...(isSuperAdmin ? [{ id: 'fixture_config' as const, label: 'Configurar Fixture', icon: Settings }] : []),
     { id: 'fixture'     as const, label: 'Fixture y Resultados',  icon: Calendar },
+    { id: 'news'        as const, label: 'Noticias y Avisos',     icon: Newspaper },
     { id: 'champions'   as const, label: 'Historial Campeones',   icon: Trophy   },
     { id: 'social_generator' as const, label: 'Generador de Placas', icon: ImageIcon },
     { id: 'users'       as const, label: 'Gestión de Usuarios',   icon: Users },
@@ -2774,10 +2855,10 @@ export function AdminDashboard() {
                                 </div>
                               ) : (
                                 <>
-                                  {/* Fila principal de carga de goles (mismo layout que Fase de Zonas) */}
-                                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                                  {/* Fila principal de carga de goles y penales (siempre visibles en Playoffs) */}
+                                  <div className="flex flex-col lg:flex-row items-center gap-3.5">
                                     {/* Equipo Local */}
-                                    <div className="flex-1 flex justify-end items-center gap-2.5 w-full sm:w-[28%] min-w-0">
+                                    <div className="flex-1 flex justify-end items-center gap-2.5 w-full lg:w-[23%] min-w-0">
                                       {slot.homeSeed && (
                                         <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-black text-[10px] shrink-0">
                                           #{slot.homeSeed}
@@ -2794,41 +2875,90 @@ export function AdminDashboard() {
                                     </div>
 
                                     {/* Goles Tiempo Reglamentario */}
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        placeholder="–"
-                                        aria-label={`Goles de ${homeTeam.display_name ?? homeTeam.name}`}
-                                        value={edit.homeGoals}
-                                        onChange={(e) => handleGoalChange(slotKey, 'home', e.target.value)}
-                                        className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
-                                      />
-                                      <span className="text-muted-foreground font-bold text-lg">–</span>
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        placeholder="–"
-                                        aria-label={`Goles de ${awayTeam.display_name ?? awayTeam.name}`}
-                                        value={edit.awayGoals}
-                                        onChange={(e) => handleGoalChange(slotKey, 'away', e.target.value)}
-                                        className="w-12 h-11 text-center bg-muted/30 border border-border/60 rounded-xl text-xl font-bold focus:ring-2 focus:ring-primary/40 outline-none"
-                                      />
+                                    <div className="flex flex-col items-center gap-1 shrink-0">
+                                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Goles</span>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="–"
+                                          aria-label={`Goles de ${homeTeam.display_name ?? homeTeam.name}`}
+                                          value={edit.homeGoals}
+                                          onChange={(e) => handleGoalChange(slotKey, 'home', e.target.value)}
+                                          className="w-11 h-10 text-center bg-muted/30 border border-border/60 rounded-xl text-lg font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                                        />
+                                        <span className="text-muted-foreground font-bold">–</span>
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="–"
+                                          aria-label={`Goles de ${awayTeam.display_name ?? awayTeam.name}`}
+                                          value={edit.awayGoals}
+                                          onChange={(e) => handleGoalChange(slotKey, 'away', e.target.value)}
+                                          className="w-11 h-10 text-center bg-muted/30 border border-border/60 rounded-xl text-lg font-bold focus:ring-2 focus:ring-primary/40 outline-none"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Penales (Siempre visibles en la tarjeta de Playoffs) */}
+                                    <div className={cn(
+                                      "flex flex-col items-center gap-1 shrink-0 px-2.5 py-1.5 rounded-xl border transition-all",
+                                      isTiedInRegulation
+                                        ? "bg-amber-500/10 border-amber-500/40"
+                                        : "bg-muted/15 border-border/40"
+                                    )}>
+                                      <span className={cn(
+                                        "text-[9px] font-extrabold uppercase tracking-wider",
+                                        isTiedInRegulation ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                                      )}>
+                                        ⚽ Penales (si empatan)
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="Pen"
+                                          aria-label={`Penales de ${homeTeam.display_name ?? homeTeam.name}`}
+                                          value={penEdit.homePenalties}
+                                          onChange={(e) => handlePenaltyChange(slotKey, 'home', e.target.value)}
+                                          className={cn(
+                                            "w-11 h-9 text-center rounded-lg text-sm font-black outline-none transition-all",
+                                            isTiedInRegulation
+                                              ? "bg-background border border-amber-500/50 text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                                              : "bg-background/80 border border-border/60 text-foreground focus:ring-2 focus:ring-primary/30"
+                                          )}
+                                        />
+                                        <span className="text-muted-foreground font-bold text-xs">–</span>
+                                        <input
+                                          type="text"
+                                          inputMode="numeric"
+                                          placeholder="Pen"
+                                          aria-label={`Penales de ${awayTeam.display_name ?? awayTeam.name}`}
+                                          value={penEdit.awayPenalties}
+                                          onChange={(e) => handlePenaltyChange(slotKey, 'away', e.target.value)}
+                                          className={cn(
+                                            "w-11 h-9 text-center rounded-lg text-sm font-black outline-none transition-all",
+                                            isTiedInRegulation
+                                              ? "bg-background border border-amber-500/50 text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40"
+                                              : "bg-background/80 border border-border/60 text-foreground focus:ring-2 focus:ring-primary/30"
+                                          )}
+                                        />
+                                      </div>
                                     </div>
 
                                     {/* Horario */}
-                                    <div className="flex flex-col items-center gap-1 shrink-0 px-2 w-[84px]">
+                                    <div className="flex flex-col items-center gap-1 shrink-0 px-1 w-[84px]">
                                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Horario</span>
                                       <input
                                         type="time"
                                         value={editingTimes[slotKey] || ''}
                                         onChange={(e) => handleTimeChange(slotKey, e.target.value)}
-                                        className="px-2 py-1.5 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
+                                        className="px-2 py-2 text-xs border border-border/60 rounded-xl bg-muted/20 focus:ring-2 focus:ring-primary/40 outline-none text-center font-bold w-full"
                                       />
                                     </div>
 
                                     {/* Equipo Visitante */}
-                                    <div className="flex-1 flex justify-start items-center gap-2.5 w-full sm:w-[28%] min-w-0">
+                                    <div className="flex-1 flex justify-start items-center gap-2.5 w-full lg:w-[23%] min-w-0">
                                       <div className="w-9 h-9 bg-muted rounded-full border border-border/50 overflow-hidden shrink-0 flex items-center justify-center">
                                         {awayTeam.logo_url
                                           ? <img src={awayTeam.logo_url} className="w-6 h-6 object-contain" alt={awayTeam.name} />
@@ -2845,7 +2975,7 @@ export function AdminDashboard() {
                                     </div>
 
                                     {/* Botones de Acción */}
-                                    <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                                    <div className="flex gap-2 w-full lg:w-auto shrink-0 justify-end">
                                       {realMatch && (
                                         <button
                                           type="button"
@@ -2867,7 +2997,7 @@ export function AdminDashboard() {
                                         onClick={() => handleSavePlayoffSlot(slot)}
                                         disabled={statusState === 'saving'}
                                         className={cn(
-                                          "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-w-[95px] cursor-pointer",
+                                          "px-4 py-2 rounded-xl text-sm font-semibold transition-all border flex-1 lg:flex-none flex items-center justify-center gap-1.5 min-w-[95px] cursor-pointer",
                                           statusState === 'saved'
                                             ? "bg-green-500/10 text-green-600 border-green-500/20"
                                             : statusState === 'error'
@@ -2888,48 +3018,6 @@ export function AdminDashboard() {
                                       </button>
                                     </div>
                                   </div>
-
-                                  {/* Bloque de Definición por Penales (visible automáticamente cuando hay empate en tiempo reglamentario) */}
-                                  {isTiedInRegulation && (
-                                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
-                                      <div className="text-xs">
-                                        <span className="font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                                          ⚽ Definición por Penales ({divisions.find(d => d.id === selectedDivisionId)?.name})
-                                        </span>
-                                        <p className="text-muted-foreground text-[11px] mt-0.5">
-                                          Empate en tiempo reglamentario. Ingresá el resultado de los penales para definir qué equipo clasifica en esta categoría.
-                                        </p>
-                                      </div>
-
-                                      <div className="flex items-center gap-2.5 shrink-0">
-                                        <span className="text-xs font-bold text-foreground truncate max-w-[110px]">
-                                          {homeTeam.display_name ?? homeTeam.name}
-                                        </span>
-                                        <input
-                                          type="text"
-                                          inputMode="numeric"
-                                          placeholder="Pen"
-                                          aria-label={`Penales de ${homeTeam.display_name ?? homeTeam.name}`}
-                                          value={penEdit.homePenalties}
-                                          onChange={(e) => handlePenaltyChange(slotKey, 'home', e.target.value)}
-                                          className="w-12 h-10 text-center bg-background border border-amber-500/40 rounded-xl text-base font-black text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                                        />
-                                        <span className="font-bold text-muted-foreground">–</span>
-                                        <input
-                                          type="text"
-                                          inputMode="numeric"
-                                          placeholder="Pen"
-                                          aria-label={`Penales de ${awayTeam.display_name ?? awayTeam.name}`}
-                                          value={penEdit.awayPenalties}
-                                          onChange={(e) => handlePenaltyChange(slotKey, 'away', e.target.value)}
-                                          className="w-12 h-10 text-center bg-background border border-amber-500/40 rounded-xl text-base font-black text-amber-600 dark:text-amber-400 focus:ring-2 focus:ring-amber-500/40 outline-none"
-                                        />
-                                        <span className="text-xs font-bold text-foreground truncate max-w-[110px]">
-                                          {awayTeam.display_name ?? awayTeam.name}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  )}
 
                                   {slotError && (
                                     <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-semibold flex items-center gap-2">
@@ -3494,6 +3582,172 @@ export function AdminDashboard() {
                   }>
                     <SocialMediaGenerator />
                   </Suspense>
+                </div>
+              )}
+
+              {/* ── NEWS / AVISOS TAB ── */}
+              {activeTab === 'news' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-bold flex items-center gap-2">
+                      <Newspaper className="w-6 h-6 text-primary" />
+                      Noticias y Avisos Oficiales
+                    </h2>
+                    <p className="text-muted-foreground text-sm mt-1">
+                      Publicá notas breves para informar a los visitantes. Cada nueva publicación activa el contador rojo sin leer estilo iPhone en el menú de cada usuario hasta que ingrese a Noticias.
+                    </p>
+                  </div>
+
+                  {/* Formulario para publicar nueva noticia */}
+                  <form onSubmit={handleCreateNewsPost} className="bg-background border border-border/60 rounded-3xl p-6 space-y-4 shadow-xs">
+                    <h3 className="font-bold text-base flex items-center gap-2">
+                      <Plus className="w-4 h-4 text-primary" /> Publicar Nueva Nota / Comunicado
+                    </h3>
+
+                    {newsFormError && (
+                      <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-semibold">
+                        {newsFormError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="md:col-span-2 space-y-1.5">
+                        <label className="text-xs font-semibold ml-1">Título de la Nota *</label>
+                        <input
+                          type="text"
+                          value={newPostTitle}
+                          onChange={(e) => setNewPostTitle(e.target.value)}
+                          placeholder="Ej: ¡Cuadros de Playoffs Confirmados!"
+                          maxLength={140}
+                          className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm font-semibold"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-semibold ml-1">Categoría / Etiqueta</label>
+                        <select
+                          value={newPostCategory}
+                          onChange={(e) => setNewPostCategory(e.target.value as NewsCategory)}
+                          className="w-full px-4 py-2.5 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm font-semibold"
+                        >
+                          {(Object.keys(NEWS_CATEGORY_META) as NewsCategory[]).map(cat => (
+                            <option key={cat} value={cat}>
+                              {NEWS_CATEGORY_META[cat].emoji} {NEWS_CATEGORY_META[cat].label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold ml-1">Contenido de la Nota *</label>
+                      <textarea
+                        value={newPostBody}
+                        onChange={(e) => setNewPostBody(e.target.value)}
+                        placeholder="Escribí aquí el comunicado para los usuarios de la página..."
+                        rows={4}
+                        maxLength={1500}
+                        className="w-full px-4 py-3 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm resize-y"
+                        required
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                      <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={newPostPinned}
+                          onChange={(e) => setNewPostPinned(e.target.checked)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                        />
+                        <Pin className="w-3.5 h-3.5 text-primary" />
+                        <span>Fijar arriba como nota destacada</span>
+                      </label>
+
+                      <button
+                        type="submit"
+                        disabled={savingNews}
+                        className="px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:opacity-90 disabled:opacity-50 cursor-pointer shadow-sm"
+                      >
+                        {savingNews ? 'Publicando...' : 'Publicar Noticia'}
+                      </button>
+                    </div>
+                  </form>
+
+                  {/* Lista de noticias publicadas */}
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-base">Notas Publicadas ({newsPosts.length})</h3>
+
+                    {loadingNews ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm animate-pulse">
+                        Cargando noticias...
+                      </div>
+                    ) : newsPosts.length === 0 ? (
+                      <div className="p-10 text-center border border-dashed border-border rounded-2xl text-muted-foreground text-sm">
+                        No hay noticias publicadas actualmente.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {newsPosts.map(post => {
+                          const cat = NEWS_CATEGORY_META[post.category] || NEWS_CATEGORY_META.general;
+                          return (
+                            <div
+                              key={post.id}
+                              className={cn(
+                                "p-5 rounded-2xl border bg-background flex flex-col sm:flex-row sm:items-start justify-between gap-4",
+                                post.is_pinned ? "border-primary/40" : "border-border/60"
+                              )}
+                            >
+                              <div className="space-y-2 flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className={cn("px-2.5 py-0.5 rounded-full text-[11px] font-bold border", cat.badgeClass)}>
+                                    {cat.emoji} {cat.label}
+                                  </span>
+                                  {post.is_pinned && (
+                                    <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center gap-1">
+                                      <Pin className="w-3 h-3" /> Destacada
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(post.created_at).toLocaleDateString('es-AR')}
+                                  </span>
+                                </div>
+                                <h4 className="font-bold text-base text-foreground">{post.title}</h4>
+                                <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
+                                  {post.body}
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePinNewsPost(post.id)}
+                                  className={cn(
+                                    "p-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer",
+                                    post.is_pinned
+                                      ? "bg-primary/15 text-primary border-primary/30"
+                                      : "bg-muted/40 text-muted-foreground hover:text-foreground border-border/50"
+                                  )}
+                                  title={post.is_pinned ? "Quitar destacado" : "Destacar arriba"}
+                                >
+                                  <Pin className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteNewsPost(post.id)}
+                                  className="p-2 rounded-xl border border-red-500/20 bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors cursor-pointer"
+                                  title="Eliminar noticia"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

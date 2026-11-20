@@ -317,18 +317,30 @@ export function HomePage() {
     >
       <section className="flex items-center gap-4 sm:gap-6 text-left bg-card border border-border/60 p-4 sm:p-6 md:p-8 rounded-3xl max-w-4xl mx-auto shadow-xs">
         <div className="w-16 h-16 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-2xl bg-primary/5 border border-border/50 overflow-hidden shadow-md shrink-0 hover:scale-105 transition-transform duration-300">
-          <picture>
-            <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
-            <img 
-              src="/logo_costa_y_gol.png" 
-              alt="Costa y Gol Logo" 
-              className="w-full h-full object-cover" 
+          {new Date().getMonth() === 11 ? (
+            <img
+              src="/logo_costa_y_gol_navidad.png"
+              alt="Costa y Gol Logo"
+              className="w-full h-full object-cover"
               loading="eager"
               decoding="async"
               // @ts-expect-error fetchpriority attribute
               fetchpriority="high"
             />
-          </picture>
+          ) : (
+            <picture>
+              <source srcSet="/logo_costa_y_gol.avif" type="image/avif" />
+              <img 
+                src="/logo_costa_y_gol.png" 
+                alt="Costa y Gol Logo" 
+                className="w-full h-full object-cover" 
+                loading="eager"
+                decoding="async"
+                // @ts-expect-error fetchpriority attribute
+                fetchpriority="high"
+              />
+            </picture>
+          )}
         </div>
         <div className="space-y-1 sm:space-y-2 md:space-y-3">
           <h1 className="text-xl sm:text-3xl md:text-4xl font-display font-black tracking-tight text-foreground">

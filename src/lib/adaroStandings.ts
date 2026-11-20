@@ -6,6 +6,72 @@ const ALL_FALLBACK_TEAMS: Team[] = [...MOCK_TEAMS_CAMPEONATO, ...MOCK_TEAMS_PROM
 
 export type AdaroCupTier = 'platino' | 'oro' | 'plata' | 'bronce';
 
+/**
+ * Tabla Oficial Final de Promedios - Primera Fase (Jugadas 6 fechas)
+ * Fuente: Boletín Oficial LMF - Torneo Armando "Chamaco" Adaro
+ */
+export interface OfficialAdaroStandingOverride {
+  played: number;
+  points: number;
+  average: number;
+}
+
+export const OFFICIAL_ADARO_FINAL_STANDINGS: Record<string, OfficialAdaroStandingOverride> = {
+  // ZONA A (Zona 1)
+  'aldosivi':              { played: 47, points: 135, average: 2.87 },
+  'argentinos del sud':    { played: 48, points: 70,  average: 1.46 },
+  'san lorenzo':           { played: 48, points: 63,  average: 1.31 },
+  'libertad':              { played: 47, points: 7,   average: 0.15 },
+  // ZONA B (Zona 2)
+  'kimberley':             { played: 48, points: 128, average: 2.67 },
+  'talleres':              { played: 48, points: 80,  average: 1.67 },
+  'chapadmalal':           { played: 48, points: 43,  average: 0.90 },
+  'boca':                  { played: 48, points: 24,  average: 0.50 },
+  // ZONA C (Zona 3)
+  'alvarado':              { played: 48, points: 129, average: 2.69 },
+  'mar del plata':         { played: 48, points: 63,  average: 1.31 },
+  'san isidro':            { played: 48, points: 60,  average: 1.25 },
+  'al ver veras':          { played: 48, points: 20,  average: 0.42 },
+  // ZONA D (Zona 4)
+  'independiente':         { played: 48, points: 115, average: 2.40 },
+  'el canon':              { played: 48, points: 81,  average: 1.69 },
+  'quilmes':               { played: 48, points: 66,  average: 1.38 },
+  'racing':                { played: 48, points: 11,  average: 0.23 },
+  // ZONA E (Zona 5)
+  'deportivo norte':       { played: 48, points: 95,  average: 1.98 },
+  'nacion':                { played: 48, points: 84,  average: 1.75 },
+  'circulo deportivo':     { played: 48, points: 71,  average: 1.48 },
+  'almagro':               { played: 48, points: 23,  average: 0.48 },
+  // ZONA F (Zona 6)
+  'river plate':           { played: 48, points: 118, average: 2.46 },
+  'cadetes':               { played: 48, points: 98,  average: 2.04 },
+  'colegiales':            { played: 48, points: 39,  average: 0.81 },
+  'san jose':              { played: 48, points: 21,  average: 0.44 },
+  // ZONA G (Zona 7)
+  'banfield':              { played: 48, points: 112, average: 2.33 },
+  'once unidos':           { played: 48, points: 95,  average: 1.98 },
+  'general urquiza':       { played: 48, points: 64,  average: 1.33 },
+  'banco provincia':       { played: 48, points: 10,  average: 0.21 },
+};
+
+export function findOfficialAdaroOverride(team: Team): OfficialAdaroStandingOverride | null {
+  const candidates = [team.name, team.display_name || '']
+    .map(str => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
+    .filter(Boolean);
+
+  for (const cand of candidates) {
+    if (OFFICIAL_ADARO_FINAL_STANDINGS[cand]) {
+      return OFFICIAL_ADARO_FINAL_STANDINGS[cand];
+    }
+    for (const [key, val] of Object.entries(OFFICIAL_ADARO_FINAL_STANDINGS)) {
+      if (cand.includes(key) || key.includes(cand)) {
+        return val;
+      }
+    }
+  }
+  return null;
+}
+
 export interface ZoneClubStanding {
   team: Team;
   played: number;
@@ -179,7 +245,23 @@ export function calculateAdaroZoneStandings(
     }
   });
 
+  // Si estamos evaluando el fixture completo de 6 fechas del Torneo Adaro,
+  // aplicamos los totales oficiales de cierre de Primera Fase (PJ, Puntos y Promedio oficial)
+  // incluyendo los partidos suspendidos disputados cuyo detalle de goles no fue informado en boletín.
+  const isFullAdaroZoneFixture = zoneMatches.some(m => m.round_number >= 6);
+
   const sorted = Array.from(standingsMap.values()).map(s => {
+    const official = isFullAdaroZoneFixture ? findOfficialAdaroOverride(s.team) : null;
+    if (official) {
+      return {
+        ...s,
+        played: official.played,
+        points: official.points,
+        average: official.average,
+        goalDifference: s.goalsFor - s.goalsAgainst,
+      };
+    }
+
     const rawAvg = s.played > 0 ? s.points / s.played : 0;
     // Redondeo estándar a 2 decimales según Boletín Oficial LMF
     const roundedAvg = Math.round(rawAvg * 100) / 100;

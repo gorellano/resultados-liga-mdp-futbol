@@ -60,7 +60,24 @@ export function notifyNewsStateChanged(): void {
   }
 }
 
+function getLocalCachedPosts(): NewsPost[] | null {
+  try {
+    const cached = localStorage.getItem(LOCAL_NEWS_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
 export async function fetchNewsPosts(): Promise<NewsPost[]> {
+  const localPosts = getLocalCachedPosts();
+
   if (isSupabaseActive()) {
     try {
       const { data, error } = await supabase
@@ -69,12 +86,23 @@ export async function fetchNewsPosts(): Promise<NewsPost[]> {
         .eq('key', NEWS_SETTINGS_KEY)
         .maybeSingle();
 
-      if (!error && data && data.value) {
+      if (!error && data && data.value !== undefined && data.value !== null) {
         const parsed: NewsPost[] = typeof data.value === 'string'
           ? JSON.parse(data.value)
           : (Array.isArray(data.value) ? data.value : []);
 
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Si en localStorage había alguna nota creada antes del fix de BD que aún no estaba en Supabase, la fusionamos y sincronizamos
+          if (localPosts && localPosts.length > parsed.length) {
+            const dbIds = new Set(parsed.map(p => p.id));
+            const missingLocal = localPosts.filter(p => !dbIds.has(p.id));
+            if (missingLocal.length > 0) {
+              const merged = sortNewsPosts([...missingLocal, ...parsed]);
+              await saveNewsPosts(merged);
+              return merged;
+            }
+          }
+
           try {
             localStorage.setItem(LOCAL_NEWS_CACHE_KEY, JSON.stringify(parsed));
           } catch {
@@ -83,21 +111,19 @@ export async function fetchNewsPosts(): Promise<NewsPost[]> {
           return sortNewsPosts(parsed);
         }
       }
+
+      // Si la BD todavía no tiene 'news_posts', pero localStorage sí tiene notas (ej. creadas recién), las subimos a la BD automáticamente
+      if (localPosts && localPosts.length > 0) {
+        await saveNewsPosts(localPosts);
+        return sortNewsPosts(localPosts);
+      }
     } catch (err) {
       console.warn('Error fetching news_posts from Supabase, falling back to local cache:', err);
     }
   }
 
-  try {
-    const cached = localStorage.getItem(LOCAL_NEWS_CACHE_KEY);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return sortNewsPosts(parsed);
-      }
-    }
-  } catch {
-    // ignore storage errors
+  if (localPosts && localPosts.length > 0) {
+    return sortNewsPosts(localPosts);
   }
 
   return sortNewsPosts(DEFAULT_NEWS_POSTS);
@@ -122,13 +148,16 @@ export async function saveNewsPosts(posts: NewsPost[]): Promise<boolean> {
 
   if (isSupabaseActive()) {
     try {
+      // Nota: app_settings en Supabase tiene columnas (key, value) sin updated_at
       const { error } = await supabase
         .from('app_settings')
-        .upsert({
-          key: NEWS_SETTINGS_KEY,
-          value: sorted,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            key: NEWS_SETTINGS_KEY,
+            value: sorted,
+          },
+          { onConflict: 'key' }
+        );
       if (error) throw error;
     } catch (err) {
       console.error('Error saving news_posts to Supabase:', err);

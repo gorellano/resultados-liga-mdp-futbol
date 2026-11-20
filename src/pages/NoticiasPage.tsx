@@ -9,6 +9,7 @@ import {
   NEWS_CATEGORY_META,
   type NewsPost
 } from '../lib/news';
+import { FormattedNewsText } from '../components/FormattedNewsText';
 
 export function NoticiasPage() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
@@ -148,13 +149,11 @@ export function NoticiasPage() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <h2 className="text-lg sm:text-xl font-display font-black tracking-tight text-foreground">
                     {post.title}
                   </h2>
-                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-                    {post.body}
-                  </p>
+                  <FormattedNewsText text={post.body} />
                 </div>
 
                 {post.category === 'playoffs' && (

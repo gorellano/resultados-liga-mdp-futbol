@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LogOut, Shield, Trophy, Calendar, Settings,
   Image as ImageIcon, Trash2, Plus, AlertTriangle,
   Users, BarChart3, ClipboardList, UserPlus, Key, UserCheck, UserX, Eye, EyeOff, MessageSquare,
-  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard, Swords, Crown, Newspaper, Pin
+  Upload, Play, Check, FileText, Sparkles, BellRing, LayoutDashboard, Swords, Crown, Newspaper, Pin,
+  Edit2, Bold, Italic, Underline, List, Highlighter, X
 } from 'lucide-react';
 import { cn } from '../App';
 import { loadAuth, clearAuth, validatePassword } from '../lib/auth';
@@ -16,6 +17,7 @@ import {
   type NewsPost,
   type NewsCategory
 } from '../lib/news';
+import { FormattedNewsText } from '../components/FormattedNewsText';
 import { 
   fetchTournaments, 
   fetchDivisions, 
@@ -124,11 +126,14 @@ export function AdminDashboard() {
   const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
   const [loadingNews, setLoadingNews] = useState(false);
   const [savingNews, setSavingNews] = useState(false);
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostCategory, setNewPostCategory] = useState<NewsCategory>('playoffs');
   const [newPostBody, setNewPostBody] = useState('');
   const [newPostPinned, setNewPostPinned] = useState(false);
   const [newsFormError, setNewsFormError] = useState('');
+  const [newsFormSuccess, setNewsFormSuccess] = useState('');
+  const newsBodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Estados de Base de Datos
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -889,31 +894,138 @@ export function AdminDashboard() {
     }
     setSavingNews(true);
     setNewsFormError('');
+    setNewsFormSuccess('');
     try {
-      const newPost: NewsPost = {
-        id: `news-${Date.now()}`,
-        title: newPostTitle.trim(),
-        category: newPostCategory,
-        body: newPostBody.trim(),
-        is_pinned: newPostPinned,
-        created_at: new Date().toISOString()
-      };
-      const updated = [newPost, ...newsPosts];
+      let updated: NewsPost[];
+      if (editingNewsId) {
+        updated = newsPosts.map(p =>
+          p.id === editingNewsId
+            ? {
+                ...p,
+                title: newPostTitle.trim(),
+                category: newPostCategory,
+                body: newPostBody.trim(),
+                is_pinned: newPostPinned
+              }
+            : p
+        );
+      } else {
+        const newPost: NewsPost = {
+          id: `news-${Date.now()}`,
+          title: newPostTitle.trim(),
+          category: newPostCategory,
+          body: newPostBody.trim(),
+          is_pinned: newPostPinned,
+          created_at: new Date().toISOString()
+        };
+        updated = [newPost, ...newsPosts];
+      }
+
       const ok = await saveNewsPosts(updated);
       if (ok) {
         setNewsPosts(updated);
+        setEditingNewsId(null);
         setNewPostTitle('');
         setNewPostBody('');
         setNewPostPinned(false);
+        setNewsFormSuccess(editingNewsId ? '¡Cambios guardados en la base de datos!' : '¡Noticia publicada y guardada en la base de datos!');
+        setTimeout(() => setNewsFormSuccess(''), 3500);
       } else {
-        setNewsFormError('No se pudo guardar la noticia en la base de datos.');
+        setNewsFormError('No se pudo sincronizar con Supabase. Verificá tu conexión.');
       }
     } catch (err) {
-      console.error('Error creando noticia:', err);
-      setNewsFormError('Error al publicar la noticia.');
+      console.error('Error guardando noticia:', err);
+      setNewsFormError('Error al guardar la noticia.');
     } finally {
       setSavingNews(false);
     }
+  };
+
+  const handleStartEditNewsPost = (post: NewsPost) => {
+    setEditingNewsId(post.id);
+    setNewPostTitle(post.title);
+    setNewPostCategory(post.category);
+    setNewPostBody(post.body);
+    setNewPostPinned(Boolean(post.is_pinned));
+    setNewsFormError('');
+    setNewsFormSuccess('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEditNewsPost = () => {
+    setEditingNewsId(null);
+    setNewPostTitle('');
+    setNewPostCategory('playoffs');
+    setNewPostBody('');
+    setNewPostPinned(false);
+    setNewsFormError('');
+  };
+
+  const applyNewsFormat = (
+    type: 'bold' | 'italic' | 'underline' | 'highlight' | 'size_lg' | 'size_md' | 'size_sm' | 'list'
+  ) => {
+    const textarea = newsBodyTextareaRef.current;
+    const current = newPostBody;
+    const start = textarea ? textarea.selectionStart : current.length;
+    const end = textarea ? textarea.selectionEnd : current.length;
+    const selected = current.slice(start, end);
+
+    let replacement = '';
+    let cursorOffset = 0;
+
+    if (type === 'bold') {
+      const text = selected || 'texto en negrita';
+      replacement = `**${text}**`;
+      cursorOffset = selected ? replacement.length : 2 + text.length;
+    } else if (type === 'italic') {
+      const text = selected || 'texto en cursiva';
+      replacement = `*${text}*`;
+      cursorOffset = selected ? replacement.length : 1 + text.length;
+    } else if (type === 'underline') {
+      const text = selected || 'texto subrayado';
+      replacement = `__${text}__`;
+      cursorOffset = selected ? replacement.length : 2 + text.length;
+    } else if (type === 'highlight') {
+      const text = selected || 'texto resaltado';
+      replacement = `==${text}==`;
+      cursorOffset = selected ? replacement.length : 2 + text.length;
+    } else if (type === 'size_sm') {
+      const text = selected || 'texto chico';
+      replacement = `[chico]${text}[/chico]`;
+      cursorOffset = replacement.length;
+    } else if (type === 'size_lg') {
+      const text = selected || 'Título grande';
+      const prefix = start > 0 && current[start - 1] !== '\n' ? '\n### ' : '### ';
+      replacement = `${prefix}${text}`;
+      cursorOffset = replacement.length;
+    } else if (type === 'size_md') {
+      const text = selected || 'Subtítulo mediano';
+      const prefix = start > 0 && current[start - 1] !== '\n' ? '\n#### ' : '#### ';
+      replacement = `${prefix}${text}`;
+      cursorOffset = replacement.length;
+    } else if (type === 'list') {
+      if (selected) {
+        replacement = selected
+          .split('\n')
+          .map(line => (line.trim().startsWith('- ') ? line : `- ${line}`))
+          .join('\n');
+      } else {
+        const prefix = start > 0 && current[start - 1] !== '\n' ? '\n- ' : '- ';
+        replacement = `${prefix}Elemento de lista`;
+      }
+      cursorOffset = replacement.length;
+    }
+
+    const updatedText = current.slice(0, start) + replacement + current.slice(end);
+    setNewPostBody(updatedText);
+
+    setTimeout(() => {
+      if (textarea) {
+        textarea.focus();
+        const pos = start + cursorOffset;
+        textarea.setSelectionRange(pos, pos);
+      }
+    }, 0);
   };
 
   const handleTogglePinNewsPost = async (postId: string) => {
@@ -3598,15 +3710,43 @@ export function AdminDashboard() {
                     </p>
                   </div>
 
-                  {/* Formulario para publicar nueva noticia */}
+                  {/* Formulario para publicar o editar noticia */}
                   <form onSubmit={handleCreateNewsPost} className="bg-background border border-border/60 rounded-3xl p-6 space-y-4 shadow-xs">
-                    <h3 className="font-bold text-base flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-primary" /> Publicar Nueva Nota / Comunicado
-                    </h3>
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-base flex items-center gap-2">
+                        {editingNewsId ? (
+                          <>
+                            <Edit2 className="w-4 h-4 text-primary" /> Editando Nota / Comunicado
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 text-primary" /> Publicar Nueva Nota / Comunicado
+                          </>
+                        )}
+                      </h3>
+
+                      {editingNewsId && (
+                        <button
+                          type="button"
+                          onClick={handleCancelEditNewsPost}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted text-muted-foreground hover:text-foreground text-xs font-bold cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Cancelar edición
+                        </button>
+                      )}
+                    </div>
 
                     {newsFormError && (
                       <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 text-xs font-semibold">
                         {newsFormError}
+                      </div>
+                    )}
+
+                    {newsFormSuccess && (
+                      <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                        <Check className="w-4 h-4" />
+                        <span>{newsFormSuccess}</span>
                       </div>
                     )}
 
@@ -3640,17 +3780,123 @@ export function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold ml-1">Contenido de la Nota *</label>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-xs font-semibold ml-1">Contenido de la Nota *</label>
+                        <span className="text-[11px] text-muted-foreground">
+                          Seleccioná texto y usá la barra para aplicar negrita, cursiva, tamaño o listas
+                        </span>
+                      </div>
+
+                      {/* Barra de Herramientas de Formato (Negrita, Cursiva, Subrayado, Tamaños de letra, Lista, Resaltado) */}
+                      <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-muted/40 border border-border/60">
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('bold')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs font-black flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Negrita"
+                        >
+                          <Bold className="w-3.5 h-3.5" />
+                          <span>Negrita</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('italic')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs italic font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Cursiva"
+                        >
+                          <Italic className="w-3.5 h-3.5" />
+                          <span>Cursiva</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('underline')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs underline font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Subrayado"
+                        >
+                          <Underline className="w-3.5 h-3.5" />
+                          <span>Subrayado</span>
+                        </button>
+
+                        <div className="h-5 w-px bg-border/70 mx-1" />
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('size_lg')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs font-black text-primary flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Letra Grande (Título de sección)"
+                        >
+                          <span>A+ Grande</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('size_md')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Letra Mediana (Subtítulo)"
+                        >
+                          <span>A Mediana</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('size_sm')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-[11px] font-medium text-muted-foreground flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Letra Chica (Nota al pie)"
+                        >
+                          <span>A- Chica</span>
+                        </button>
+
+                        <div className="h-5 w-px bg-border/70 mx-1" />
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('list')}
+                          className="px-2.5 py-1.5 rounded-lg bg-background hover:bg-muted border border-border/60 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Lista con viñetas"
+                        >
+                          <List className="w-3.5 h-3.5" />
+                          <span>Lista</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => applyNewsFormat('highlight')}
+                          className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Resaltar con color"
+                        >
+                          <Highlighter className="w-3.5 h-3.5" />
+                          <span>Resaltar</span>
+                        </button>
+                      </div>
+
                       <textarea
+                        ref={newsBodyTextareaRef}
                         value={newPostBody}
                         onChange={(e) => setNewPostBody(e.target.value)}
                         placeholder="Escribí aquí el comunicado para los usuarios de la página..."
-                        rows={4}
-                        maxLength={1500}
+                        rows={6}
+                        maxLength={3000}
                         className="w-full px-4 py-3 bg-muted/30 border border-border/60 rounded-xl focus:ring-2 focus:ring-primary/40 outline-none text-sm resize-y"
                         required
                       />
+
+                      {/* Vista previa en vivo del formato */}
+                      {newPostBody.trim() && (
+                        <div className="p-4 rounded-2xl bg-muted/20 border border-border/50 space-y-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-primary">
+                            Vista Previa de la Nota
+                          </span>
+                          {newPostTitle.trim() && (
+                            <h4 className="font-display font-black text-base text-foreground">
+                              {newPostTitle}
+                            </h4>
+                          )}
+                          <FormattedNewsText text={newPostBody} />
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
@@ -3665,13 +3911,28 @@ export function AdminDashboard() {
                         <span>Fijar arriba como nota destacada</span>
                       </label>
 
-                      <button
-                        type="submit"
-                        disabled={savingNews}
-                        className="px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:opacity-90 disabled:opacity-50 cursor-pointer shadow-sm"
-                      >
-                        {savingNews ? 'Publicando...' : 'Publicar Noticia'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {editingNewsId && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditNewsPost}
+                            className="px-4 py-2.5 bg-muted text-muted-foreground hover:text-foreground font-bold rounded-xl text-xs cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                        <button
+                          type="submit"
+                          disabled={savingNews}
+                          className="px-5 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:opacity-90 disabled:opacity-50 cursor-pointer shadow-sm"
+                        >
+                          {savingNews
+                            ? 'Guardando...'
+                            : editingNewsId
+                            ? 'Guardar Cambios'
+                            : 'Publicar Noticia'}
+                        </button>
+                      </div>
                     </div>
                   </form>
 
@@ -3714,12 +3975,18 @@ export function AdminDashboard() {
                                   </span>
                                 </div>
                                 <h4 className="font-bold text-base text-foreground">{post.title}</h4>
-                                <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
-                                  {post.body}
-                                </p>
+                                <FormattedNewsText text={post.body} />
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditNewsPost(post)}
+                                  className="p-2 rounded-xl border border-border/60 bg-muted/40 text-muted-foreground hover:text-primary hover:border-primary/30 transition-colors cursor-pointer"
+                                  title="Editar noticia"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => handleTogglePinNewsPost(post.id)}

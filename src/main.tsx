@@ -7,8 +7,23 @@ import App from './App.tsx'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(error => {
-      console.error('ServiceWorker registration failed:', error);
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        // Verificar activamente si hay una nueva versión disponible
+        registration.update().catch(() => {});
+      })
+      .catch((error) => {
+        console.error('ServiceWorker registration failed:', error);
+      });
+
+    // Auto-actualizar la pestaña cuando el nuevo Service Worker toma el control
+    let isRefreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        window.location.reload();
+      }
     });
   });
 }

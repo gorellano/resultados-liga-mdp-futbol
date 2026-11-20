@@ -2,6 +2,11 @@
 declare let self: ServiceWorkerGlobalScope
 
 import { precacheAndRoute } from 'workbox-precaching'
+import { clientsClaim } from 'workbox-core'
+
+// Forzar activación inmediata de nuevas versiones y tomar control de clientes activos
+self.skipWaiting()
+clientsClaim()
 
 // Precache los assets compilados
 precacheAndRoute(self.__WB_MANIFEST || [])

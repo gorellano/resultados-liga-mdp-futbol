@@ -54,21 +54,59 @@ export const OFFICIAL_ADARO_FINAL_STANDINGS: Record<string, OfficialAdaroStandin
   'banco provincia':       { played: 48, points: 10,  average: 0.21 },
 };
 
-export function findOfficialAdaroOverride(team: Team): OfficialAdaroStandingOverride | null {
-  const candidates = [team.name, team.display_name || '']
-    .map(str => str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())
-    .filter(Boolean);
+const ADARO_CLUB_ALIASES: Array<{ pattern: RegExp; key: string }> = [
+  { pattern: /banco\s*prov/i, key: 'banco provincia' },
+  { pattern: /argentinos\s*del\s*sud/i, key: 'argentinos del sud' },
+  { pattern: /san\s*lorenzo/i, key: 'san lorenzo' },
+  { pattern: /san\s*isidro/i, key: 'san isidro' },
+  { pattern: /san\s*jose/i, key: 'san jose' },
+  { pattern: /gral\.?\s*urquiza|general\s*urquiza/i, key: 'general urquiza' },
+  { pattern: /once\s*unidos/i, key: 'once unidos' },
+  { pattern: /dep(ortivo)?\.?\s*norte/i, key: 'deportivo norte' },
+  { pattern: /circulo\s*dep/i, key: 'circulo deportivo' },
+  { pattern: /al\s*ver\s*veras/i, key: 'al ver veras' },
+  { pattern: /el\s*ca[ñn]on/i, key: 'el canon' },
+  { pattern: /river/i, key: 'river plate' },
+  { pattern: /boca/i, key: 'boca' },
+  { pattern: /aldosivi/i, key: 'aldosivi' },
+  { pattern: /alvarado/i, key: 'alvarado' },
+  { pattern: /kimberley/i, key: 'kimberley' },
+  { pattern: /talleres/i, key: 'talleres' },
+  { pattern: /chapadmalal/i, key: 'chapadmalal' },
+  { pattern: /independiente/i, key: 'independiente' },
+  { pattern: /quilmes/i, key: 'quilmes' },
+  { pattern: /racing/i, key: 'racing' },
+  { pattern: /nacion/i, key: 'nacion' },
+  { pattern: /almagro/i, key: 'almagro' },
+  { pattern: /cadetes/i, key: 'cadetes' },
+  { pattern: /colegiales/i, key: 'colegiales' },
+  { pattern: /banfield/i, key: 'banfield' },
+  { pattern: /libertad/i, key: 'libertad' },
+  // Atlético Mar del Plata solo si no coincide con ningún otro club que tenga "de Mar del Plata" en su razón social
+  { pattern: /mar\s*del\s*plata/i, key: 'mar del plata' },
+];
 
+export function findOfficialAdaroOverride(team: Team): OfficialAdaroStandingOverride | null {
+  const candidates = [team.display_name, team.name]
+    .filter(Boolean)
+    .map(str => (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim());
+
+  // 1. Coincidencia exacta directa
   for (const cand of candidates) {
     if (OFFICIAL_ADARO_FINAL_STANDINGS[cand]) {
       return OFFICIAL_ADARO_FINAL_STANDINGS[cand];
     }
-    for (const [key, val] of Object.entries(OFFICIAL_ADARO_FINAL_STANDINGS)) {
-      if (cand.includes(key) || key.includes(cand)) {
-        return val;
+  }
+
+  // 2. Coincidencia por patrones específicos (Banco Provincia tiene prioridad sobre "Mar del Plata")
+  for (const cand of candidates) {
+    for (const { pattern, key } of ADARO_CLUB_ALIASES) {
+      if (pattern.test(cand)) {
+        return OFFICIAL_ADARO_FINAL_STANDINGS[key] || null;
       }
     }
   }
+
   return null;
 }
 

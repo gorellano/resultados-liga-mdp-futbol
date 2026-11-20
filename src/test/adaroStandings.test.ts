@@ -3,7 +3,8 @@ import {
   calculateAdaroZoneStandings, 
   groupZoneMatchesIntoTiras,
   getDivisionOrder,
-  CUP_BADGES
+  CUP_BADGES,
+  findOfficialAdaroOverride
 } from '../lib/adaroStandings';
 import { 
   ADARO_TOURNAMENT_ID, 
@@ -542,6 +543,36 @@ describe('Torneo Armando "Chamaco" Adaro - Standings, Reglas y Promedios', () =>
       expect(tiras[0].homeTiraPoints).toBe(3);
       expect(tiras[0].awayTiraPoints).toBe(0);
       expect(tiras[0].matches.length).toBe(2);
+    });
+  });
+
+  describe('6. Overrides Oficiales de Cierre de Primera Fase', () => {
+    it('Banco Provincia debe resolver 10 puntos y 0.21 de promedio sin colisionar con Mar del Plata', () => {
+      const bancoTeam: Team = {
+        id: 'team-banco',
+        name: 'Club Banco Provincia de Mar del Plata',
+        display_name: 'Banco Provincia',
+        logo_url: null,
+      };
+
+      const mdpTeam: Team = {
+        id: 'team-mdp',
+        name: 'Club Atlético Mar del Plata',
+        display_name: 'Atlético Mar del Plata',
+        logo_url: null,
+      };
+
+      const bancoOverride = findOfficialAdaroOverride(bancoTeam);
+      expect(bancoOverride).toBeDefined();
+      expect(bancoOverride?.played).toBe(48);
+      expect(bancoOverride?.points).toBe(10);
+      expect(bancoOverride?.average).toBe(0.21);
+
+      const mdpOverride = findOfficialAdaroOverride(mdpTeam);
+      expect(mdpOverride).toBeDefined();
+      expect(mdpOverride?.played).toBe(48);
+      expect(mdpOverride?.points).toBe(63);
+      expect(mdpOverride?.average).toBe(1.31);
     });
   });
 });
